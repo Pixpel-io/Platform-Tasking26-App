@@ -1,15 +1,16 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useOptimistic,
   useRef,
-  useState,
   useTransition,
 } from "react";
 import type { MessageWithRelations } from "@/lib/chat-shared";
 import { useChatMessages } from "@/lib/use-chat-messages";
+import { useMessageAlerts } from "@/lib/use-message-alerts";
 import {
   deleteMessage,
   editMessage,
@@ -46,6 +47,7 @@ export function ChatRoom({
   );
   const [, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Optimistic outgoing messages (instant echo before the server row arrives).
   const [optimistic, addOptimistic] = useOptimistic(
@@ -54,10 +56,25 @@ export function ChatRoom({
   );
 
   const { typingUsers, broadcastTyping } = useTyping(target, meId, meName);
+  const { unreadCount, setAtBottom } = useMessageAlerts(messages, meId);
 
-  // Auto-scroll to newest.
+  // Whether the viewport is near the bottom — controls auto-scroll and whether
+  // the "new messages" pill accrues.
+  const isNearBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    bottomRef.current?.scrollIntoView({ behavior });
+  }, []);
+
+  // Auto-scroll to newest only when the user is already at the bottom, so we
+  // don't yank them away while they're reading history.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isNearBottom()) scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optimistic.length]);
 
   // Mark the room read when messages change.
@@ -156,8 +173,12 @@ export function ChatRoom({
   const grouped = useMemo(() => groupByDay(optimistic), [optimistic]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+    <div className="relative flex h-full flex-col">
+      <div
+        ref={scrollRef}
+        onScroll={() => setAtBottom(isNearBottom())}
+        className="flex-1 overflow-y-auto px-4 py-6"
+      >
         {optimistic.length === 0 && (
           <div className="grid h-full place-items-center text-center">
             <div>
@@ -173,12 +194,10 @@ export function ChatRoom({
 
         {grouped.map(({ day, items }) => (
           <div key={day}>
-            <div className="my-4 flex items-center gap-3">
-              <span className="h-px flex-1 bg-border" />
-              <span className="rounded-full border border-border bg-surface px-3 py-0.5 text-xs text-muted">
+            <div className="sticky top-0 z-10 my-4 flex items-center justify-center">
+              <span className="rounded-full border border-border bg-surface/90 px-3 py-0.5 text-xs font-medium text-muted shadow-sm backdrop-blur">
                 {day}
               </span>
-              <span className="h-px flex-1 bg-border" />
             </div>
             {items.map((m, i) => {
               const prev = items[i - 1];
@@ -218,6 +237,29 @@ export function ChatRoom({
         ))}
         <div ref={bottomRef} />
       </div>
+
+      {unreadCount > 0 && (
+        <button
+          onClick={() => {
+            scrollToBottom();
+            setAtBottom(true);
+          }}
+          className="absolute bottom-28 left-1/2 z-20 flex -translate-x-1/2 animate-scale-in cursor-pointer items-center gap-2 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-lg transition-opacity hover:opacity-90"
+        >
+          <svg
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 5v14M19 12l-7 7-7-7" />
+          </svg>
+          {unreadCount} new {unreadCount === 1 ? "message" : "messages"}
+        </button>
+      )}
 
       <TypingIndicator users={typingUsers} />
 

@@ -31,18 +31,18 @@ function ReactionPills({
     byEmoji.set(r.emoji, cur);
   }
   return (
-    <div className="mt-1 flex flex-wrap gap-1">
+    <div className="mt-1.5 flex flex-wrap gap-1">
       {[...byEmoji.entries()].map(([emoji, { count, mine }]) => (
         <button
           key={emoji}
           onClick={() => onReact(emoji)}
-          className={`flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-all duration-150 active:scale-95 ${
+          className={`flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium tabular-nums transition-colors duration-150 ${
             mine
-              ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border bg-surface text-muted hover:bg-surface-2 hover:text-foreground"
+              ? "border-primary/30 bg-primary/10 text-primary"
+              : "border-border bg-surface text-muted hover:border-primary/30 hover:text-foreground"
           }`}
         >
-          <span>{emoji}</span>
+          <span className="text-sm leading-none">{emoji}</span>
           <span>{count}</span>
         </button>
       ))}
@@ -123,8 +123,8 @@ export function MessageItem({
 
   return (
     <div
-      className={`group relative flex animate-fade-in gap-3 rounded-lg px-2 transition-colors duration-150 hover:bg-surface-2/50 ${
-        grouped ? "py-0.5" : "mt-2 py-1"
+      className={`group relative flex animate-fade-in gap-3 rounded-lg px-2 transition-colors duration-150 hover:bg-surface-2/40 ${
+        grouped ? "py-0.5" : "mt-3 py-0.5"
       } ${isOptimistic ? "opacity-60" : ""}`}
     >
       {grouped ? (
@@ -147,8 +147,19 @@ export function MessageItem({
             </span>
             <span className="text-xs text-muted">{time}</span>
             {message.pinned_at && (
-              <span className="text-[10px] font-medium text-primary">
-                📌 pinned
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                <svg
+                  className="h-3 w-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 17v5M9 10.76V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6.76l2 3.24H7l2-3.24z" />
+                </svg>
+                Pinned
               </span>
             )}
           </div>
@@ -196,15 +207,15 @@ export function MessageItem({
           </div>
         ) : (
           <div
-            className={`inline-block max-w-[75ch] rounded-2xl border px-3 py-2 text-sm shadow-sm ${
-              isMine
-                ? "rounded-tl-sm border-primary/20 bg-primary/10 text-foreground"
-                : "rounded-tl-sm border-border bg-surface text-foreground"
+            className={`inline-block max-w-[68ch] rounded-2xl rounded-tl-md border border-border/60 bg-surface px-3.5 py-2 text-sm leading-relaxed text-foreground ${
+              isMine ? "border-l-2 border-l-primary/50" : ""
             }`}
           >
             <Body text={message.body} />
             {message.edited_at && (
-              <span className="ml-1 text-[10px] text-muted">(edited)</span>
+              <span className="ml-1.5 align-baseline text-[10px] text-muted">
+                (edited)
+              </span>
             )}
           </div>
         )}

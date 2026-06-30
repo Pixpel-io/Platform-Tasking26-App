@@ -109,6 +109,103 @@ export async function getThreadReplies(
   return (data as MessageWithRelations[] | null) ?? [];
 }
 
+// Per-conversation unread counts for the current user across all their DMs in
+// a workspace: messages newer than their last_read_at (and not their own).
+// Returns a map of conversation_id → unread count (omitting zeros).
+export const getDmUnreadCounts = cache(
+  async (workspaceId: string): Promise<Record<string, number>> => {
+    const user = await requireUser();
+    const supabase = await createClient();
+
+    const { data: convs } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null);
+    const conversationIds = (convs ?? []).map((c) => c.id);
+    if (conversationIds.length === 0) return {};
+
+    const { data: reads } = await supabase
+      .from("read_state")
+      .select("conversation_id, last_read_at")
+      .eq("user_id", user.id)
+      .in("conversation_id", conversationIds);
+    const lastReadByConv = new Map<string, string>();
+    for (const r of reads ?? []) {
+      if (r.conversation_id)
+        lastReadByConv.set(r.conversation_id, r.last_read_at);
+    }
+
+    // Pull recent top-level messages from others; tally those after last read.
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("conversation_id, user_id, created_at")
+      .in("conversation_id", conversationIds)
+      .is("parent_id", null)
+      .is("deleted_at", null)
+      .neq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    const counts: Record<string, number> = {};
+    for (const m of msgs ?? []) {
+      if (!m.conversation_id) continue;
+      const lastRead = lastReadByConv.get(m.conversation_id);
+      if (lastRead && new Date(m.created_at) <= new Date(lastRead)) continue;
+      counts[m.conversation_id] = (counts[m.conversation_id] ?? 0) + 1;
+    }
+    return counts;
+  },
+);
+
+// Per-channel unread counts for the current user across all groups they can see
+// in a workspace: messages newer than their last_read_at (and not their own).
+// Returns a map of channel_id → unread count (omitting zeros).
+export const getChannelUnreadCounts = cache(
+  async (workspaceId: string): Promise<Record<string, number>> => {
+    const user = await requireUser();
+    const supabase = await createClient();
+
+    const { data: chans } = await supabase
+      .from("channels")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null);
+    const channelIds = (chans ?? []).map((c) => c.id);
+    if (channelIds.length === 0) return {};
+
+    const { data: reads } = await supabase
+      .from("read_state")
+      .select("channel_id, last_read_at")
+      .eq("user_id", user.id)
+      .in("channel_id", channelIds);
+    const lastReadByChannel = new Map<string, string>();
+    for (const r of reads ?? []) {
+      if (r.channel_id) lastReadByChannel.set(r.channel_id, r.last_read_at);
+    }
+
+    // Pull recent top-level messages from others; tally those after last read.
+    const { data: msgs } = await supabase
+      .from("messages")
+      .select("channel_id, user_id, created_at")
+      .in("channel_id", channelIds)
+      .is("parent_id", null)
+      .is("deleted_at", null)
+      .neq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    const counts: Record<string, number> = {};
+    for (const m of msgs ?? []) {
+      if (!m.channel_id) continue;
+      const lastRead = lastReadByChannel.get(m.channel_id);
+      if (lastRead && new Date(m.created_at) <= new Date(lastRead)) continue;
+      counts[m.channel_id] = (counts[m.channel_id] ?? 0) + 1;
+    }
+    return counts;
+  },
+);
+
 export const getWorkspaceMembersForChat = cache(
   async (workspaceId: string): Promise<Profile[]> => {
     await requireUser();

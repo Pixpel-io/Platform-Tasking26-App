@@ -298,7 +298,7 @@ export function formatMessageBody(text: string): ReactNode {
           return (
             <pre
               key={`b-${i}`}
-              className="my-1 overflow-x-auto rounded-lg border border-border bg-surface-2 p-3 font-mono text-[0.85em] leading-relaxed text-foreground"
+              className="my-1 overflow-x-auto rounded-md bg-surface-2 px-3 py-2 font-mono text-[0.85em] leading-relaxed text-foreground"
             >
               <code>{code}</code>
             </pre>

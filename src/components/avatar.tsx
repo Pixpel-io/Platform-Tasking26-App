@@ -24,9 +24,27 @@ export function Avatar({
   const letter =
     name?.[0]?.toUpperCase() ?? email?.[0]?.toUpperCase() ?? "?";
 
+  // Deterministic accent per person so name fallbacks read as distinct.
+  const palette = [
+    "bg-indigo-500/15 text-indigo-500",
+    "bg-violet-500/15 text-violet-500",
+    "bg-sky-500/15 text-sky-500",
+    "bg-emerald-500/15 text-emerald-500",
+    "bg-amber-500/15 text-amber-600",
+    "bg-rose-500/15 text-rose-500",
+    "bg-cyan-500/15 text-cyan-500",
+    "bg-fuchsia-500/15 text-fuchsia-500",
+  ];
+  const seed = name ?? email ?? "?";
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  const tone = palette[Math.abs(hash) % palette.length];
+
   return (
     <span
-      className={`relative grid shrink-0 place-items-center overflow-hidden rounded-full bg-surface-2 font-semibold text-foreground ${sizes[size]} ${className}`}
+      className={`relative grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold ${
+        avatarUrl ? "bg-surface-2" : tone
+      } ${sizes[size]} ${className}`}
     >
       {avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element

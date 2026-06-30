@@ -12,7 +12,9 @@ import { Avatar } from "@/components/avatar";
 import { LinkProgressBar, LinkSpinner } from "@/components/link-pending";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { usePresence } from "@/components/presence-provider";
-import { useUnreadNotifications } from "@/lib/use-unread-notifications";
+import { useDmUnreads } from "@/lib/use-dm-unreads";
+import { useChannelUnreads } from "@/lib/use-channel-unreads";
+import { useLiveMembers } from "@/lib/use-live-members";
 import { signOut } from "@/app/(auth)/actions";
 import { openDirectMessage } from "./chat-actions";
 import { CreateChannelDialog } from "./create-channel-dialog";
@@ -49,9 +51,10 @@ export function Sidebar({
   userId,
   channels,
   conversations,
-  members,
+  members: initialMembers,
   projects,
-  unreadNotifications,
+  dmUnreads,
+  channelUnreads,
 }: {
   workspaceId: string;
   workspaces: MembershipWithWorkspace[];
@@ -61,10 +64,17 @@ export function Sidebar({
   conversations: ConversationWithParticipants[];
   members: Profile[];
   projects: ProjectWithMembers[];
-  unreadNotifications: number;
+  dmUnreads: Record<string, number>;
+  channelUnreads: Record<string, number>;
 }) {
   const pathname = usePathname();
-  const unread = useUnreadNotifications(workspaceId, userId, unreadNotifications);
+  const dmUnreadCounts = useDmUnreads(workspaceId, userId, dmUnreads);
+  const channelUnreadCounts = useChannelUnreads(
+    workspaceId,
+    userId,
+    channelUnreads,
+  );
+  const members = useLiveMembers(initialMembers);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [, startTransition] = useTransition();
@@ -91,12 +101,6 @@ export function Sidebar({
 
   const topNav = [
     { href: base, label: "Dashboard", icon: "M3 12l9-9 9 9M5 10v10h14V10" },
-    {
-      href: `${base}/notifications`,
-      label: "Notifications",
-      icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0",
-      badge: unread,
-    },
     {
       href: `${base}/members`,
       label: "Members",
@@ -190,11 +194,6 @@ export function Sidebar({
               >
                 <Icon d={item.icon} />
                 <span className="flex-1">{item.label}</span>
-                {"badge" in item && item.badge ? (
-                  <span className="grid h-5 min-w-5 animate-scale-in place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30">
-                    {item.badge > 99 ? "99+" : item.badge}
-                  </span>
-                ) : null}
               </Link>
             );
           })}
@@ -219,6 +218,7 @@ export function Sidebar({
             {channels.map((c) => {
               const href = `${base}/c/${c.id}`;
               const active = pathname === href;
+              const unreadCh = channelUnreadCounts[c.id] ?? 0;
               return (
                 <Link
                   key={c.id}
@@ -226,14 +226,21 @@ export function Sidebar({
                   className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
+                      : unreadCh > 0
+                        ? "font-semibold text-foreground hover:bg-surface-2"
+                        : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
                   <Icon
                     d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m14 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
                     className="h-3.5 w-3.5 shrink-0"
                   />
-                  <span className="truncate">{c.name}</span>
+                  <span className="flex-1 truncate">{c.name}</span>
+                  {unreadCh > 0 && (
+                    <span className="grid h-5 min-w-5 animate-scale-in place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30">
+                      {unreadCh > 99 ? "99+" : unreadCh}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -263,10 +270,15 @@ export function Sidebar({
               const label = member.full_name ?? member.email;
               const href = conversationId ? `${base}/dm/${conversationId}` : null;
               const active = href != null && pathname === href;
+              const unreadDm = conversationId
+                ? (dmUnreadCounts[conversationId] ?? 0)
+                : 0;
               const className = `flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-all duration-150 ${
                 active
                   ? "bg-primary/10 font-medium text-primary"
-                  : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
+                  : unreadDm > 0
+                    ? "font-semibold text-foreground hover:bg-surface-2"
+                    : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
               }`;
               const inner = (
                 <>
@@ -282,7 +294,12 @@ export function Sidebar({
                       className="absolute -bottom-0.5 -right-0.5 border-2 border-surface"
                     />
                   </span>
-                  <span className="truncate">{label}</span>
+                  <span className="flex-1 truncate">{label}</span>
+                  {unreadDm > 0 && (
+                    <span className="grid h-5 min-w-5 animate-scale-in place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30">
+                      {unreadDm > 99 ? "99+" : unreadDm}
+                    </span>
+                  )}
                 </>
               );
               return href ? (

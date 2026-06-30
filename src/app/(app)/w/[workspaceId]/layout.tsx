@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyWorkspaces, getProfile, requireUser } from "@/lib/auth";
 import {
+  getChannelUnreadCounts,
   getChannels,
   getConversations,
+  getDmUnreadCounts,
   getWorkspaceMembersForChat,
 } from "@/lib/chat";
 import { getProjects } from "@/lib/projects";
@@ -11,6 +13,7 @@ import { getUnreadNotificationCount } from "@/lib/notifications";
 import { PresenceProvider } from "@/components/presence-provider";
 import { normalizeColor } from "@/lib/workspace-theme";
 import { Sidebar } from "./sidebar";
+import { NotificationBell } from "./notification-bell";
 
 export default async function WorkspaceLayout({
   children,
@@ -40,6 +43,8 @@ export default async function WorkspaceLayout({
     members,
     projects,
     unreadNotifications,
+    dmUnreads,
+    channelUnreads,
   ] = await Promise.all([
     getMyWorkspaces(),
     getProfile(),
@@ -48,6 +53,8 @@ export default async function WorkspaceLayout({
     getWorkspaceMembersForChat(workspaceId),
     getProjects(workspaceId),
     getUnreadNotificationCount(workspaceId),
+    getDmUnreadCounts(workspaceId),
+    getChannelUnreadCounts(workspaceId),
   ]);
 
   return (
@@ -65,9 +72,19 @@ export default async function WorkspaceLayout({
           conversations={conversations}
           members={members}
           projects={projects}
-          unreadNotifications={unreadNotifications}
+          dmUnreads={dmUnreads}
+          channelUnreads={channelUnreads}
         />
-        <main className="flex-1 overflow-y-auto bg-background">{children}</main>
+        <div className="relative flex-1 overflow-hidden">
+          <NotificationBell
+            workspaceId={workspaceId}
+            userId={user.id}
+            initialCount={unreadNotifications}
+          />
+          <main className="h-full overflow-y-auto bg-background">
+            {children}
+          </main>
+        </div>
       </div>
     </PresenceProvider>
   );
