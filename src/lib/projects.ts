@@ -152,3 +152,21 @@ export async function getProjectActivity(
     (data as (ActivityLog & { profiles: Profile | null })[] | null) ?? []
   );
 }
+
+// Recent activity across every project the user can see in a workspace. RLS
+// filters out projects the caller isn't a member of (or workspace admin for).
+export async function getWorkspaceActivity(
+  workspaceId: string,
+  limit = 15,
+): Promise<(ActivityLog & { profiles: Profile | null })[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("activity_logs")
+    .select("*, profiles:actor_id(*)")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (
+    (data as (ActivityLog & { profiles: Profile | null })[] | null) ?? []
+  );
+}

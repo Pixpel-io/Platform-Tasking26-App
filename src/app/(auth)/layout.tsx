@@ -9,24 +9,41 @@ export default function AuthLayout({
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-primary p-12 text-primary-foreground lg:flex">
-        <Link href="/" className="text-xl font-bold tracking-tight">
+      <div className="relative hidden flex-col justify-between overflow-hidden p-12 text-white lg:flex">
+        {/* Animated gradient base */}
+        <div className="absolute inset-0 -z-10 bg-linear-to-br from-primary via-indigo-600 to-violet-700" />
+        {/* Drifting aurora orbs */}
+        <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 animate-[aurora-drift_18s_ease-in-out_infinite] rounded-full bg-white/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 animate-[aurora-drift_24s_ease-in-out_infinite_reverse] rounded-full bg-violet-400/30 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-24 right-16 h-56 w-56 animate-float-slow rounded-full bg-sky-300/20 blur-3xl" />
+        {/* Subtle grid overlay for texture */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)",
+            backgroundSize: "44px 44px",
+          }}
+        />
+
+        <Link
+          href="/"
+          className="relative text-xl font-bold tracking-tight transition-opacity hover:opacity-80"
+        >
           Tasking
         </Link>
-        <div className="space-y-4">
-          <h1 className="text-3xl font-semibold leading-tight">
+        <div className="relative space-y-4">
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight">
             Where conversations and work live together.
           </h1>
-          <p className="max-w-md text-primary-foreground/80">
+          <p className="max-w-md text-white/80">
             Chat in groups and DMs, run projects on Kanban, lists, and
             calendars — all in real time, for your whole team.
           </p>
         </div>
-        <p className="text-sm text-primary-foreground/60">
+        <p className="relative text-sm text-white/60">
           Slack-style messaging · ClickUp-style projects
         </p>
-        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-24 right-12 h-72 w-72 rounded-full bg-black/10 blur-2xl" />
       </div>
 
       {/* Form panel */}

@@ -12,9 +12,11 @@ export default async function LoginPage({
   const error = typeof params.error === "string" ? params.error : undefined;
 
   return (
-    <div className="space-y-6">
+    <div className="animate-fade-in-up space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-semibold text-foreground">Welcome back</h2>
+        <h2 className="text-3xl font-semibold tracking-tight text-foreground">
+          Welcome <span className="gradient-text">back</span>
+        </h2>
         <p className="text-sm text-muted">Sign in to your workspace.</p>
       </div>
 

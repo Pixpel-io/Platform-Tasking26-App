@@ -1,11 +1,30 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui";
-import { signInWithGoogle } from "./actions";
 
 export function GoogleButton({ redirectedFrom }: { redirectedFrom?: string }) {
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
+
+  // Runs in the browser so the PKCE code_verifier is stored in a cookie the
+  // /auth/callback route can read back to complete the code exchange.
+  async function onClick() {
+    setPending(true);
+    const supabase = createClient();
+    const next = redirectedFrom
+      ? `?next=${encodeURIComponent(redirectedFrom)}`
+      : "";
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback${next}` },
+    });
+    if (error || !data?.url) {
+      setPending(false);
+      return;
+    }
+    window.location.href = data.url;
+  }
 
   return (
     <Button
@@ -13,11 +32,7 @@ export function GoogleButton({ redirectedFrom }: { redirectedFrom?: string }) {
       variant="outline"
       className="w-full"
       disabled={pending}
-      onClick={() =>
-        startTransition(async () => {
-          await signInWithGoogle(redirectedFrom);
-        })
-      }
+      onClick={onClick}
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24">
         <path

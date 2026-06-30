@@ -24,7 +24,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} theme-transition font-sans antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
       </body>

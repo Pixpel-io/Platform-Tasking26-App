@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageWithRelations } from "@/lib/chat-shared";
 
+// Name the sender FK explicitly — `messages` also has pinned_by → profiles,
+// so a bare profiles(*) embed is ambiguous and resolves to null.
 const MESSAGE_SELECT =
-  "*, profiles(*), message_reactions(*), message_attachments(*)";
+  "*, profiles:profiles!messages_user_id_fkey(*), message_reactions(*), message_attachments(*)";
 
 type Target = { channelId?: string; conversationId?: string };
 

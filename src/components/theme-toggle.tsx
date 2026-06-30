@@ -9,10 +9,10 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       type="button"
       onClick={toggleTheme}
       aria-label="Toggle theme"
-      className={`grid h-9 w-9 place-items-center rounded-lg text-foreground hover:bg-surface-2 ${className}`}
+      className={`grid h-9 w-9 cursor-pointer place-items-center rounded-lg text-foreground transition-colors duration-150 hover:bg-surface-2 active:scale-90 ${className}`}
     >
       <svg
-        className="hidden h-5 w-5 dark:block"
+        className="hidden h-5 w-5 rotate-90 scale-0 transition-transform duration-300 dark:block dark:rotate-0 dark:scale-100"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -22,7 +22,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
         <path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
       </svg>
       <svg
-        className="block h-5 w-5 dark:hidden"
+        className="block h-5 w-5 rotate-0 scale-100 transition-transform duration-300 dark:hidden"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"

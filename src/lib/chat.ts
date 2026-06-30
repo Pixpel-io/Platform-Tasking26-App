@@ -11,8 +11,11 @@ import {
 export { dmCounterpart };
 export type { ConversationWithParticipants, MessageWithRelations };
 
+// `messages` has two FKs to profiles (user_id and pinned_by), so the embed
+// must name the sender FK explicitly — otherwise PostgREST can't disambiguate
+// and the join resolves to null ("Unknown" sender).
 const MESSAGE_SELECT =
-  "*, profiles(*), message_reactions(*), message_attachments(*)";
+  "*, profiles:profiles!messages_user_id_fkey(*), message_reactions(*), message_attachments(*)";
 
 // Channels the current user can see in a workspace (public + private they're in).
 export const getChannels = cache(

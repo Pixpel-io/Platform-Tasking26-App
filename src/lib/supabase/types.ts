@@ -59,6 +59,8 @@ export type TaskTimeEntry =
   Database["public"]["Tables"]["task_time_entries"]["Row"];
 export type ActivityLog =
   Database["public"]["Tables"]["activity_logs"]["Row"];
+export type Notification =
+  Database["public"]["Tables"]["notifications"]["Row"];
 
 export interface Database {
   public: {
@@ -68,6 +70,7 @@ export interface Database {
           id: string;
           email: string;
           full_name: string | null;
+          title: string | null;
           avatar_url: string | null;
           presence: PresenceStatus;
           last_seen_at: string | null;
@@ -79,6 +82,7 @@ export interface Database {
           id: string;
           email: string;
           full_name?: string | null;
+          title?: string | null;
           avatar_url?: string | null;
           presence?: PresenceStatus;
           last_seen_at?: string | null;
@@ -90,6 +94,7 @@ export interface Database {
           id?: string;
           email?: string;
           full_name?: string | null;
+          title?: string | null;
           avatar_url?: string | null;
           presence?: PresenceStatus;
           last_seen_at?: string | null;
@@ -133,6 +138,7 @@ export interface Database {
           name: string;
           slug: string | null;
           icon_url: string | null;
+          color: string;
           created_by: string;
           created_at: string;
           updated_at: string;
@@ -144,6 +150,7 @@ export interface Database {
           name: string;
           slug?: string | null;
           icon_url?: string | null;
+          color?: string;
           created_by: string;
           created_at?: string;
           updated_at?: string;
@@ -153,6 +160,7 @@ export interface Database {
           name?: string;
           slug?: string | null;
           icon_url?: string | null;
+          color?: string;
           updated_at?: string;
           deleted_at?: string | null;
         };
@@ -839,14 +847,62 @@ export interface Database {
         };
         Relationships: [];
       };
+      notifications: {
+        Row: {
+          id: string;
+          workspace_id: string;
+          user_id: string;
+          actor_id: string | null;
+          type: string;
+          title: string;
+          body: string;
+          channel_id: string | null;
+          conversation_id: string | null;
+          message_id: string | null;
+          project_id: string | null;
+          task_id: string | null;
+          meta: Record<string, unknown>;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          workspace_id: string;
+          user_id: string;
+          actor_id?: string | null;
+          type: string;
+          title?: string;
+          body?: string;
+          channel_id?: string | null;
+          conversation_id?: string | null;
+          message_id?: string | null;
+          project_id?: string | null;
+          task_id?: string | null;
+          meta?: Record<string, unknown>;
+          read_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          read_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
       create_workspace: {
-        Args: { p_workspace_name: string; p_organization_name?: string };
+        Args: {
+          p_workspace_name: string;
+          p_organization_name?: string;
+          p_color?: string;
+        };
         Returns: string;
+      };
+      delete_workspace: {
+        Args: { p_workspace_id: string };
+        Returns: string | null;
       };
       accept_invite: {
         Args: { p_token: string };
@@ -922,6 +978,10 @@ export interface Database {
       can_access_task: {
         Args: { p_task_id: string };
         Returns: boolean;
+      };
+      mark_notifications_read: {
+        Args: { p_workspace_id: string };
+        Returns: undefined;
       };
     };
     Enums: {

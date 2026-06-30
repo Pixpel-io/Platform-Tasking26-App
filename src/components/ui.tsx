@@ -7,15 +7,15 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   function Button({ className = "", variant = "primary", ...props }, ref) {
     const base =
-      "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary/50";
+      "inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-[background-color,box-shadow,opacity,transform] duration-150 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
     const variants = {
       primary:
-        "bg-primary text-primary-foreground hover:opacity-90",
+        "bg-primary text-primary-foreground shadow-sm hover:opacity-90 hover:shadow-md hover:shadow-primary/20",
       ghost:
         "text-foreground hover:bg-surface-2",
       outline:
-        "border border-border text-foreground hover:bg-surface-2",
-      danger: "bg-danger text-white hover:opacity-90",
+        "border border-border text-foreground hover:bg-surface-2 hover:border-primary/40",
+      danger: "bg-danger text-white shadow-sm hover:opacity-90 hover:shadow-md hover:shadow-danger/20",
     } as const;
     return (
       <button
@@ -34,7 +34,7 @@ export const Input = forwardRef<
   return (
     <input
       ref={ref}
-      className={`w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 ${className}`}
+      className={`w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground transition-colors duration-150 placeholder:text-muted hover:border-muted/60 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 ${className}`}
       {...props}
     />
   );
@@ -68,7 +68,7 @@ export function FormMessage({
   if (!children) return null;
   return (
     <p
-      className={`rounded-lg px-3 py-2 text-sm ${
+      className={`animate-fade-in-up rounded-lg px-3 py-2 text-sm ${
         type === "error"
           ? "bg-danger/10 text-danger"
           : "bg-success/10 text-success"

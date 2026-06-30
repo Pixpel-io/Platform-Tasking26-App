@@ -4,10 +4,10 @@ import { SignupForm } from "./signup-form";
 
 export default function SignupPage() {
   return (
-    <div className="space-y-6">
+    <div className="animate-fade-in-up space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-semibold text-foreground">
-          Create your account
+        <h2 className="text-3xl font-semibold tracking-tight text-foreground">
+          Create your <span className="gradient-text">account</span>
         </h2>
         <p className="text-sm text-muted">Start collaborating in minutes.</p>
       </div>

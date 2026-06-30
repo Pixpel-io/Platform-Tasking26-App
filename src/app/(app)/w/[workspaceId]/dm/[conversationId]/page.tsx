@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Avatar } from "@/components/avatar";
 import { getProfile, requireUser } from "@/lib/auth";
 import {
   dmCounterpart,
@@ -13,14 +14,14 @@ export default async function DMPage({
 }: PageProps<"/w/[workspaceId]/dm/[conversationId]">) {
   const { workspaceId, conversationId } = await params;
   const user = await requireUser();
-  const [conversation, profile] = await Promise.all([
+  const [conversation, profile, messages] = await Promise.all([
     getConversation(conversationId),
     getProfile(),
+    getMessages({ conversationId }),
   ]);
 
   if (!conversation) notFound();
 
-  const messages = await getMessages({ conversationId });
   const other = dmCounterpart(conversation, user.id);
   const meName = profile?.full_name ?? profile?.email ?? "You";
   const title = other?.full_name ?? other?.email ?? "Direct message";
@@ -31,9 +32,12 @@ export default async function DMPage({
         title={title}
         subtitle={other?.email ?? undefined}
         icon={
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-surface-2 text-xs font-semibold text-foreground">
-            {(other?.full_name ?? other?.email ?? "?")[0]?.toUpperCase()}
-          </span>
+          <Avatar
+            name={other?.full_name}
+            email={other?.email}
+            avatarUrl={other?.avatar_url}
+            size="sm"
+          />
         }
       />
       <div className="min-h-0 flex-1">

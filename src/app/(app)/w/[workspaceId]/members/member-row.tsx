@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { Avatar } from "@/components/avatar";
 import { usePresence } from "@/components/presence-provider";
 import type { Profile, WorkspaceMember } from "@/lib/supabase/types";
 import { openDirectMessage } from "../chat-actions";
@@ -27,8 +28,12 @@ export function MemberRow({ member, isSelf, workspaceId }: Props) {
   return (
     <li className="group flex items-center justify-between px-5 py-3">
       <div className="flex items-center gap-3">
-        <span className="relative grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-sm font-semibold text-foreground">
-          {name[0]?.toUpperCase()}
+        <span className="relative">
+          <Avatar
+            name={profile?.full_name}
+            email={profile?.email}
+            avatarUrl={profile?.avatar_url}
+          />
           <span
             className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface ${
               online ? "bg-success" : "bg-muted/50"

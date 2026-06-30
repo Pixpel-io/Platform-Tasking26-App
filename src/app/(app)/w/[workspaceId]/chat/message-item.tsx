@@ -1,39 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Avatar } from "@/components/avatar";
+import { EmojiPicker } from "@/components/emoji-picker";
 import type { MessageWithRelations } from "@/lib/chat-shared";
+import { QUICK_REACTIONS } from "@/lib/emoji";
+import { formatMessageBody } from "@/lib/message-format";
 import { AttachmentView } from "./attachment-view";
 
-const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "👀", "✅"];
-
-function Avatar({ name, email }: { name: string | null; email: string | null }) {
-  const letter = name?.[0]?.toUpperCase() ?? email?.[0]?.toUpperCase() ?? "?";
-  return (
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-sm font-semibold text-foreground">
-      {letter}
-    </span>
-  );
-}
-
-// Renders body text with @mentions highlighted.
+// Renders body text with @mentions highlighted + Slack-style code formatting.
 function Body({ text }: { text: string }) {
-  const parts = text.split(/(@[a-zA-Z0-9._-]+)/g);
-  return (
-    <span className="whitespace-pre-wrap break-words">
-      {parts.map((p, i) =>
-        p.startsWith("@") ? (
-          <span
-            key={i}
-            className="rounded bg-primary/10 px-1 font-medium text-primary"
-          >
-            {p}
-          </span>
-        ) : (
-          <span key={i}>{p}</span>
-        ),
-      )}
-    </span>
-  );
+  return formatMessageBody(text);
 }
 
 function ReactionPills({
@@ -59,10 +36,10 @@ function ReactionPills({
         <button
           key={emoji}
           onClick={() => onReact(emoji)}
-          className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors ${
+          className={`flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-all duration-150 active:scale-95 ${
             mine
               ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-border bg-surface text-muted hover:bg-surface-2"
+              : "border-border bg-surface text-muted hover:bg-surface-2 hover:text-foreground"
           }`}
         >
           <span>{emoji}</span>
@@ -97,6 +74,35 @@ export function MessageItem({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.body);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showFullPicker, setShowFullPicker] = useState(false);
+  // "down" opens below the button, "up" opens above it — chosen by available
+  // viewport space so the picker is never clipped off the bottom/top.
+  const [pickerDir, setPickerDir] = useState<"down" | "up">("down");
+  const reactRef = useRef<HTMLDivElement>(null);
+
+  function openFullPicker() {
+    const PICKER_HEIGHT = 320; // matches EmojiPicker h-80
+    const rect = reactRef.current?.getBoundingClientRect();
+    if (rect) {
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setPickerDir(spaceBelow < PICKER_HEIGHT + 16 ? "up" : "down");
+    }
+    setShowFullPicker(true);
+  }
+
+  // Close the reaction popup when clicking outside it (it can stay open after
+  // the cursor leaves the message row, so it needs its own dismiss).
+  useEffect(() => {
+    if (!showEmoji) return;
+    function onDocClick(e: MouseEvent) {
+      if (reactRef.current && !reactRef.current.contains(e.target as Node)) {
+        setShowEmoji(false);
+        setShowFullPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [showEmoji]);
   const isMine = message.user_id === meId;
   const author = message.profiles;
   const isOptimistic = message.id.startsWith("temp-");
@@ -117,7 +123,7 @@ export function MessageItem({
 
   return (
     <div
-      className={`group relative flex gap-3 rounded-lg px-2 hover:bg-surface-2/50 ${
+      className={`group relative flex animate-fade-in gap-3 rounded-lg px-2 transition-colors duration-150 hover:bg-surface-2/50 ${
         grouped ? "py-0.5" : "mt-2 py-1"
       } ${isOptimistic ? "opacity-60" : ""}`}
     >
@@ -126,7 +132,11 @@ export function MessageItem({
           {time}
         </span>
       ) : (
-        <Avatar name={author?.full_name ?? null} email={author?.email ?? null} />
+        <Avatar
+          name={author?.full_name ?? null}
+          email={author?.email ?? null}
+          avatarUrl={author?.avatar_url ?? null}
+        />
       )}
 
       <div className="min-w-0 flex-1">
@@ -185,7 +195,13 @@ export function MessageItem({
             </div>
           </div>
         ) : (
-          <div className="text-sm text-foreground">
+          <div
+            className={`inline-block max-w-[75ch] rounded-2xl border px-3 py-2 text-sm shadow-sm ${
+              isMine
+                ? "rounded-tl-sm border-primary/20 bg-primary/10 text-foreground"
+                : "rounded-tl-sm border-border bg-surface text-foreground"
+            }`}
+          >
             <Body text={message.body} />
             {message.edited_at && (
               <span className="ml-1 text-[10px] text-muted">(edited)</span>
@@ -219,27 +235,70 @@ export function MessageItem({
 
       {/* Hover actions */}
       {!isOptimistic && !editing && (
-        <div className="absolute right-2 top-0 hidden -translate-y-1/2 items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shadow-sm group-hover:flex">
-          <div className="relative">
+        <div
+          className={`absolute right-2 top-0 -translate-y-1/2 animate-scale-in items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shadow-md group-hover:flex ${
+            showEmoji ? "flex" : "hidden"
+          }`}
+        >
+          <div className="relative" ref={reactRef}>
             <ActionBtn
               label="React"
-              onClick={() => setShowEmoji((s) => !s)}
+              onClick={() => {
+                setShowEmoji((s) => !s);
+                setShowFullPicker(false);
+              }}
               d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"
             />
-            {showEmoji && (
-              <div className="absolute right-0 top-8 z-10 flex gap-1 rounded-lg border border-border bg-surface p-1 shadow-lg">
-                {QUICK_EMOJIS.map((e) => (
+            {showEmoji && !showFullPicker && (
+              <div className="absolute right-0 top-8 z-20 flex animate-scale-in items-center gap-1 rounded-lg border border-border bg-surface p-1 shadow-lg">
+                {QUICK_REACTIONS.map((e) => (
                   <button
                     key={e}
                     onClick={() => {
                       onReact(e);
                       setShowEmoji(false);
                     }}
-                    className="rounded p-1 text-base hover:bg-surface-2"
+                    className="cursor-pointer rounded p-1 text-base transition-transform hover:scale-110 hover:bg-surface-2"
                   >
                     {e}
                   </button>
                 ))}
+                <button
+                  onClick={openFullPicker}
+                  aria-label="More emojis"
+                  title="More emojis"
+                  className="grid h-7 w-7 cursor-pointer place-items-center rounded text-muted hover:bg-surface-2 hover:text-foreground"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            {showEmoji && showFullPicker && (
+              <div
+                className={`absolute right-0 z-30 animate-scale-in ${
+                  pickerDir === "up" ? "bottom-8" : "top-8"
+                }`}
+              >
+                <EmojiPicker
+                  onSelect={(e) => {
+                    onReact(e);
+                    setShowEmoji(false);
+                    setShowFullPicker(false);
+                  }}
+                  onClose={() => {
+                    setShowEmoji(false);
+                    setShowFullPicker(false);
+                  }}
+                />
               </div>
             )}
           </div>

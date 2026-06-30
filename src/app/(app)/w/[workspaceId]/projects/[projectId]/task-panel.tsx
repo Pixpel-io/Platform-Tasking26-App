@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/ui";
 import type { PriorityLevel, Profile } from "@/lib/supabase/types";
 import {
@@ -401,11 +402,12 @@ function TaskBody({
               .filter((c) => !c.deleted_at)
               .map((c) => (
                 <div key={c.id} className="flex gap-2">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-2 text-xs font-semibold text-foreground">
-                    {(c.profiles?.full_name?.[0] ??
-                      c.profiles?.email?.[0] ??
-                      "?").toUpperCase()}
-                  </span>
+                  <Avatar
+                    name={c.profiles?.full_name}
+                    email={c.profiles?.email}
+                    avatarUrl={c.profiles?.avatar_url}
+                    size="sm"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted">
                       {c.profiles?.full_name ?? c.profiles?.email ?? "Someone"}

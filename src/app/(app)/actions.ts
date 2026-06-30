@@ -9,6 +9,7 @@ import { emailEnabled, sendInviteEmail } from "@/lib/email";
 import {
   CreateWorkspaceSchema,
   InviteSchema,
+  UpdateWorkspaceSchema,
   fieldErrorsOf,
   type FormState,
 } from "@/lib/validation";
@@ -30,6 +31,7 @@ export async function createWorkspace(
   const parsed = CreateWorkspaceSchema.safeParse({
     workspaceName: formData.get("workspaceName"),
     organizationName: formData.get("organizationName"),
+    color: formData.get("color") || undefined,
   });
   if (!parsed.success) {
     return { fieldErrors: fieldErrorsOf(parsed.error) };
@@ -39,12 +41,64 @@ export async function createWorkspace(
   const { data, error } = await supabase.rpc("create_workspace", {
     p_workspace_name: parsed.data.workspaceName,
     p_organization_name: parsed.data.organizationName || undefined,
+    p_color: parsed.data.color || undefined,
   });
 
   if (error) return { error: error.message };
 
   revalidatePath("/", "layout");
   redirect(`/w/${data}`);
+}
+
+export async function updateWorkspace(
+  workspaceId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await requireUser();
+  const parsed = UpdateWorkspaceSchema.safeParse({
+    name: formData.get("name"),
+    color: formData.get("color"),
+    companyName: formData.get("companyName") || undefined,
+  });
+  if (!parsed.success) {
+    return { fieldErrors: fieldErrorsOf(parsed.error) };
+  }
+
+  const supabase = await createClient();
+  const { data: workspace, error } = await supabase
+    .from("workspaces")
+    .update({ name: parsed.data.name, color: parsed.data.color.toLowerCase() })
+    .eq("id", workspaceId)
+    .select("organization_id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  // Company (organization) name is owner-only; RLS silently no-ops otherwise.
+  if (parsed.data.companyName && workspace?.organization_id) {
+    const { error: orgError } = await supabase
+      .from("organizations")
+      .update({ name: parsed.data.companyName })
+      .eq("id", workspace.organization_id);
+    if (orgError) return { error: orgError.message };
+  }
+
+  revalidatePath("/", "layout");
+  return { success: "Workspace updated." };
+}
+
+export async function deleteWorkspace(workspaceId: string): Promise<FormState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("delete_workspace", {
+    p_workspace_id: workspaceId,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  redirect(data ? `/w/${data}` : "/onboarding");
 }
 
 export async function inviteMember(
@@ -239,6 +293,7 @@ export async function updateProfile(
 ): Promise<FormState> {
   const user = await requireUser();
   const fullName = String(formData.get("fullName") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
   const avatarUrl = String(formData.get("avatarUrl") ?? "").trim();
 
   if (fullName.length < 2) {
@@ -248,7 +303,11 @@ export async function updateProfile(
   const supabase = await createClient();
   const { error } = await supabase
     .from("profiles")
-    .update({ full_name: fullName, avatar_url: avatarUrl || null })
+    .update({
+      full_name: fullName,
+      title: title || null,
+      avatar_url: avatarUrl || null,
+    })
     .eq("id", user.id);
 
   if (error) return { error: error.message };

@@ -1,11 +1,8 @@
 "use client";
 
+import { Avatar } from "@/components/avatar";
 import { PRIORITY_META } from "@/lib/projects-shared";
 import type { TaskWithRelations } from "@/lib/projects-shared";
-
-function initials(p: { full_name: string | null; email: string }): string {
-  return (p.full_name?.[0] ?? p.email[0] ?? "?").toUpperCase();
-}
 
 function formatDue(due: string): { label: string; overdue: boolean } {
   const date = new Date(due);
@@ -84,13 +81,14 @@ export function TaskCard({
         {assignees.length > 0 && (
           <div className="flex -space-x-1.5">
             {assignees.slice(0, 3).map((a) => (
-              <span
+              <Avatar
                 key={a.id}
-                title={a.full_name ?? a.email}
-                className="grid h-6 w-6 place-items-center rounded-full border-2 border-surface bg-surface-2 text-[10px] font-semibold text-foreground"
-              >
-                {initials(a)}
-              </span>
+                name={a.full_name}
+                email={a.email}
+                avatarUrl={a.avatar_url}
+                size="xs"
+                className="border-2 border-surface"
+              />
             ))}
           </div>
         )}

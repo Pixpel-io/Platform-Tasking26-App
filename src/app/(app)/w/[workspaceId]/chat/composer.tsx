@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { EmojiPicker } from "@/components/emoji-picker";
+import { highlightComposerValue } from "@/lib/message-format";
 import type { PendingAttachment } from "../chat-actions";
 
 const BUCKET = "chat-attachments";
@@ -35,7 +37,9 @@ export function Composer({
 }) {
   const [value, setValue] = useState("");
   const [uploads, setUploads] = useState<Uploading[]>([]);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const ready = uploads.every((u) => u.progress !== "uploading");
@@ -63,6 +67,105 @@ export function Composer({
   function autoGrow(el: HTMLTextAreaElement) {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }
+
+  // Insert an emoji at the caret (or replace the current selection).
+  function insertEmoji(emoji: string) {
+    const el = taRef.current;
+    if (!el) {
+      setValue((v) => v + emoji);
+      return;
+    }
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? value.length;
+    const next = value.slice(0, start) + emoji + value.slice(end);
+    setValue(next);
+    onTyping?.();
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = start + emoji.length;
+      el.setSelectionRange(caret, caret);
+      autoGrow(el);
+    });
+  }
+
+  // Wrap the current selection in inline markers (`*`, `_`, `~`, `` ` ``) and
+  // place the caret around the (possibly empty) selection so typing continues.
+  function wrapSelection(open: string, close: string) {
+    const el = taRef.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+    const next =
+      value.slice(0, start) + open + selected + close + value.slice(end);
+    setValue(next);
+    onTyping?.();
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const caretStart = start + open.length;
+      const caretEnd = caretStart + selected.length;
+      el.setSelectionRange(caretStart, caretEnd);
+      autoGrow(el);
+    });
+  }
+
+  // Code: a multi-line/empty selection uses a fenced ```block```; a single-line
+  // selection uses `inline`.
+  function wrapCode() {
+    const el = taRef.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+    const block = selected.includes("\n") || selected.length === 0;
+    if (block) wrapSelection("```\n", "\n```");
+    else wrapSelection("`", "`");
+  }
+
+  // Prefix each selected line (or the current line) with a marker, used for
+  // quotes ("> ") and lists ("- ", "1. ").
+  function prefixLines(makePrefix: (lineIndex: number) => string) {
+    const el = taRef.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? value.length;
+    // Expand selection to full lines.
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    let lineEnd = value.indexOf("\n", end);
+    if (lineEnd === -1) lineEnd = value.length;
+    const block = value.slice(lineStart, lineEnd);
+    const prefixed = block
+      .split("\n")
+      .map((line, i) => makePrefix(i) + line)
+      .join("\n");
+    const next = value.slice(0, lineStart) + prefixed + value.slice(lineEnd);
+    setValue(next);
+    onTyping?.();
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(lineStart, lineStart + prefixed.length);
+      autoGrow(el);
+    });
+  }
+
+  // Link: wrap selection as Slack <url|label>. With no selection, insert a
+  // template and put the caret on the url.
+  function insertLink() {
+    const el = taRef.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+    const inner = selected ? `url|${selected}` : "url|text";
+    const next = value.slice(0, start) + "<" + inner + ">" + value.slice(end);
+    setValue(next);
+    onTyping?.();
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const urlStart = start + 1;
+      el.setSelectionRange(urlStart, urlStart + 3); // selects "url"
+      autoGrow(el);
+    });
   }
 
   async function handleFiles(files: FileList) {
@@ -134,69 +237,179 @@ export function Composer({
         </div>
       )}
 
-      <div className="flex items-end gap-2 rounded-xl border border-border bg-background px-3 py-2 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
-        <button
-          onClick={() => fileRef.current?.click()}
-          aria-label="Attach file"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground"
-        >
-          <svg
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+      <div
+        onClick={(e) => {
+          // Clicking anywhere in the box (not on a button) focuses the input.
+          if (!(e.target as HTMLElement).closest("button")) {
+            taRef.current?.focus();
+          }
+        }}
+        className="flex cursor-text flex-col rounded-xl border border-border bg-background transition-colors focus-within:border-primary/50"
+      >
+        {/* Formatting toolbar (Slack-style mrkdwn) */}
+        <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
+          <FmtBtn label="Bold" onClick={() => wrapSelection("*", "*")} d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z" />
+          <FmtBtn label="Italic" onClick={() => wrapSelection("_", "_")} d="M19 4h-9M14 20H5M15 4L9 20" />
+          <FmtBtn label="Strikethrough" onClick={() => wrapSelection("~", "~")} d="M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6M4 12h16" />
+          <FmtDivider />
+          <FmtBtn label="Link" onClick={insertLink} d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          <FmtBtn label="Ordered list" onClick={() => { let n = 0; prefixLines(() => `${++n}. `); }} d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3a1 1 0 0 0-2-1" />
+          <FmtBtn label="Bulleted list" onClick={() => prefixLines(() => "- ")} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          <FmtBtn label="Blockquote" onClick={() => prefixLines(() => "> ")} d="M3 21V8a2 2 0 0 1 2-2h0M3 13h6M9 21V8a2 2 0 0 1 2-2h0M9 13h6" />
+          <FmtDivider />
+          <FmtBtn label="Code" onClick={() => wrapSelection("`", "`")} d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
+          <FmtBtn label="Code block" onClick={() => wrapSelection("```\n", "\n```")} d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 9l-2 3 2 3M15 9l2 3-2 3" />
+        </div>
+
+        {/* Input row */}
+        <div className="flex items-end gap-2 px-3 py-2">
+          <button
+            onClick={() => fileRef.current?.click()}
+            aria-label="Attach file"
+            title="Attach file"
+            className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground"
           >
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-          </svg>
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => {
-            if (e.target.files) void handleFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <textarea
-          ref={taRef}
-          value={value}
-          rows={1}
-          placeholder={placeholder}
-          onChange={(e) => {
-            setValue(e.target.value);
-            autoGrow(e.target);
-            onTyping?.();
-          }}
-          onKeyDown={handleKeyDown}
-          className="max-h-48 flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none"
-        />
-        <button
-          onClick={submit}
-          disabled={!canSend}
-          aria-label="Send"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          <svg
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            </svg>
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files) void handleFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <div className="relative flex-1 self-center">
+            {/* Styled mirror behind the textarea: shows bold/italic/etc. live.
+                Shares identical box metrics with the textarea so the caret and
+                text line up exactly. */}
+            <div
+              ref={overlayRef}
+              aria-hidden
+              className="pointer-events-none absolute inset-0 max-h-48 overflow-hidden whitespace-pre-wrap break-words py-1 text-sm leading-6 text-foreground"
+            >
+              {highlightComposerValue(value)}
+            </div>
+            <textarea
+              ref={taRef}
+              value={value}
+              rows={1}
+              placeholder={placeholder}
+              onScroll={(e) => {
+                if (overlayRef.current)
+                  overlayRef.current.scrollTop = e.currentTarget.scrollTop;
+              }}
+              onChange={(e) => {
+                setValue(e.target.value);
+                autoGrow(e.target);
+                onTyping?.();
+              }}
+              onKeyDown={handleKeyDown}
+              className="relative max-h-48 w-full resize-none bg-transparent py-1 text-sm leading-6 text-transparent caret-foreground placeholder:text-muted focus:outline-none"
+            />
+          </div>
+          <div className="relative">
+            <button
+              onClick={() => setEmojiOpen((o) => !o)}
+              aria-label="Emoji"
+              title="Emoji"
+              aria-expanded={emojiOpen}
+              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground"
+            >
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+              </svg>
+            </button>
+            {emojiOpen && (
+              <div className="absolute bottom-10 right-0 z-30 animate-scale-in">
+                <EmojiPicker
+                  onSelect={(emoji) => insertEmoji(emoji)}
+                  onClose={() => setEmojiOpen(false)}
+                />
+              </div>
+            )}
+          </div>
+          <button
+            onClick={submit}
+            disabled={!canSend}
+            aria-label="Send"
+            className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
           >
-            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-          </svg>
-        </button>
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+            </svg>
+          </button>
+        </div>
       </div>
       <p className="mt-1 px-1 text-[11px] text-muted/70">
-        Enter to send · Shift+Enter for a new line · 📎 to attach
+        Enter to send · Shift+Enter for a new line · select text, then use the
+        toolbar to format
       </p>
     </div>
   );
+}
+
+function FmtBtn({
+  label,
+  onClick,
+  d,
+}: {
+  label: string;
+  onClick: () => void;
+  d: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="grid h-7 w-7 cursor-pointer place-items-center rounded text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+    >
+      <svg
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d={d} />
+      </svg>
+    </button>
+  );
+}
+
+function FmtDivider() {
+  return <span className="mx-1 h-4 w-px bg-border" />;
 }

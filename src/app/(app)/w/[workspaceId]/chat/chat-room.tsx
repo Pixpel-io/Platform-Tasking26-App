@@ -40,7 +40,7 @@ export function ChatRoom({
   meName: string;
   initialMessages: MessageWithRelations[];
 }) {
-  const { messages } = useChatMessages(
+  const { messages, setMessages } = useChatMessages(
     { channelId: target.channelId, conversationId: target.conversationId },
     initialMessages,
   );
@@ -87,7 +87,20 @@ export function ChatRoom({
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       deleted_at: null,
-      profiles: null,
+      // Echo the sender so the optimistic row shows the name/avatar, not
+      // "Unknown", until the real row (with the full profile) arrives.
+      profiles: {
+        id: meId,
+        email: meName,
+        full_name: meName,
+        title: null,
+        avatar_url: null,
+        presence: "online",
+        last_seen_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        deleted_at: null,
+      },
       message_reactions: [],
       message_attachments: [],
     };
@@ -100,6 +113,43 @@ export function ChatRoom({
         body,
         attachments,
       });
+    });
+  }
+
+  // Toggle a reaction optimistically so it appears instantly, then persist.
+  // Realtime will reconcile the row with the authoritative server state.
+  function handleReact(messageId: string, emoji: string) {
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const mine = m.message_reactions.find(
+          (r) => r.user_id === meId && r.emoji === emoji,
+        );
+        if (mine) {
+          return {
+            ...m,
+            message_reactions: m.message_reactions.filter(
+              (r) => r !== mine,
+            ),
+          };
+        }
+        return {
+          ...m,
+          message_reactions: [
+            ...m.message_reactions,
+            {
+              id: `temp-${crypto.randomUUID()}`,
+              message_id: messageId,
+              user_id: meId,
+              emoji,
+              created_at: new Date().toISOString(),
+            },
+          ],
+        };
+      }),
+    );
+    startTransition(() => {
+      void toggleReaction(messageId, emoji);
     });
   }
 
@@ -145,11 +195,7 @@ export function ChatRoom({
                   message={m}
                   meId={meId}
                   grouped={!!grouped}
-                  onReact={(emoji) =>
-                    startTransition(() => {
-                      void toggleReaction(m.id, emoji);
-                    })
-                  }
+                  onReact={(emoji) => handleReact(m.id, emoji)}
                   onEdit={(body) =>
                     startTransition(() => {
                       void editMessage(m.id, body);

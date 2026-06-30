@@ -9,14 +9,14 @@ export default async function ChannelPage({
 }: PageProps<"/w/[workspaceId]/c/[channelId]">) {
   const { workspaceId, channelId } = await params;
   const user = await requireUser();
-  const [channel, profile] = await Promise.all([
+  const [channel, profile, messages] = await Promise.all([
     getChannel(channelId),
     getProfile(),
+    getMessages({ channelId }),
   ]);
 
   if (!channel) notFound();
 
-  const messages = await getMessages({ channelId });
   const meName = profile?.full_name ?? profile?.email ?? "You";
 
   return (

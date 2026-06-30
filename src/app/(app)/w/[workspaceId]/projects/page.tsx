@@ -25,9 +25,11 @@ export default async function ProjectsPage({
 
   return (
     <div className="mx-auto max-w-5xl p-8">
-      <header className="mb-6 flex items-start justify-between gap-4">
+      <header className="mb-6 flex animate-fade-in-up items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Projects</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Projects
+          </h1>
           <p className="mt-1 text-muted">
             Boards you&apos;re a member of in this workspace.
           </p>
@@ -56,8 +58,9 @@ export default async function ProjectsPage({
               <Link
                 key={p.id}
                 href={`/w/${workspaceId}/projects/${p.id}`}
-                className="group flex flex-col rounded-xl border border-border bg-surface p-5 transition-colors hover:border-primary/50"
+                className="hover-glow group relative flex animate-fade-in-up flex-col overflow-hidden rounded-xl border border-border bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-primary/50"
               >
+                <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                 <div className="flex items-center justify-between gap-2">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}
@@ -69,7 +72,7 @@ export default async function ProjectsPage({
                     {priority.label}
                   </span>
                 </div>
-                <h2 className="mt-3 font-semibold text-foreground group-hover:text-primary">
+                <h2 className="mt-3 font-semibold text-foreground transition-colors group-hover:text-primary">
                   {p.name}
                 </h2>
                 {p.description && (

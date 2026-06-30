@@ -27,12 +27,28 @@ export const ResetPasswordSchema = z.object({
     .regex(/[0-9]/, "Include at least one number."),
 });
 
+const HexColor = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Choose a valid color.");
+
 export const CreateWorkspaceSchema = z.object({
   workspaceName: z
     .string()
     .trim()
     .min(2, "Workspace name must be at least 2 characters."),
   organizationName: z.string().trim().optional(),
+  color: HexColor.optional(),
+});
+
+export const UpdateWorkspaceSchema = z.object({
+  name: z.string().trim().min(2, "Workspace name must be at least 2 characters."),
+  color: HexColor,
+  companyName: z
+    .string()
+    .trim()
+    .min(2, "Company name must be at least 2 characters.")
+    .optional(),
 });
 
 export const InviteSchema = z.object({

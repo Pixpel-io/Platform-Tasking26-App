@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type { MembershipWithWorkspace } from "@/lib/auth";
 import type { ConversationWithParticipants } from "@/lib/chat-shared";
 import { dmCounterpart } from "@/lib/chat-shared";
 import type { Channel, Profile } from "@/lib/supabase/types";
 import type { ProjectWithMembers } from "@/lib/projects-shared";
+import { Avatar } from "@/components/avatar";
+import { LinkProgressBar, LinkSpinner } from "@/components/link-pending";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { usePresence } from "@/components/presence-provider";
+import { useUnreadNotifications } from "@/lib/use-unread-notifications";
 import { signOut } from "@/app/(auth)/actions";
+import { openDirectMessage } from "./chat-actions";
 import { CreateChannelDialog } from "./create-channel-dialog";
 
 function Icon({ d, className = "h-4 w-4 shrink-0" }: { d: string; className?: string }) {
@@ -47,6 +51,7 @@ export function Sidebar({
   conversations,
   members,
   projects,
+  unreadNotifications,
 }: {
   workspaceId: string;
   workspaces: MembershipWithWorkspace[];
@@ -56,15 +61,42 @@ export function Sidebar({
   conversations: ConversationWithParticipants[];
   members: Profile[];
   projects: ProjectWithMembers[];
+  unreadNotifications: number;
 }) {
   const pathname = usePathname();
+  const unread = useUnreadNotifications(workspaceId, userId, unreadNotifications);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const [, startTransition] = useTransition();
   const base = `/w/${workspaceId}`;
   const current = workspaces.find((w) => w.workspace_id === workspaceId);
 
+  // One row per other member. If a 1:1 conversation already exists, reuse its
+  // id so the link is direct; otherwise it's created on click.
+  const dmList = useMemo(() => {
+    const convByUser = new Map<string, string>();
+    for (const conv of conversations) {
+      const other = dmCounterpart(conv, userId);
+      if (other && !convByUser.has(other.id)) {
+        convByUser.set(other.id, conv.id);
+      }
+    }
+    return members
+      .filter((m) => m.id !== userId)
+      .map((member) => ({
+        member,
+        conversationId: convByUser.get(member.id) ?? null,
+      }));
+  }, [members, conversations, userId]);
+
   const topNav = [
     { href: base, label: "Dashboard", icon: "M3 12l9-9 9 9M5 10v10h14V10" },
+    {
+      href: `${base}/notifications`,
+      label: "Notifications",
+      icon: "M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0",
+      badge: unread,
+    },
     {
       href: `${base}/members`,
       label: "Members",
@@ -74,6 +106,11 @@ export function Sidebar({
       href: `${base}/search`,
       label: "Search",
       icon: "M21 21l-4.35-4.35M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
+    },
+    {
+      href: `${base}/settings`,
+      label: "Settings",
+      icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
     },
   ];
 
@@ -97,21 +134,31 @@ export function Sidebar({
         </button>
 
         {switcherOpen && (
-          <div className="absolute left-3 right-3 z-10 mt-1 overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
-            {workspaces.map((w) => (
-              <Link
-                key={w.workspace_id}
-                href={`/w/${w.workspace_id}`}
-                onClick={() => setSwitcherOpen(false)}
-                className={`block px-3 py-2 text-sm hover:bg-surface-2 ${
-                  w.workspace_id === workspaceId
-                    ? "font-semibold text-foreground"
-                    : "text-muted"
-                }`}
-              >
-                {w.workspaces?.name}
-              </Link>
-            ))}
+          <div className="absolute left-3 right-3 z-20 mt-1 origin-top animate-scale-in overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
+            {workspaces.map((w) => {
+              const isCurrent = w.workspace_id === workspaceId;
+              return (
+                <Link
+                  key={w.workspace_id}
+                  href={`/w/${w.workspace_id}`}
+                  prefetch={false}
+                  onClick={() => {
+                    if (isCurrent) setSwitcherOpen(false);
+                  }}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-2 ${
+                    isCurrent ? "font-semibold text-foreground" : "text-muted"
+                  }`}
+                >
+                  <LinkProgressBar />
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: w.workspaces?.color ?? "#4f46e5" }}
+                  />
+                  <span className="flex-1 truncate">{w.workspaces?.name}</span>
+                  <LinkSpinner />
+                </Link>
+              );
+            })}
             <Link
               href="/onboarding"
               onClick={() => setSwitcherOpen(false)}
@@ -135,14 +182,19 @@ export function Sidebar({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                className={`group/nav flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
                   active
                     ? "bg-primary/10 text-primary"
-                    : "text-muted hover:bg-surface-2 hover:text-foreground"
+                    : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                 }`}
               >
                 <Icon d={item.icon} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {"badge" in item && item.badge ? (
+                  <span className="grid h-5 min-w-5 animate-scale-in place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -171,10 +223,10 @@ export function Sidebar({
                 <Link
                   key={c.id}
                   href={href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted hover:bg-surface-2 hover:text-foreground"
+                      : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
                   <Icon
@@ -188,45 +240,67 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Direct messages */}
+        {/* Direct messages — every other workspace member is listed; clicking
+            one opens an existing DM or creates it on the fly. */}
         <div>
           <div className="flex items-center justify-between px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
             <span>Direct messages</span>
             <Link
               href={`${base}/members`}
-              aria-label="Start a DM"
+              aria-label="Members"
               className="grid h-5 w-5 place-items-center rounded hover:bg-surface-2 hover:text-foreground"
             >
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
             </Link>
           </div>
           <div className="space-y-0.5">
-            {conversations.length === 0 && (
-              <p className="px-3 py-1 text-xs text-muted/60">No conversations</p>
+            {dmList.length === 0 && (
+              <p className="px-3 py-1 text-xs text-muted/60">
+                No other members yet
+              </p>
             )}
-            {conversations.map((conv) => {
-              const other = dmCounterpart(conv, userId);
-              const href = `${base}/dm/${conv.id}`;
-              const active = pathname === href;
-              const label =
-                other?.full_name ?? other?.email ?? "Conversation";
-              return (
-                <Link
-                  key={conv.id}
-                  href={href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                    active
-                      ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted hover:bg-surface-2 hover:text-foreground"
-                  }`}
-                >
-                  {other ? (
-                    <PresenceDot userId={other.id} className="shrink-0" />
-                  ) : (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-muted/40" />
-                  )}
+            {dmList.map(({ member, conversationId }) => {
+              const label = member.full_name ?? member.email;
+              const href = conversationId ? `${base}/dm/${conversationId}` : null;
+              const active = href != null && pathname === href;
+              const className = `flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-all duration-150 ${
+                active
+                  ? "bg-primary/10 font-medium text-primary"
+                  : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
+              }`;
+              const inner = (
+                <>
+                  <span className="relative">
+                    <Avatar
+                      name={member.full_name}
+                      email={member.email}
+                      avatarUrl={member.avatar_url}
+                      size="xs"
+                    />
+                    <PresenceDot
+                      userId={member.id}
+                      className="absolute -bottom-0.5 -right-0.5 border-2 border-surface"
+                    />
+                  </span>
                   <span className="truncate">{label}</span>
+                </>
+              );
+              return href ? (
+                <Link key={member.id} href={href} className={className}>
+                  {inner}
                 </Link>
+              ) : (
+                <button
+                  key={member.id}
+                  onClick={() =>
+                    startTransition(() => {
+                      void openDirectMessage(workspaceId, member.id);
+                    })
+                  }
+                  className={className}
+                >
+                  {inner}
+                </button>
               );
             })}
           </div>
@@ -255,10 +329,10 @@ export function Sidebar({
                 <Link
                   key={p.id}
                   href={href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted hover:bg-surface-2 hover:text-foreground"
+                      : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
                   <Icon
@@ -279,9 +353,13 @@ export function Sidebar({
           href={`${base}/profile`}
           className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-2"
         >
-          <span className="relative grid h-8 w-8 place-items-center rounded-full bg-surface-2 text-xs font-semibold text-foreground">
-            {profile?.full_name?.[0]?.toUpperCase() ??
-              profile?.email[0]?.toUpperCase()}
+          <span className="relative">
+            <Avatar
+              name={profile?.full_name}
+              email={profile?.email}
+              avatarUrl={profile?.avatar_url}
+              size="sm"
+            />
             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-success" />
           </span>
           <span className="min-w-0">
