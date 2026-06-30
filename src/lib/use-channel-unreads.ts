@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { playNotificationSound } from "@/lib/notify-sound";
 
 // Tracks unread message counts per group/channel for the sidebar, keyed by
 // channel id. New top-level messages from OTHER users bump the count and play a
@@ -58,7 +57,6 @@ export function useChannelUnreads(
           const active = pathnameRef.current.includes(`/c/${row.channel_id}`);
           if (active) return;
 
-          playNotificationSound();
           setCounts((prev) => ({
             ...prev,
             [row.channel_id as string]:

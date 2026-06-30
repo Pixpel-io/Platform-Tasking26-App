@@ -39,8 +39,8 @@ export function TaskCard({
       draggable
       onDragStart={onDragStart}
       onClick={onClick}
-      className={`cursor-pointer rounded-lg border border-border bg-surface p-3 shadow-sm transition-opacity hover:border-primary/50 ${
-        dragging ? "opacity-40" : ""
+      className={`group/card cursor-pointer rounded-lg border border-border bg-surface p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md ${
+        dragging ? "rotate-1 scale-[0.98] opacity-40 shadow-lg" : ""
       }`}
     >
       {labels.length > 0 && (

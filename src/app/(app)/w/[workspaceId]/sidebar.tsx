@@ -77,6 +77,8 @@ export function Sidebar({
   const members = useLiveMembers(initialMembers);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const [groupsCollapsed, setGroupsCollapsed] = useState(false);
+  const [dmsCollapsed, setDmsCollapsed] = useState(false);
   const [, startTransition] = useTransition();
   const base = `/w/${workspaceId}`;
   const current = workspaces.find((w) => w.workspace_id === workspaceId);
@@ -186,12 +188,15 @@ export function Sidebar({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group/nav flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
+                className={`group/nav relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
                   active
                     ? "bg-primary/10 text-primary"
                     : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                 }`}
               >
+                {active && (
+                  <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                )}
                 <Icon d={item.icon} />
                 <span className="flex-1">{item.label}</span>
               </Link>
@@ -201,8 +206,20 @@ export function Sidebar({
 
         {/* Groups */}
         <div>
-          <div className="flex items-center justify-between px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <span>Groups</span>
+          <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+            <button
+              onClick={() => setGroupsCollapsed((v) => !v)}
+              aria-expanded={!groupsCollapsed}
+              className="flex flex-1 items-center gap-1 rounded px-2 py-0.5 hover:text-foreground"
+            >
+              <Icon
+                d="M9 18l6-6-6-6"
+                className={`h-3 w-3 shrink-0 transition-transform duration-150 ${
+                  groupsCollapsed ? "" : "rotate-90"
+                }`}
+              />
+              <span>Groups</span>
+            </button>
             <button
               onClick={() => setChannelDialogOpen(true)}
               aria-label="Create group"
@@ -211,6 +228,7 @@ export function Sidebar({
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
             </button>
           </div>
+          {!groupsCollapsed && (
           <div className="space-y-0.5">
             {channels.length === 0 && (
               <p className="px-3 py-1 text-xs text-muted/60">No groups yet</p>
@@ -223,7 +241,7 @@ export function Sidebar({
                 <Link
                   key={c.id}
                   href={href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
+                  className={`relative flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
                       : unreadCh > 0
@@ -231,6 +249,9 @@ export function Sidebar({
                         : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                  )}
                   <Icon
                     d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m14 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
                     className="h-3.5 w-3.5 shrink-0"
@@ -245,13 +266,26 @@ export function Sidebar({
               );
             })}
           </div>
+          )}
         </div>
 
         {/* Direct messages — every other workspace member is listed; clicking
             one opens an existing DM or creates it on the fly. */}
         <div>
-          <div className="flex items-center justify-between px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <span>Direct messages</span>
+          <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+            <button
+              onClick={() => setDmsCollapsed((v) => !v)}
+              aria-expanded={!dmsCollapsed}
+              className="flex flex-1 items-center gap-1 rounded px-2 py-0.5 hover:text-foreground"
+            >
+              <Icon
+                d="M9 18l6-6-6-6"
+                className={`h-3 w-3 shrink-0 transition-transform duration-150 ${
+                  dmsCollapsed ? "" : "rotate-90"
+                }`}
+              />
+              <span>Direct messages</span>
+            </button>
             <Link
               href={`${base}/members`}
               aria-label="Members"
@@ -260,6 +294,7 @@ export function Sidebar({
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
             </Link>
           </div>
+          {!dmsCollapsed && (
           <div className="space-y-0.5">
             {dmList.length === 0 && (
               <p className="px-3 py-1 text-xs text-muted/60">
@@ -273,7 +308,7 @@ export function Sidebar({
               const unreadDm = conversationId
                 ? (dmUnreadCounts[conversationId] ?? 0)
                 : 0;
-              const className = `flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-all duration-150 ${
+              const className = `relative flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-all duration-150 ${
                 active
                   ? "bg-primary/10 font-medium text-primary"
                   : unreadDm > 0
@@ -282,6 +317,9 @@ export function Sidebar({
               }`;
               const inner = (
                 <>
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                  )}
                   <span className="relative">
                     <Avatar
                       name={member.full_name}
@@ -321,6 +359,7 @@ export function Sidebar({
               );
             })}
           </div>
+          )}
         </div>
 
         {/* Projects */}
@@ -346,12 +385,15 @@ export function Sidebar({
                 <Link
                   key={p.id}
                   href={href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
+                  className={`relative flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
                       : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                  )}
                   <Icon
                     d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
                     className="h-3.5 w-3.5 shrink-0"

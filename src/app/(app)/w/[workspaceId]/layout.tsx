@@ -11,6 +11,7 @@ import {
 import { getProjects } from "@/lib/projects";
 import { getUnreadNotificationCount } from "@/lib/notifications";
 import { PresenceProvider } from "@/components/presence-provider";
+import { NotificationToaster } from "@/components/notification-toaster";
 import { normalizeColor } from "@/lib/workspace-theme";
 import { Sidebar } from "./sidebar";
 import { NotificationBell } from "./notification-bell";
@@ -63,6 +64,7 @@ export default async function WorkspaceLayout({
         className="flex h-screen overflow-hidden"
         style={{ "--primary": accent } as React.CSSProperties}
       >
+        <NotificationToaster workspaceId={workspaceId} userId={user.id} />
         <Sidebar
           workspaceId={workspaceId}
           workspaces={workspaces}

@@ -159,8 +159,8 @@ function Column({
       </div>
 
       <div
-        className={`min-h-2 flex-1 space-y-2 overflow-y-auto px-2 pb-2 transition-colors ${
-          over ? "bg-primary/5" : ""
+        className={`min-h-2 flex-1 space-y-2 overflow-y-auto rounded-lg px-2 pb-2 transition-colors duration-150 ${
+          over ? "bg-primary/5 ring-2 ring-inset ring-primary/30" : ""
         }`}
         onDragOver={(e) => {
           if (dragId) {

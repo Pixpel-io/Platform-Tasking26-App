@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { playNotificationSound } from "@/lib/notify-sound";
 
 // Tracks unread message counts per direct-message conversation for the sidebar,
 // keyed by conversation id. New messages from OTHER users bump the count and
@@ -60,7 +59,6 @@ export function useDmUnreads(
           );
           if (active) return;
 
-          playNotificationSound();
           setCounts((prev) => ({
             ...prev,
             [row.conversation_id as string]:

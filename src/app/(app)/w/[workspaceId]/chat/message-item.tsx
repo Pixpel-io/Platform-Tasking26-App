@@ -237,9 +237,23 @@ export function MessageItem({
         {onOpenThread && (replyCount ?? 0) > 0 && (
           <button
             onClick={onOpenThread}
-            className="mt-1 text-xs font-medium text-primary hover:underline"
+            className="group/thread mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-primary transition-colors duration-150 hover:border-primary/40 hover:bg-primary/5"
           >
+            <svg
+              className="h-3.5 w-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
             {replyCount} {replyCount === 1 ? "reply" : "replies"}
+            <span className="text-muted transition-transform duration-150 group-hover/thread:translate-x-0.5">
+              →
+            </span>
           </button>
         )}
       </div>

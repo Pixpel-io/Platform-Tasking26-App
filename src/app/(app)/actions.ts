@@ -287,6 +287,40 @@ export async function revokeInvite(workspaceId: string, inviteId: string) {
   revalidatePath(`/w/${workspaceId}/members`);
 }
 
+// Soft-removes a member from a workspace. RLS already restricts this to
+// owners/admins; we additionally refuse to remove an owner so the workspace is
+// never left without one.
+export async function removeMember(
+  workspaceId: string,
+  memberId: string,
+): Promise<FormState> {
+  await requireUser();
+  const supabase = await createClient();
+
+  const { data: target } = await supabase
+    .from("workspace_members")
+    .select("role")
+    .eq("id", memberId)
+    .eq("workspace_id", workspaceId)
+    .single();
+
+  if (!target) return { error: "Member not found." };
+  if (target.role === "owner") {
+    return { error: "The workspace owner can't be removed." };
+  }
+
+  const { error } = await supabase
+    .from("workspace_members")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", memberId)
+    .eq("workspace_id", workspaceId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/w/${workspaceId}/members`);
+  return { success: "Member removed." };
+}
+
 export async function updateProfile(
   _prev: FormState,
   formData: FormData,

@@ -50,7 +50,7 @@ export default async function ProjectsPage({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => {
+          {projects.map((p, i) => {
             const status = STATUS_META[p.status];
             const priority = PRIORITY_META[p.priority];
             const memberCount = p.project_members.length;
@@ -58,6 +58,7 @@ export default async function ProjectsPage({
               <Link
                 key={p.id}
                 href={`/w/${workspaceId}/projects/${p.id}`}
+                style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}
                 className="hover-glow group relative flex animate-fade-in-up flex-col overflow-hidden rounded-xl border border-border bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-primary/50"
               >
                 <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

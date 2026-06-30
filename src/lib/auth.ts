@@ -42,9 +42,10 @@ export const getMyWorkspaces = cache(async (): Promise<
   const supabase = await createClient();
   const { data } = await supabase
     .from("workspace_members")
-    .select("*, workspaces(*)")
+    .select("*, workspaces!inner(*)")
     .eq("user_id", user.id)
     .is("deleted_at", null)
+    .is("workspaces.deleted_at", null)
     .order("created_at", { ascending: true });
   return (data as MembershipWithWorkspace[] | null) ?? [];
 });

@@ -9,22 +9,32 @@ function StatCard({
   value,
   hint,
   href,
+  index = 0,
 }: {
   label: string;
   value: string | number;
   hint?: string;
   href?: string;
+  index?: number;
 }) {
   const body = (
     <div
-      className={`h-full rounded-xl border border-border bg-surface p-5 transition-all duration-200 ${
+      style={{ animationDelay: `${index * 60}ms` }}
+      className={`group relative h-full animate-fade-in-up overflow-hidden rounded-xl border border-border bg-surface p-5 transition-all duration-200 ${
         href
           ? "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
           : ""
       }`}
     >
-      <p className="text-sm text-muted">{label}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+      {href && (
+        <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      )}
+      <p className="text-sm font-medium text-muted">{label}</p>
+      <p
+        className={`mt-2 text-3xl font-semibold tracking-tight text-foreground transition-colors ${
+          href ? "group-hover:text-primary" : ""
+        }`}
+      >
         {value}
       </p>
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
@@ -137,24 +147,27 @@ export default async function WorkspaceDashboard({
           </p>
         </header>
 
-      <div className="grid animate-fade-in-up grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Members"
           value={memberCount ?? 0}
           href={`/w/${workspaceId}/members`}
+          index={0}
         />
         <StatCard
           label="Active projects"
           value={activeProjects}
           href={`/w/${workspaceId}/projects`}
+          index={1}
         />
         <StatCard
           label="Due this week"
           value={dueSoon}
           hint="Tasks due in 7 days"
           href={`/w/${workspaceId}/projects`}
+          index={2}
         />
-        <StatCard label="Groups" value={channelCount ?? 0} />
+        <StatCard label="Groups" value={channelCount ?? 0} index={3} />
       </div>
 
       <div className="mt-8 grid animate-fade-in-up gap-6 lg:grid-cols-3">
