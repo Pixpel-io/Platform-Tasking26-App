@@ -1,0 +1,269 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { headers } from "next/headers";
+import { requireUser } from "@/lib/auth";
+import { emailEnabled, sendInviteEmail } from "@/lib/email";
+import {
+  CreateWorkspaceSchema,
+  InviteSchema,
+  fieldErrorsOf,
+  type FormState,
+} from "@/lib/validation";
+
+async function siteOrigin() {
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (envUrl) return envUrl.replace(/\/$/, "");
+  const h = await headers();
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const host = h.get("host") ?? "localhost:3000";
+  return `${proto}://${host}`;
+}
+
+export async function createWorkspace(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  await requireUser();
+  const parsed = CreateWorkspaceSchema.safeParse({
+    workspaceName: formData.get("workspaceName"),
+    organizationName: formData.get("organizationName"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: fieldErrorsOf(parsed.error) };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_workspace", {
+    p_workspace_name: parsed.data.workspaceName,
+    p_organization_name: parsed.data.organizationName || undefined,
+  });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  redirect(`/w/${data}`);
+}
+
+export async function inviteMember(
+  workspaceId: string,
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  const parsed = InviteSchema.safeParse({
+    email: formData.get("email"),
+    role: formData.get("role"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: fieldErrorsOf(parsed.error) };
+  }
+
+  const email = parsed.data.email.trim().toLowerCase();
+  const supabase = await createClient();
+
+  // Don't invite someone who's already a member.
+  const { data: existingMember } = await supabase
+    .from("workspace_members")
+    .select("user_id, profiles!inner(email)")
+    .eq("workspace_id", workspaceId)
+    .is("deleted_at", null)
+    .ilike("profiles.email", email)
+    .maybeSingle();
+  if (existingMember) {
+    return { error: `${email} is already a member of this workspace.` };
+  }
+
+  // Reuse an existing pending invite for the same email instead of stacking
+  // duplicate rows — refresh its role + token and re-send.
+  const { data: existing } = await supabase
+    .from("invites")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "pending")
+    .ilike("email", email)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let token: string;
+  if (existing) {
+    const { data: updated, error } = await supabase
+      .from("invites")
+      .update({
+        role: parsed.data.role,
+        token: crypto.randomUUID(),
+        invited_by: user.id,
+        expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+      })
+      .eq("id", existing.id)
+      .select("token")
+      .single();
+    if (error) return { error: error.message };
+    token = updated.token;
+  } else {
+    const { data: invite, error } = await supabase
+      .from("invites")
+      .insert({
+        workspace_id: workspaceId,
+        email,
+        role: parsed.data.role,
+        invited_by: user.id,
+      })
+      .select("token")
+      .single();
+    if (error) return { error: error.message };
+    token = invite.token;
+  }
+
+  revalidatePath(`/w/${workspaceId}/members`);
+  return deliverInvite(supabase, { workspaceId, email, token, userId: user.id, userEmail: user.email });
+}
+
+export async function resendInvite(
+  workspaceId: string,
+  inviteId: string,
+): Promise<FormState> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const { data: invite, error } = await supabase
+    .from("invites")
+    .update({
+      token: crypto.randomUUID(),
+      invited_by: user.id,
+      expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+    })
+    .eq("id", inviteId)
+    .eq("status", "pending")
+    .select("email, token")
+    .single();
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/w/${workspaceId}/members`);
+  return deliverInvite(supabase, {
+    workspaceId,
+    email: invite.email,
+    token: invite.token,
+    userId: user.id,
+    userEmail: user.email,
+  });
+}
+
+// Builds the accept link and sends the invite email (or returns a shareable
+// link when email isn't configured / the send fails).
+async function deliverInvite(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  opts: {
+    workspaceId: string;
+    email: string;
+    token: string;
+    userId: string;
+    userEmail?: string | null;
+  },
+): Promise<FormState> {
+  const origin = await siteOrigin();
+  const acceptUrl = `${origin}/invite/${opts.token}`;
+
+  if (!emailEnabled()) {
+    return {
+      success: `Invite created. Email isn't configured — share this link: ${acceptUrl}`,
+    };
+  }
+
+  const [{ data: workspace }, { data: inviter }] = await Promise.all([
+    supabase.from("workspaces").select("name").eq("id", opts.workspaceId).single(),
+    supabase.from("profiles").select("full_name").eq("id", opts.userId).single(),
+  ]);
+
+  const { error: emailError } = await sendInviteEmail({
+    to: opts.email,
+    workspaceName: workspace?.name ?? "your workspace",
+    inviterName: inviter?.full_name ?? opts.userEmail ?? "A teammate",
+    acceptUrl,
+  });
+
+  if (emailError) {
+    return {
+      success: `Invite saved, but the email failed to send (${emailError}). Share this link: ${acceptUrl}`,
+    };
+  }
+
+  return { success: `Invitation emailed to ${opts.email}.` };
+}
+
+export async function acceptInvite(token: string): Promise<{ error?: string }> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("accept_invite", {
+    p_token: token,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/", "layout");
+  redirect(`/w/${data}`);
+}
+
+export async function revokeInvite(workspaceId: string, inviteId: string) {
+  await requireUser();
+  const supabase = await createClient();
+
+  // Revoke every pending invite for this email so stale duplicates from before
+  // the dedupe fix also clear out, not just the row that was clicked.
+  const { data: target } = await supabase
+    .from("invites")
+    .select("email")
+    .eq("id", inviteId)
+    .single();
+
+  const query = supabase
+    .from("invites")
+    .update({ status: "revoked" })
+    .eq("workspace_id", workspaceId)
+    .eq("status", "pending");
+
+  if (target?.email) {
+    await query.ilike("email", target.email);
+  } else {
+    await query.eq("id", inviteId);
+  }
+
+  revalidatePath(`/w/${workspaceId}/members`);
+}
+
+export async function updateProfile(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const avatarUrl = String(formData.get("avatarUrl") ?? "").trim();
+
+  if (fullName.length < 2) {
+    return { fieldErrors: { fullName: ["Name must be at least 2 characters."] } };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: fullName, avatar_url: avatarUrl || null })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { success: "Profile updated." };
+}
+
+export async function updatePresence(
+  status: "online" | "offline" | "busy" | "away",
+) {
+  const user = await requireUser();
+  const supabase = await createClient();
+  await supabase
+    .from("profiles")
+    .update({ presence: status, last_seen_at: new Date().toISOString() })
+    .eq("id", user.id);
+}

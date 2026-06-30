@@ -1,0 +1,334 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
+import type { PriorityLevel } from "@/lib/supabase/types";
+
+type Result = { error?: string };
+
+// -- Create ------------------------------------------------------------------
+
+export async function createTask(args: {
+  projectId: string;
+  columnId: string | null;
+  title: string;
+  priority?: PriorityLevel;
+  dueDate?: string | null;
+  assigneeIds?: string[];
+}): Promise<Result & { id?: string }> {
+  const user = await requireUser();
+  const title = args.title.trim();
+  if (!title) return { error: "Task title is required." };
+
+  const supabase = await createClient();
+
+  // Append to the end of the target column.
+  let position = 0;
+  if (args.columnId) {
+    const { data: last } = await supabase
+      .from("tasks")
+      .select("position")
+      .eq("column_id", args.columnId)
+      .is("deleted_at", null)
+      .order("position", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    position = (last?.position ?? 0) + 1024;
+  }
+
+  const { data: task, error } = await supabase
+    .from("tasks")
+    .insert({
+      project_id: args.projectId,
+      column_id: args.columnId,
+      title,
+      priority: args.priority ?? "none",
+      due_date: args.dueDate ?? null,
+      position,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (error) return { error: error.message };
+
+  if (args.assigneeIds && args.assigneeIds.length > 0) {
+    await supabase.from("task_assignees").insert(
+      args.assigneeIds.map((uid) => ({ task_id: task.id, user_id: uid })),
+    );
+  }
+
+  revalidatePath(`/w/[workspaceId]/projects/${args.projectId}`, "page");
+  return { id: task.id };
+}
+
+// -- Move (Kanban drag / position change) ------------------------------------
+
+export async function moveTask(
+  taskId: string,
+  columnId: string,
+  position: number,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+
+  // Moving into a column flagged is_done auto-completes; leaving clears it.
+  const { data: col } = await supabase
+    .from("kanban_columns")
+    .select("is_done")
+    .eq("id", columnId)
+    .single();
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      column_id: columnId,
+      position,
+      completed_at: col?.is_done ? new Date().toISOString() : null,
+    })
+    .eq("id", taskId);
+
+  if (error) return { error: error.message };
+  return {};
+}
+
+// -- Generic field updates ---------------------------------------------------
+
+export async function updateTask(
+  taskId: string,
+  patch: {
+    title?: string;
+    description?: string | null;
+    priority?: PriorityLevel;
+    startDate?: string | null;
+    dueDate?: string | null;
+    timeEstimateMinutes?: number | null;
+  },
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      title: patch.title,
+      description: patch.description,
+      priority: patch.priority,
+      start_date: patch.startDate,
+      due_date: patch.dueDate,
+      time_estimate_minutes: patch.timeEstimateMinutes,
+    })
+    .eq("id", taskId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function setTaskCompleted(
+  taskId: string,
+  completed: boolean,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ completed_at: completed ? new Date().toISOString() : null })
+    .eq("id", taskId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function deleteTask(taskId: string): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("tasks")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", taskId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// -- Assignees ---------------------------------------------------------------
+
+export async function toggleAssignee(
+  taskId: string,
+  userId: string,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("task_assignees")
+    .select("task_id")
+    .eq("task_id", taskId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from("task_assignees")
+      .delete()
+      .eq("task_id", taskId)
+      .eq("user_id", userId);
+  } else {
+    const { error } = await supabase
+      .from("task_assignees")
+      .insert({ task_id: taskId, user_id: userId });
+    if (error) return { error: error.message };
+  }
+  return {};
+}
+
+// -- Labels ------------------------------------------------------------------
+
+export async function toggleTaskLabel(
+  taskId: string,
+  labelId: string,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("task_labels")
+    .select("task_id")
+    .eq("task_id", taskId)
+    .eq("label_id", labelId)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from("task_labels")
+      .delete()
+      .eq("task_id", taskId)
+      .eq("label_id", labelId);
+  } else {
+    const { error } = await supabase
+      .from("task_labels")
+      .insert({ task_id: taskId, label_id: labelId });
+    if (error) return { error: error.message };
+  }
+  return {};
+}
+
+// -- Comments ----------------------------------------------------------------
+
+export async function addComment(
+  taskId: string,
+  body: string,
+): Promise<Result> {
+  const user = await requireUser();
+  const trimmed = body.trim();
+  if (!trimmed) return { error: "Comment is empty." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("task_comments")
+    .insert({ task_id: taskId, user_id: user.id, body: trimmed });
+  if (error) return { error: error.message };
+
+  // Comment isn't covered by the task trigger; log it explicitly.
+  const { data: task } = await supabase
+    .from("tasks")
+    .select("project_id, projects(workspace_id)")
+    .eq("id", taskId)
+    .single();
+  const row = task as
+    | { project_id: string; projects: { workspace_id: string } | null }
+    | null;
+  if (row?.projects?.workspace_id) {
+    await supabase.from("activity_logs").insert({
+      workspace_id: row.projects.workspace_id,
+      project_id: row.project_id,
+      task_id: taskId,
+      actor_id: user.id,
+      verb: "task.commented",
+    });
+  }
+  return {};
+}
+
+export async function deleteComment(commentId: string): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("task_comments")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", commentId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// -- Checklists --------------------------------------------------------------
+
+export async function addChecklist(
+  taskId: string,
+  title: string,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("checklists")
+    .insert({ task_id: taskId, title: title.trim() || "Checklist" });
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function addChecklistItem(
+  checklistId: string,
+  content: string,
+): Promise<Result> {
+  await requireUser();
+  const trimmed = content.trim();
+  if (!trimmed) return { error: "Item is empty." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("checklist_items")
+    .insert({ checklist_id: checklistId, content: trimmed });
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function toggleChecklistItem(
+  itemId: string,
+  isDone: boolean,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("checklist_items")
+    .update({ is_done: isDone })
+    .eq("id", itemId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function deleteChecklistItem(itemId: string): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("checklist_items")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", itemId);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// -- Time tracking -----------------------------------------------------------
+
+export async function logTime(
+  taskId: string,
+  durationMinutes: number,
+  note?: string,
+): Promise<Result> {
+  const user = await requireUser();
+  if (!durationMinutes || durationMinutes <= 0) {
+    return { error: "Duration must be greater than zero." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("task_time_entries").insert({
+    task_id: taskId,
+    user_id: user.id,
+    duration_minutes: Math.round(durationMinutes),
+    note: note?.trim() || null,
+  });
+  if (error) return { error: error.message };
+  return {};
+}
