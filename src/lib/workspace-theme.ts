@@ -12,6 +12,8 @@ export const WORKSPACE_COLORS = [
   { name: "Red", value: "#dc2626" },
   { name: "Orange", value: "#ea580c" },
   { name: "Amber", value: "#d97706" },
+  { name: "Yellow", value: "#eab308" },
+  { name: "Gold", value: "#c79a1e" },
   { name: "Lime", value: "#65a30d" },
   { name: "Green", value: "#16a34a" },
   { name: "Emerald", value: "#059669" },

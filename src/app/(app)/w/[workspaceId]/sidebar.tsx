@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import type { MembershipWithWorkspace } from "@/lib/auth";
 import type { ConversationWithParticipants } from "@/lib/chat-shared";
@@ -9,12 +9,12 @@ import { dmCounterpart } from "@/lib/chat-shared";
 import type { Channel, Profile } from "@/lib/supabase/types";
 import type { ProjectWithMembers } from "@/lib/projects-shared";
 import { Avatar } from "@/components/avatar";
-import { LinkProgressBar, LinkSpinner } from "@/components/link-pending";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { usePresence } from "@/components/presence-provider";
 import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
 import { useLiveMembers } from "@/lib/use-live-members";
+import { useGroupMembership } from "@/lib/use-group-membership";
 import { signOut } from "@/app/(auth)/actions";
 import { openDirectMessage } from "./chat-actions";
 import { CreateChannelDialog } from "./create-channel-dialog";
@@ -68,6 +68,7 @@ export function Sidebar({
   channelUnreads: Record<string, number>;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const dmUnreadCounts = useDmUnreads(workspaceId, userId, dmUnreads);
   const channelUnreadCounts = useChannelUnreads(
     workspaceId,
@@ -75,7 +76,12 @@ export function Sidebar({
     channelUnreads,
   );
   const members = useLiveMembers(initialMembers);
+  useGroupMembership(userId);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  // When switching workspaces we show a branded full-screen splash, then push
+  // the route. The whole layout remounts on arrival, tearing the splash down.
+  const [switchingTo, setSwitchingTo] =
+    useState<MembershipWithWorkspace | null>(null);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
@@ -121,56 +127,86 @@ export function Sidebar({
   ];
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-border bg-surface">
+    <aside className="relative flex h-screen w-64 shrink-0 flex-col border-r border-border bg-linear-to-b from-surface to-background/60">
       {/* Workspace switcher */}
-      <div className="relative border-b border-border p-3">
+      <div className="relative border-b border-border/70 p-3">
         <button
           onClick={() => setSwitcherOpen((o) => !o)}
-          className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left hover:bg-surface-2"
+          className="group flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-2 text-left transition-colors hover:border-border hover:bg-surface-2"
         >
-          <span className="flex items-center gap-2 truncate">
-            <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
+          <span className="flex items-center gap-2.5 truncate">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/30">
               {current?.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
             </span>
             <span className="truncate text-sm font-semibold text-foreground">
               {current?.workspaces?.name ?? "Workspace"}
             </span>
           </span>
-          <Icon d="M6 9l6 6 6-6" />
+          <Icon
+            d="M6 9l6 6 6-6"
+            className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 ${
+              switcherOpen ? "rotate-180" : ""
+            }`}
+          />
         </button>
 
         {switcherOpen && (
-          <div className="absolute left-3 right-3 z-20 mt-1 origin-top animate-scale-in overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
+          <div className="absolute left-3 right-3 z-20 mt-1 origin-top animate-scale-in overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-xl shadow-black/30">
+            <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
+              Workspaces
+            </p>
             {workspaces.map((w) => {
               const isCurrent = w.workspace_id === workspaceId;
+              const color = w.workspaces?.color ?? "#4f46e5";
               return (
-                <Link
+                <button
                   key={w.workspace_id}
-                  href={`/w/${w.workspace_id}`}
-                  prefetch={false}
                   onClick={() => {
-                    if (isCurrent) setSwitcherOpen(false);
+                    setSwitcherOpen(false);
+                    if (isCurrent) return;
+                    setSwitchingTo(w);
+                    // Let the splash paint before the (blocking) route push.
+                    startTransition(() => router.push(`/w/${w.workspace_id}`));
                   }}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-2 ${
-                    isCurrent ? "font-semibold text-foreground" : "text-muted"
+                  className={`group/ws flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition-all duration-150 ${
+                    isCurrent
+                      ? "bg-primary/10 font-semibold text-foreground ring-1 ring-inset ring-primary/20"
+                      : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
-                  <LinkProgressBar />
                   <span
-                    className="h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: w.workspaces?.color ?? "#4f46e5" }}
-                  />
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-xs font-bold text-white shadow-sm"
+                    style={{ backgroundColor: color }}
+                  >
+                    {w.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
+                  </span>
                   <span className="flex-1 truncate">{w.workspaces?.name}</span>
-                  <LinkSpinner />
-                </Link>
+                  {isCurrent && (
+                    <svg
+                      className="h-4 w-4 shrink-0 text-primary"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </button>
               );
             })}
+            <div className="my-1 border-t border-border" />
             <Link
               href="/onboarding"
               onClick={() => setSwitcherOpen(false)}
-              className="block border-t border-border px-3 py-2 text-sm text-primary hover:bg-surface-2"
+              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
             >
-              + New workspace
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-dashed border-primary/40 text-primary">
+                <Icon d="M12 5v14M5 12h14" className="h-4 w-4" />
+              </span>
+              New workspace
             </Link>
           </div>
         )}
@@ -188,16 +224,19 @@ export function Sidebar({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group/nav relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ${
+                className={`group/nav relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 ${
                   active
-                    ? "bg-primary/10 text-primary"
+                    ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
                     : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                 }`}
               >
                 {active && (
-                  <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                  <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary shadow-[0_0_10px] shadow-primary/60" />
                 )}
-                <Icon d={item.icon} />
+                <Icon
+                  d={item.icon}
+                  className="h-4 w-4 shrink-0 transition-transform duration-150 group-hover/nav:scale-110"
+                />
                 <span className="flex-1">{item.label}</span>
               </Link>
             );
@@ -223,7 +262,7 @@ export function Sidebar({
             <button
               onClick={() => setChannelDialogOpen(true)}
               aria-label="Create group"
-              className="grid h-5 w-5 place-items-center rounded hover:bg-surface-2 hover:text-foreground"
+              className="grid h-5 w-5 place-items-center rounded-md transition-colors hover:bg-primary/15 hover:text-primary"
             >
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
             </button>
@@ -241,7 +280,7 @@ export function Sidebar({
                 <Link
                   key={c.id}
                   href={href}
-                  className={`relative flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
+                  className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
                       : unreadCh > 0
@@ -289,7 +328,7 @@ export function Sidebar({
             <Link
               href={`${base}/members`}
               aria-label="Members"
-              className="grid h-5 w-5 place-items-center rounded hover:bg-surface-2 hover:text-foreground"
+              className="grid h-5 w-5 place-items-center rounded-md transition-colors hover:bg-primary/15 hover:text-primary"
             >
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
             </Link>
@@ -308,7 +347,7 @@ export function Sidebar({
               const unreadDm = conversationId
                 ? (dmUnreadCounts[conversationId] ?? 0)
                 : 0;
-              const className = `relative flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm transition-all duration-150 ${
+              const className = `relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5 text-left text-sm transition-all duration-150 ${
                 active
                   ? "bg-primary/10 font-medium text-primary"
                   : unreadDm > 0
@@ -364,12 +403,12 @@ export function Sidebar({
 
         {/* Projects */}
         <div>
-          <div className="flex items-center justify-between px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <span>Projects</span>
+          <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+            <span className="px-2 py-0.5">Projects</span>
             <Link
               href={`${base}/projects`}
               aria-label="All projects"
-              className="grid h-5 w-5 place-items-center rounded hover:bg-surface-2 hover:text-foreground"
+              className="grid h-5 w-5 place-items-center rounded-md transition-colors hover:bg-primary/15 hover:text-primary"
             >
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
             </Link>
@@ -385,7 +424,7 @@ export function Sidebar({
                 <Link
                   key={p.id}
                   href={href}
-                  className={`relative flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ${
+                  className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
                       : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
@@ -407,10 +446,10 @@ export function Sidebar({
       </nav>
 
       {/* User footer */}
-      <div className="flex items-center justify-between gap-2 border-t border-border p-3">
+      <div className="flex items-center justify-between gap-2 border-t border-border/70 p-3">
         <Link
           href={`${base}/profile`}
-          className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-2"
+          className="flex min-w-0 items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-surface-2"
         >
           <span className="relative">
             <Avatar
@@ -451,6 +490,31 @@ export function Sidebar({
         members={members}
         meId={userId}
       />
+
+      {switchingTo && (
+        <div
+          className="fixed inset-0 z-70 flex animate-fade-in flex-col items-center justify-center gap-6 bg-background/90 backdrop-blur-md"
+          style={
+            {
+              "--primary":
+                switchingTo.workspaces?.color ?? "#4f46e5",
+            } as React.CSSProperties
+          }
+        >
+          <div className="relative grid place-items-center">
+            <span className="absolute h-16 w-16 rounded-2xl bg-primary/40 animate-ping-ring" />
+            <span className="relative grid h-16 w-16 animate-scale-in place-items-center rounded-2xl bg-linear-to-br from-primary to-primary/60 text-2xl font-bold text-primary-foreground shadow-lg shadow-primary/40">
+              {switchingTo.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
+            </span>
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <p className="animate-fade-in-up text-sm font-medium text-foreground">
+              Switching to {switchingTo.workspaces?.name}…
+            </p>
+            <span className="inline-block h-4 w-4 animate-spin-fast rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

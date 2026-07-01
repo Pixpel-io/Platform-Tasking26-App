@@ -121,6 +121,32 @@ export function MessageItem({
     );
   }
 
+  // System events (e.g. "Alice added Bob") render as a centered, unobtrusive
+  // line with no avatar or bubble — Slack-style.
+  if (message.kind === "system") {
+    return (
+      <div className="my-2 flex items-center justify-center gap-2 px-4 text-center">
+        <span className="h-px flex-1 bg-border/60" />
+        <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+          <svg
+            className="h-3.5 w-3.5 shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 .01M19 8v6M22 11h-6" />
+          </svg>
+          {message.body}
+          <span className="text-muted/60">· {time}</span>
+        </span>
+        <span className="h-px flex-1 bg-border/60" />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`group relative flex animate-fade-in gap-3 rounded-lg px-2 transition-colors duration-150 hover:bg-surface-2/40 ${

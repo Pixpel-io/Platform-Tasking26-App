@@ -2,10 +2,12 @@ export function ChatHeader({
   title,
   subtitle,
   icon,
+  actions,
 }: {
   title: string;
   subtitle?: string;
   icon?: React.ReactNode;
+  actions?: React.ReactNode;
 }) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface px-4">
@@ -18,6 +20,9 @@ export function ChatHeader({
           <p className="truncate text-xs text-muted">{subtitle}</p>
         )}
       </div>
+      {actions && (
+        <div className="ml-auto flex items-center gap-2 pr-11">{actions}</div>
+      )}
     </header>
   );
 }

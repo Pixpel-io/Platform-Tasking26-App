@@ -15,6 +15,7 @@ import { NotificationToaster } from "@/components/notification-toaster";
 import { normalizeColor } from "@/lib/workspace-theme";
 import { Sidebar } from "./sidebar";
 import { NotificationBell } from "./notification-bell";
+import { WorkspaceLoader } from "./workspace-loader";
 
 export default async function WorkspaceLayout({
   children,
@@ -58,8 +59,13 @@ export default async function WorkspaceLayout({
     getChannelUnreadCounts(workspaceId),
   ]);
 
+  const workspaceName =
+    workspaces.find((w) => w.workspace_id === workspaceId)?.workspaces?.name ??
+    "Workspace";
+
   return (
     <PresenceProvider workspaceId={workspaceId} userId={user.id}>
+      <WorkspaceLoader name={workspaceName} accent={accent} />
       <div
         className="flex h-screen overflow-hidden"
         style={{ "--primary": accent } as React.CSSProperties}

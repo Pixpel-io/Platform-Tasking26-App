@@ -219,3 +219,19 @@ export const getWorkspaceMembersForChat = cache(
     return rows.map((r) => r.profiles).filter((p): p is Profile => p !== null);
   },
 );
+
+// The people who belong to a group, oldest-joined first.
+export const getChannelMembers = cache(
+  async (channelId: string): Promise<Profile[]> => {
+    await requireUser();
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("channel_members")
+      .select("profiles(*)")
+      .eq("channel_id", channelId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true });
+    const rows = (data as { profiles: Profile | null }[] | null) ?? [];
+    return rows.map((r) => r.profiles).filter((p): p is Profile => p !== null);
+  },
+);

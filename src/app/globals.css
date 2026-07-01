@@ -18,16 +18,16 @@
 }
 
 .dark {
-  --background: #0b0f1a;
-  --surface: #111827;
-  --surface-2: #1e293b;
-  --border: #1f2937;
-  --foreground: #e5e7eb;
-  --muted: #94a3b8;
-  --primary: #6366f1;
+  --background: #070a12;
+  --surface: #0e1420;
+  --surface-2: #18202f;
+  --border: #232d3f;
+  --foreground: #eef2f8;
+  --muted: #93a1b5;
+  --primary: #7c8aff;
   --primary-foreground: #ffffff;
-  --danger: #ef4444;
-  --success: #22c55e;
+  --danger: #f87171;
+  --success: #34d399;
 }
 
 @theme inline {
@@ -55,6 +55,25 @@ body {
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* In dark mode, layer faint color washes behind everything so large surfaces
+   read as atmospheric depth rather than flat charcoal. Fixed so it doesn't
+   scroll, subtle enough not to hurt text contrast. */
+.dark body {
+  background-image:
+    radial-gradient(
+      44rem 44rem at 12% -8%,
+      color-mix(in srgb, var(--primary) 16%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      40rem 40rem at 108% 6%,
+      color-mix(in srgb, #a855f7 14%, transparent),
+      transparent 62%
+    );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 
 /* Smoothly cross-fade themeable surfaces when toggling light/dark, instead of
@@ -151,6 +170,65 @@ body,
     transform: rotate(360deg);
   }
 }
+@keyframes ping-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes swatch-rise {
+  from {
+    opacity: 0;
+    transform: translateY(120%) scaleY(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+@keyframes spectrum-sweep {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(500%);
+  }
+}
+/* Full page-load reveal — runs once on hard reload (body remounts). */
+@keyframes page-load {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.994);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+/* Workspace loader — a dot orbiting the logo tile. */
+@keyframes orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Indeterminate progress chunk sliding across the loader bar. */
+@keyframes loader-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
 @keyframes toast-in {
   from {
     opacity: 0;
@@ -201,6 +279,24 @@ body,
 }
 .animate-toast-out {
   animation: toast-out 0.2s ease-in forwards;
+}
+.animate-ping-ring {
+  animation: ping-ring 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.animate-swatch-rise {
+  animation: swatch-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-spectrum-sweep {
+  animation: spectrum-sweep 3.5s ease-in-out 1.2s infinite;
+}
+.animate-page-load {
+  animation: page-load 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-orbit {
+  animation: orbit 1.4s linear infinite;
+}
+.animate-loader-slide {
+  animation: loader-slide 1.1s ease-in-out infinite;
 }
 
 /* Top navigation progress bar — render fixed at the top while a route
@@ -276,6 +372,17 @@ body,
   -webkit-backdrop-filter: blur(14px) saturate(1.3);
   border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
 }
+/* A crisper glass in dark mode: more blur plus a faint top light edge so cards
+   feel lit from above and lift off the background. */
+.dark .glass {
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, #ffffff 6%, transparent),
+    0 20px 40px -24px rgba(0, 0, 0, 0.7);
+}
 
 /* ---------- Gradient text accent ---------- */
 .gradient-text {
@@ -298,6 +405,11 @@ body,
 }
 .hover-glow:hover {
   box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--primary) 45%, transparent);
+}
+.dark .hover-glow:hover {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent),
+    0 14px 40px -12px color-mix(in srgb, var(--primary) 60%, transparent);
 }
 
 /* Skeleton shimmer sweep — pair with a bg-surface-2 element + overflow-hidden. */
