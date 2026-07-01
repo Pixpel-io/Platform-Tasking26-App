@@ -151,7 +151,7 @@ export default async function WorkspaceDashboard({
         <StatCard
           label="Members"
           value={memberCount ?? 0}
-          href={`/w/${workspaceId}/members`}
+          href={`/w/${workspaceId}/settings/members`}
           index={0}
         />
         <StatCard
@@ -209,7 +209,7 @@ export default async function WorkspaceDashboard({
               View projects
             </Link>
             <Link
-              href={`/w/${workspaceId}/members`}
+              href={`/w/${workspaceId}/settings/members`}
               className="rounded-lg border border-border px-4 py-2 text-center text-sm font-medium text-foreground transition-all duration-150 hover:border-primary/40 hover:bg-surface-2 active:scale-[0.98]"
             >
               Invite your team

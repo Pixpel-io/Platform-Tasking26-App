@@ -31,22 +31,14 @@ export default async function DMPage({
       <ChatHeader
         title={title}
         subtitle={other?.email ?? undefined}
-        icon={
-          other ? (
-            <DmHeaderAvatar
-              userId={other.id}
-              name={other.full_name}
-              email={other.email}
-              avatarUrl={other.avatar_url}
-            />
-          ) : undefined
-        }
+        icon={other ? <DmHeaderAvatar profile={other} /> : undefined}
       />
       <div className="min-h-0 flex-1">
         <ChatRoom
           target={{ workspaceId, conversationId }}
           meId={user.id}
           meName={meName}
+          members={other ? [other] : []}
           initialMessages={messages}
         />
       </div>

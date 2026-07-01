@@ -937,6 +937,10 @@ export interface Database {
         Args: { p_channel_id: string; p_member_ids: string[] };
         Returns: undefined;
       };
+      remove_channel_member: {
+        Args: { p_channel_id: string; p_member_id: string };
+        Returns: undefined;
+      };
       get_or_create_dm: {
         Args: { p_workspace_id: string; p_other_user_id: string };
         Returns: string;

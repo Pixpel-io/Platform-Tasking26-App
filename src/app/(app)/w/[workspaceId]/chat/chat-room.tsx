@@ -21,7 +21,7 @@ import {
   type PendingAttachment,
 } from "../chat-actions";
 import { MessageItem } from "./message-item";
-import { Composer } from "./composer";
+import { Composer, type MentionMember } from "./composer";
 import { TypingIndicator, useTyping } from "./typing";
 
 type Target = {
@@ -34,11 +34,13 @@ export function ChatRoom({
   target,
   meId,
   meName,
+  members = [],
   initialMessages,
 }: {
   target: Target;
   meId: string;
   meName: string;
+  members?: MentionMember[];
   initialMessages: MessageWithRelations[];
 }) {
   const { messages, setMessages } = useChatMessages(
@@ -50,9 +52,24 @@ export function ChatRoom({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Optimistic outgoing messages (instant echo before the server row arrives).
+  // Realtime can deliver the real row before the send transition ends; once it
+  // has (same author + body, sent moments ago), drop the temp echo so the
+  // message isn't shown twice mid-send.
   const [optimistic, addOptimistic] = useOptimistic(
     messages,
-    (state, pending: MessageWithRelations) => [...state, pending],
+    (state, pending: MessageWithRelations) => {
+      const arrived = state.some(
+        (m) =>
+          !m.id.startsWith("temp-") &&
+          m.user_id === pending.user_id &&
+          m.body === pending.body &&
+          Math.abs(
+            new Date(m.created_at).getTime() -
+              new Date(pending.created_at).getTime(),
+          ) < 15000,
+      );
+      return arrived ? state : [...state, pending];
+    },
   );
 
   const { typingUsers, broadcastTyping } = useTyping(target, meId, meName);
@@ -281,6 +298,7 @@ export function ChatRoom({
       <Composer
         workspaceId={target.workspaceId}
         meId={meId}
+        members={members}
         onSend={handleSend}
         onTyping={broadcastTyping}
       />

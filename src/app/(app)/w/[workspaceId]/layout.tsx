@@ -87,7 +87,7 @@ export default async function WorkspaceLayout({
           channelUnreads={channelUnreads}
         />
         <div className="relative flex-1 overflow-hidden">
-          <div className="absolute right-3 top-2.5 z-30 flex items-center gap-2">
+          <div className="absolute right-5 top-3.5 z-30 flex items-center gap-2">
             <HeaderSearch workspaceId={workspaceId} />
             <NotificationBell
               workspaceId={workspaceId}

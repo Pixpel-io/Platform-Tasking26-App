@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { SettingsForm } from "./settings-form";
+import { SettingsTabs } from "./settings-tabs";
 
 export default async function SettingsPage({
   params,
@@ -41,9 +42,10 @@ export default async function SettingsPage({
           Workspace settings
         </h1>
         <p className="mt-1 text-muted">
-          Customize the name and accent color teammates see in this workspace.
+          Manage this workspace and the people in it.
         </p>
       </header>
+      <SettingsTabs base={`/w/${workspaceId}/settings`} />
       <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
         {canManage ? (
           <SettingsForm

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { Profile } from "@/lib/supabase/types";
 import { Avatar } from "@/components/avatar";
 import { useProfileCard } from "@/components/profile-card";
-import { addGroupMembers } from "../../chat-actions";
+import { addGroupMembers, removeGroupMember } from "../../chat-actions";
 
 function Icon({
   d,
@@ -37,17 +38,22 @@ export function GroupMembers({
   channelId,
   members,
   workspaceMembers,
+  canManage = false,
+  creatorId,
 }: {
   workspaceId: string;
   channelId: string;
   members: Profile[];
   workspaceMembers: Profile[];
+  canManage?: boolean;
+  creatorId?: string | null;
 }) {
   const router = useRouter();
   const openProfile = useProfileCard();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -94,12 +100,26 @@ export function GroupMembers({
     });
   }
 
+  function remove(id: string) {
+    setError(null);
+    setRemovingId(id);
+    startTransition(async () => {
+      const res = await removeGroupMember(workspaceId, channelId, id);
+      setRemovingId(null);
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         aria-label={`${members.length} members — view or add people`}
-        className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1 text-sm text-muted transition-all duration-150 hover:border-primary/50 hover:bg-primary/10 hover:text-primary hover:shadow-sm hover:shadow-primary/20"
+        className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-sm text-muted transition-all duration-150 hover:border-primary/50 hover:bg-primary/10 hover:text-primary hover:shadow-sm hover:shadow-primary/20"
       >
         <Icon
           d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m14 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
@@ -108,7 +128,7 @@ export function GroupMembers({
         <span className="font-medium">{members.length}</span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           className="fixed inset-0 z-50 grid animate-fade-in place-items-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setOpen(false)}
@@ -150,37 +170,79 @@ export function GroupMembers({
             <div className="px-6 py-5">
               {/* Current roster */}
               <div className="max-h-52 space-y-0.5 overflow-y-auto">
-                {members.map((m) => (
-                  <button
-                    type="button"
-                    key={m.id}
-                    onClick={() => {
-                      setOpen(false);
-                      openProfile(m);
-                    }}
-                    className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-all duration-150 hover:translate-x-0.5 hover:bg-primary/5"
-                  >
-                    <Avatar
-                      name={m.full_name}
-                      email={m.email}
-                      avatarUrl={m.avatar_url}
-                      size="sm"
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">
-                        {m.full_name ?? m.email}
-                      </span>
-                      {m.full_name && (
-                        <span className="block truncate text-xs text-muted">
-                          {m.email}
+                {members.map((m) => {
+                  const isCreator = m.id === creatorId;
+                  const canRemove = canManage && !isCreator;
+                  return (
+                    <div
+                      key={m.id}
+                      className="group flex items-center gap-3 rounded-xl px-2 py-1.5 transition-all duration-150 hover:bg-primary/5"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpen(false);
+                          openProfile(m);
+                        }}
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+                      >
+                        <Avatar
+                          name={m.full_name}
+                          email={m.email}
+                          avatarUrl={m.avatar_url}
+                          size="sm"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-foreground">
+                            {m.full_name ?? m.email}
+                          </span>
+                          {m.full_name && (
+                            <span className="block truncate text-xs text-muted">
+                              {m.email}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                      {isCreator && (
+                        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted">
+                          Creator
                         </span>
                       )}
-                    </span>
-                  </button>
-                ))}
+                      {canRemove && (
+                        <button
+                          type="button"
+                          onClick={() => remove(m.id)}
+                          disabled={pending}
+                          aria-label={`Remove ${m.full_name ?? m.email}`}
+                          title="Remove from group"
+                          className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all duration-150 hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {removingId === m.id ? (
+                            <svg
+                              className="h-3.5 w-3.5 animate-spin-fast"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                            >
+                              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                            </svg>
+                          ) : (
+                            <Icon
+                              d="M14 11v6M10 11v6M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                              className="h-3.5 w-3.5"
+                            />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Add people */}
+              {/* Add people (creator/admin only) */}
+              {canManage && (
               <div className="mt-5 border-t border-border pt-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -245,10 +307,6 @@ export function GroupMembers({
                       })}
                     </div>
 
-                    {error && (
-                      <p className="mt-2 text-sm text-danger">{error}</p>
-                    )}
-
                     <div className="mt-4 flex justify-end gap-2">
                       <button
                         onClick={() => setOpen(false)}
@@ -271,9 +329,15 @@ export function GroupMembers({
                   </>
                 )}
               </div>
+              )}
+
+              {error && (
+                <p className="mt-3 text-sm text-danger">{error}</p>
+              )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

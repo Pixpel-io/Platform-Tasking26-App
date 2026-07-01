@@ -172,7 +172,7 @@ export async function inviteMember(
     token = invite.token;
   }
 
-  revalidatePath(`/w/${workspaceId}/members`);
+  revalidatePath(`/w/${workspaceId}/settings/members`);
   return deliverInvite(supabase, { workspaceId, email, token, userId: user.id, userEmail: user.email });
 }
 
@@ -197,7 +197,7 @@ export async function resendInvite(
 
   if (error) return { error: error.message };
 
-  revalidatePath(`/w/${workspaceId}/members`);
+  revalidatePath(`/w/${workspaceId}/settings/members`);
   return deliverInvite(supabase, {
     workspaceId,
     email: invite.email,
@@ -284,7 +284,7 @@ export async function revokeInvite(workspaceId: string, inviteId: string) {
     await query.eq("id", inviteId);
   }
 
-  revalidatePath(`/w/${workspaceId}/members`);
+  revalidatePath(`/w/${workspaceId}/settings/members`);
 }
 
 // Soft-removes a member from a workspace. RLS already restricts this to
@@ -317,7 +317,7 @@ export async function removeMember(
 
   if (error) return { error: error.message };
 
-  revalidatePath(`/w/${workspaceId}/members`);
+  revalidatePath(`/w/${workspaceId}/settings/members`);
   return { success: "Member removed." };
 }
 

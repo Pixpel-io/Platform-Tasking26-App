@@ -63,6 +63,24 @@ export async function addGroupMembers(
   return {};
 }
 
+// Remove a member from a group (creator/admin only — enforced in the RPC and
+// RLS). The group creator can't be removed.
+export async function removeGroupMember(
+  workspaceId: string,
+  channelId: string,
+  memberId: string,
+): Promise<ChatResult> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("remove_channel_member", {
+    p_channel_id: channelId,
+    p_member_id: memberId,
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/w/${workspaceId}`, "layout");
+  return {};
+}
+
 // -- DMs ---------------------------------------------------------------------
 
 export async function openDirectMessage(

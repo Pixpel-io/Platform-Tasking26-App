@@ -2,11 +2,25 @@
 
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Avatar } from "@/components/avatar";
 import { EmojiPicker } from "@/components/emoji-picker";
 import { highlightComposerValue } from "@/lib/message-format";
 import type { PendingAttachment } from "../chat-actions";
 
 const BUCKET = "chat-attachments";
+
+export type MentionMember = {
+  id: string;
+  full_name: string | null;
+  email: string;
+  avatar_url: string | null;
+};
+
+// The handle we insert must match how the server resolves mentions (the email
+// local part, e.g. "@jane" for "jane@acme.com"). See sendMessage in chat-actions.
+function mentionHandle(m: MentionMember): string {
+  return m.email.split("@")[0];
+}
 
 type Uploading = {
   id: string;
@@ -22,15 +36,35 @@ function attachmentKind(mime: string): PendingAttachment["kind"] {
   return "file";
 }
 
+// An open @mention popup: the token being typed and where the "@" sits so we
+// can replace the right slice on selection.
+type MentionState = {
+  query: string;
+  start: number;
+  active: number;
+};
+
+// Find an @mention token immediately before the caret. It must sit at the
+// start of the text or follow whitespace (so emails like a@b don't trigger it),
+// and only contains the characters the server accepts. Returns null otherwise.
+function detectMention(value: string, caret: number): { query: string; start: number } | null {
+  const upTo = value.slice(0, caret);
+  const match = /(?:^|\s)@([a-zA-Z0-9._-]*)$/.exec(upTo);
+  if (!match) return null;
+  return { query: match[1], start: caret - match[1].length - 1 };
+}
+
 export function Composer({
   workspaceId,
   meId,
+  members = [],
   onSend,
   onTyping,
   placeholder = "Write a message…  (use @ to mention)",
 }: {
   workspaceId: string;
   meId: string;
+  members?: MentionMember[];
   onSend: (body: string, attachments: PendingAttachment[]) => void;
   onTyping?: () => void;
   placeholder?: string;
@@ -38,9 +72,55 @@ export function Composer({
   const [value, setValue] = useState("");
   const [uploads, setUploads] = useState<Uploading[]>([]);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [mention, setMention] = useState<MentionState | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Members matching the active @token, capped so the list stays scannable.
+  const matches = (() => {
+    if (!mention) return [];
+    const q = mention.query.toLowerCase();
+    return members
+      .filter((m) => {
+        if (m.id === meId) return false;
+        const handle = mentionHandle(m).toLowerCase();
+        const name = (m.full_name ?? "").toLowerCase();
+        return handle.includes(q) || name.includes(q);
+      })
+      .slice(0, 8);
+  })();
+  const mentionOpen = mention !== null && matches.length > 0;
+
+  // Recompute the @mention popup from the textarea's current caret.
+  function syncMention(el: HTMLTextAreaElement) {
+    const caret = el.selectionStart ?? el.value.length;
+    const found = detectMention(el.value, caret);
+    setMention((prev) =>
+      found
+        ? { ...found, active: prev && prev.start === found.start ? prev.active : 0 }
+        : null,
+    );
+  }
+
+  // Replace the active @token with the member's handle and a trailing space.
+  function pickMention(m: MentionMember) {
+    if (!mention) return;
+    const el = taRef.current;
+    const caret = el?.selectionStart ?? value.length;
+    const handle = mentionHandle(m);
+    const next = value.slice(0, mention.start) + "@" + handle + " " + value.slice(caret);
+    setValue(next);
+    setMention(null);
+    onTyping?.();
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const pos = mention.start + handle.length + 2;
+      el.setSelectionRange(pos, pos);
+      autoGrow(el);
+    });
+  }
 
   const ready = uploads.every((u) => u.progress !== "uploading");
   const canSend =
@@ -58,6 +138,33 @@ export function Composer({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // When the @mention popup is open, arrows/Enter/Tab drive it instead of
+    // the textarea.
+    if (mentionOpen && mention) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMention({ ...mention, active: (mention.active + 1) % matches.length });
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMention({
+          ...mention,
+          active: (mention.active - 1 + matches.length) % matches.length,
+        });
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        pickMention(matches[Math.min(mention.active, matches.length - 1)]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMention(null);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       submit();
@@ -254,7 +361,7 @@ export function Composer({
             taRef.current?.focus();
           }
         }}
-        className="flex cursor-text flex-col rounded-2xl border border-border bg-background shadow-sm transition-all duration-150 focus-within:border-primary/50 focus-within:shadow-md focus-within:ring-2 focus-within:ring-primary/15"
+        className="flex cursor-text flex-col rounded-2xl border border-border bg-background shadow-sm transition-all duration-150 focus-within:border-border/80 focus-within:shadow-md"
       >
         {/* Text input */}
         <div className="relative px-4 pt-3">
@@ -280,11 +387,59 @@ export function Composer({
             onChange={(e) => {
               setValue(e.target.value);
               autoGrow(e.target);
+              syncMention(e.target);
               onTyping?.();
             }}
+            onKeyUp={(e) => syncMention(e.currentTarget)}
+            onClick={(e) => syncMention(e.currentTarget)}
+            onBlur={() => setMention(null)}
             onKeyDown={handleKeyDown}
-            className="relative block max-h-48 w-full resize-none bg-transparent text-sm leading-6 text-transparent caret-foreground placeholder:text-muted focus:outline-none"
+            className="relative block max-h-48 w-full resize-none bg-transparent text-sm leading-6 text-transparent caret-foreground placeholder:text-muted focus:outline-none focus-visible:outline-none"
           />
+
+          {mentionOpen && mention && (
+            <div className="absolute bottom-full left-2 z-40 mb-2 w-72 max-w-[calc(100%-1rem)] animate-scale-in overflow-hidden rounded-xl border border-border bg-surface shadow-xl shadow-black/20">
+              <p className="border-b border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                Mention someone
+              </p>
+              <ul className="max-h-56 overflow-y-auto p-1">
+                {matches.map((m, i) => {
+                  const active = i === mention.active;
+                  return (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        // Pick on mousedown so it fires before the textarea's blur.
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          pickMention(m);
+                        }}
+                        onMouseEnter={() => setMention({ ...mention, active: i })}
+                        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
+                          active ? "bg-primary/10" : "hover:bg-surface-2"
+                        }`}
+                      >
+                        <Avatar
+                          name={m.full_name}
+                          email={m.email}
+                          avatarUrl={m.avatar_url}
+                          size="xs"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-foreground">
+                            {m.full_name ?? mentionHandle(m)}
+                          </span>
+                          <span className="block truncate text-xs text-muted">
+                            @{mentionHandle(m)}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Action bar: formatting on the left, attach/emoji/send on the right */}

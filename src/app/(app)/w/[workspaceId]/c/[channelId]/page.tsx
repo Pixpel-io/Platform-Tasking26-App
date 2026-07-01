@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { getProfile, requireUser } from "@/lib/auth";
 import {
   getChannel,
@@ -15,16 +16,23 @@ export default async function ChannelPage({
 }: PageProps<"/w/[workspaceId]/c/[channelId]">) {
   const { workspaceId, channelId } = await params;
   const user = await requireUser();
-  const [channel, profile, messages, channelMembers, workspaceMembers] =
+  const supabase = await createClient();
+  const [channel, profile, messages, channelMembers, workspaceMembers, isAdmin] =
     await Promise.all([
       getChannel(channelId),
       getProfile(),
       getMessages({ channelId }),
       getChannelMembers(channelId),
       getWorkspaceMembersForChat(workspaceId),
+      supabase
+        .rpc("is_workspace_admin", { p_workspace_id: workspaceId })
+        .then((r) => r.data ?? false),
     ]);
 
   if (!channel) notFound();
+
+  // Only the group creator or a workspace admin may add/remove members.
+  const canManageMembers = isAdmin || channel.created_by === user.id;
 
   const meName = profile?.full_name ?? profile?.email ?? "You";
 
@@ -44,6 +52,8 @@ export default async function ChannelPage({
             channelId={channelId}
             members={channelMembers}
             workspaceMembers={workspaceMembers}
+            canManage={canManageMembers}
+            creatorId={channel.created_by}
           />
         }
       />
@@ -52,6 +62,7 @@ export default async function ChannelPage({
           target={{ workspaceId, channelId }}
           meId={user.id}
           meName={meName}
+          members={channelMembers}
           initialMessages={messages}
         />
       </div>

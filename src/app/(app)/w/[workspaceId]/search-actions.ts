@@ -167,7 +167,7 @@ export async function searchWorkspace(
       id: p.id,
       name: p.full_name ?? p.email,
       subtitle: p.title || p.email,
-      href: `/w/${workspaceId}/members`,
+      href: `/w/${workspaceId}/settings/members`,
     }));
 
   const projectHits: SearchProjectHit[] = projects
