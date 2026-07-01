@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { getRealtimeClient } from "@/lib/supabase/client";
 
 // Tracks unread message counts per direct-message conversation for the sidebar,
 // keyed by conversation id. New messages from OTHER users bump the count and
@@ -32,44 +33,50 @@ export function useDmUnreads(
   }, [pathname]);
 
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`dm-unreads:${workspaceId}:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `workspace_id=eq.${workspaceId}`,
-        },
-        (payload) => {
-          const row = payload.new as {
-            conversation_id?: string | null;
-            user_id?: string;
-            parent_id?: string | null;
-          };
-          // Only top-level DM messages from someone else count.
-          if (!row.conversation_id || row.parent_id) return;
-          if (row.user_id === userId) return;
+    let channel: RealtimeChannel | null = null;
+    let cancelled = false;
 
-          // Ignore if the user is already viewing this conversation.
-          const active = pathnameRef.current.includes(
-            `/dm/${row.conversation_id}`,
-          );
-          if (active) return;
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      channel = supabase
+        .channel(`dm-unreads:${workspaceId}:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `workspace_id=eq.${workspaceId}`,
+          },
+          (payload) => {
+            const row = payload.new as {
+              conversation_id?: string | null;
+              user_id?: string;
+              parent_id?: string | null;
+            };
+            // Only top-level DM messages from someone else count.
+            if (!row.conversation_id || row.parent_id) return;
+            if (row.user_id === userId) return;
 
-          setCounts((prev) => ({
-            ...prev,
-            [row.conversation_id as string]:
-              (prev[row.conversation_id as string] ?? 0) + 1,
-          }));
-        },
-      )
-      .subscribe();
+            // Ignore if the user is already viewing this conversation.
+            const active = pathnameRef.current.includes(
+              `/dm/${row.conversation_id}`,
+            );
+            if (active) return;
+
+            setCounts((prev) => ({
+              ...prev,
+              [row.conversation_id as string]:
+                (prev[row.conversation_id as string] ?? 0) + 1,
+            }));
+          },
+        )
+        .subscribe();
+    });
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) void channel.unsubscribe();
     };
   }, [workspaceId, userId]);
 

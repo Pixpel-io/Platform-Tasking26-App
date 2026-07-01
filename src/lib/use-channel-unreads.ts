@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { getRealtimeClient } from "@/lib/supabase/client";
 
 // Tracks unread message counts per group/channel for the sidebar, keyed by
 // channel id. New top-level messages from OTHER users bump the count and play a
@@ -32,42 +33,48 @@ export function useChannelUnreads(
   }, [pathname]);
 
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`channel-unreads:${workspaceId}:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `workspace_id=eq.${workspaceId}`,
-        },
-        (payload) => {
-          const row = payload.new as {
-            channel_id?: string | null;
-            user_id?: string;
-            parent_id?: string | null;
-          };
-          // Only top-level channel messages from someone else count.
-          if (!row.channel_id || row.parent_id) return;
-          if (row.user_id === userId) return;
+    let channel: RealtimeChannel | null = null;
+    let cancelled = false;
 
-          // Ignore if the user is already viewing this channel.
-          const active = pathnameRef.current.includes(`/c/${row.channel_id}`);
-          if (active) return;
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      channel = supabase
+        .channel(`channel-unreads:${workspaceId}:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `workspace_id=eq.${workspaceId}`,
+          },
+          (payload) => {
+            const row = payload.new as {
+              channel_id?: string | null;
+              user_id?: string;
+              parent_id?: string | null;
+            };
+            // Only top-level channel messages from someone else count.
+            if (!row.channel_id || row.parent_id) return;
+            if (row.user_id === userId) return;
 
-          setCounts((prev) => ({
-            ...prev,
-            [row.channel_id as string]:
-              (prev[row.channel_id as string] ?? 0) + 1,
-          }));
-        },
-      )
-      .subscribe();
+            // Ignore if the user is already viewing this channel.
+            const active = pathnameRef.current.includes(`/c/${row.channel_id}`);
+            if (active) return;
+
+            setCounts((prev) => ({
+              ...prev,
+              [row.channel_id as string]:
+                (prev[row.channel_id as string] ?? 0) + 1,
+            }));
+          },
+        )
+        .subscribe();
+    });
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) void channel.unsubscribe();
     };
   }, [workspaceId, userId]);
 

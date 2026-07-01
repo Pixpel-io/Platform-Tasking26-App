@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { getRealtimeClient } from "@/lib/supabase/client";
 import {
   NOTIFICATION_SELECT,
   notificationHref,
@@ -56,46 +57,52 @@ export function NotificationToaster({
   }, []);
 
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`notification-toaster:${workspaceId}:${userId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        async (payload) => {
-          const id = (payload.new as { id?: string })?.id;
-          if (!id) return;
-          // Don't pop a toast while the user is reading the notifications page.
-          if (pathnameRef.current.endsWith("/notifications")) return;
+    let channel: RealtimeChannel | null = null;
+    let cancelled = false;
 
-          const { data } = await supabase
-            .from("notifications")
-            .select(NOTIFICATION_SELECT)
-            .eq("id", id)
-            .single();
-          if (!data) return;
-          const row = data as unknown as NotificationWithActor;
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      channel = supabase
+        .channel(`notification-toaster:${workspaceId}:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+          },
+          async (payload) => {
+            const id = (payload.new as { id?: string })?.id;
+            if (!id) return;
+            // Don't pop a toast while the user is reading the notifications page.
+            if (pathnameRef.current.endsWith("/notifications")) return;
 
-          playNotificationSound();
-          setToasts((prev) => {
-            if (prev.some((t) => t.id === row.id)) return prev;
-            // Cap the stack so a burst doesn't fill the screen.
-            return [row, ...prev].slice(0, 4);
-          });
-          const timer = setTimeout(() => dismiss(row.id), VISIBLE_MS);
-          timers.current.set(row.id, timer);
-        },
-      )
-      .subscribe();
+            const { data } = await supabase
+              .from("notifications")
+              .select(NOTIFICATION_SELECT)
+              .eq("id", id)
+              .single();
+            if (!data) return;
+            const row = data as unknown as NotificationWithActor;
+
+            playNotificationSound();
+            setToasts((prev) => {
+              if (prev.some((t) => t.id === row.id)) return prev;
+              // Cap the stack so a burst doesn't fill the screen.
+              return [row, ...prev].slice(0, 4);
+            });
+            const timer = setTimeout(() => dismiss(row.id), VISIBLE_MS);
+            timers.current.set(row.id, timer);
+          },
+        )
+        .subscribe();
+    });
 
     const pending = timers.current;
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) void channel.unsubscribe();
       pending.forEach((t) => clearTimeout(t));
       pending.clear();
     };

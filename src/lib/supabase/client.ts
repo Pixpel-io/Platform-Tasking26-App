@@ -16,3 +16,21 @@ export function createClient() {
   );
   return browserClient;
 }
+
+// Returns the shared client only after the Realtime socket has been handed the
+// user's access token. Subscriptions created during the app's first paint (the
+// sidebar/layout hooks) would otherwise call subscribe() before auth propagated
+// to the socket, bind as anon, and have every RLS-protected row silently
+// dropped — so live DM counts, toasts, and sounds never fired unless the room
+// happened to be open. Await this before .subscribe() to guarantee the binding
+// is authenticated.
+export async function getRealtimeClient() {
+  const client = createClient();
+  const {
+    data: { session },
+  } = await client.auth.getSession();
+  if (session?.access_token) {
+    client.realtime.setAuth(session.access_token);
+  }
+  return client;
+}
