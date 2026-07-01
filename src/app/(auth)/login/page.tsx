@@ -10,6 +10,9 @@ export default async function LoginPage({
   const redirectedFrom =
     typeof params.redirectedFrom === "string" ? params.redirectedFrom : undefined;
   const error = typeof params.error === "string" ? params.error : undefined;
+  const signupHref = redirectedFrom
+    ? `/signup?redirectedFrom=${encodeURIComponent(redirectedFrom)}`
+    : "/signup";
 
   return (
     <div className="animate-fade-in-up space-y-6">
@@ -34,7 +37,7 @@ export default async function LoginPage({
 
       <p className="text-center text-sm text-muted">
         New here?{" "}
-        <Link href="/signup" className="font-medium text-primary hover:underline">
+        <Link href={signupHref} className="font-medium text-primary hover:underline">
           Create an account
         </Link>
       </p>

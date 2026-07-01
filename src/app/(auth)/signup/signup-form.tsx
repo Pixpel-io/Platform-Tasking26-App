@@ -4,12 +4,15 @@ import { useActionState } from "react";
 import { signup } from "../actions";
 import { Button, FieldError, FormMessage, Input, Label } from "@/components/ui";
 
-export function SignupForm() {
+export function SignupForm({ redirectedFrom }: { redirectedFrom?: string }) {
   const [state, action, pending] = useActionState(signup, undefined);
 
   return (
     <form action={action} className="space-y-4">
       {state?.error && <FormMessage type="error">{state.error}</FormMessage>}
+      {redirectedFrom && (
+        <input type="hidden" name="redirectedFrom" value={redirectedFrom} />
+      )}
 
       <div>
         <Label htmlFor="fullName">Full name</Label>

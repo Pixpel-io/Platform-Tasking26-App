@@ -45,7 +45,10 @@ export async function signup(
     if (signInError) return { error: signInError.message };
   }
 
-  redirect("/");
+  const redirectedFrom = formData.get("redirectedFrom");
+  redirect(
+    typeof redirectedFrom === "string" && redirectedFrom ? redirectedFrom : "/",
+  );
 }
 
 export async function login(

@@ -2,7 +2,18 @@ import Link from "next/link";
 import { GoogleButton } from "../google-button";
 import { SignupForm } from "./signup-form";
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: PageProps<"/signup">) {
+  const params = await searchParams;
+  const redirectedFrom =
+    typeof params.redirectedFrom === "string"
+      ? params.redirectedFrom
+      : undefined;
+  const loginHref = redirectedFrom
+    ? `/login?redirectedFrom=${encodeURIComponent(redirectedFrom)}`
+    : "/login";
+
   return (
     <div className="animate-fade-in-up space-y-6">
       <div className="space-y-1">
@@ -12,7 +23,7 @@ export default function SignupPage() {
         <p className="text-sm text-muted">Start collaborating in minutes.</p>
       </div>
 
-      <GoogleButton />
+      <GoogleButton redirectedFrom={redirectedFrom} />
 
       <div className="flex items-center gap-3 text-xs text-muted">
         <span className="h-px flex-1 bg-border" />
@@ -20,11 +31,11 @@ export default function SignupPage() {
         <span className="h-px flex-1 bg-border" />
       </div>
 
-      <SignupForm />
+      <SignupForm redirectedFrom={redirectedFrom} />
 
       <p className="text-center text-sm text-muted">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        <Link href={loginHref} className="font-medium text-primary hover:underline">
           Sign in
         </Link>
       </p>
