@@ -11,6 +11,10 @@ import {
   type NotificationWithActor,
 } from "@/lib/notifications-shared";
 import { playNotificationSound } from "@/lib/notify-sound";
+import {
+  ensureNotificationPermission,
+  showDesktopNotification,
+} from "@/lib/notify-desktop";
 import { Avatar } from "@/components/avatar";
 
 const TYPE_ICON: Record<string, string> = {
@@ -56,6 +60,22 @@ export function NotificationToaster({
     }
   }, []);
 
+  // Browsers only grant notification permission from a user gesture, so ask on
+  // the first click/keydown after mount, then stop listening.
+  useEffect(() => {
+    const request = () => {
+      void ensureNotificationPermission();
+      window.removeEventListener("pointerdown", request);
+      window.removeEventListener("keydown", request);
+    };
+    window.addEventListener("pointerdown", request);
+    window.addEventListener("keydown", request);
+    return () => {
+      window.removeEventListener("pointerdown", request);
+      window.removeEventListener("keydown", request);
+    };
+  }, []);
+
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
     let cancelled = false;
@@ -87,6 +107,14 @@ export function NotificationToaster({
             const row = data as unknown as NotificationWithActor;
 
             playNotificationSound();
+            const href = notificationHref(workspaceId, row);
+            showDesktopNotification({
+              title: row.title,
+              body: row.body,
+              icon: row.actor?.avatar_url ?? undefined,
+              tag: row.id,
+              onClick: href ? () => (window.location.href = href) : undefined,
+            });
             setToasts((prev) => {
               if (prev.some((t) => t.id === row.id)) return prev;
               // Cap the stack so a burst doesn't fill the screen.
