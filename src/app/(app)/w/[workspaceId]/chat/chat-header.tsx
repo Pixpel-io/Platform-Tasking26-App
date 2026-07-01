@@ -10,10 +10,10 @@ export function ChatHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface px-4">
-      {icon}
+    <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface/80 px-5 shadow-sm backdrop-blur-md">
+      {icon && <span className="shrink-0">{icon}</span>}
       <div className="min-w-0">
-        <h1 className="truncate text-sm font-semibold text-foreground">
+        <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">
           {title}
         </h1>
         {subtitle && (

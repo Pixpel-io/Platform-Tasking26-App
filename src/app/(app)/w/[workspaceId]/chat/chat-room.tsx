@@ -181,8 +181,21 @@ export function ChatRoom({
       >
         {optimistic.length === 0 && (
           <div className="grid h-full place-items-center text-center">
-            <div>
-              <p className="text-sm font-medium text-foreground">
+            <div className="flex flex-col items-center animate-fade-in-up">
+              <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br from-primary/15 to-primary/5 text-primary ring-1 ring-inset ring-primary/10">
+                <svg
+                  className="h-6 w-6"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </span>
+              <p className="text-base font-semibold text-foreground">
                 This is the very beginning.
               </p>
               <p className="mt-1 text-sm text-muted">
@@ -194,10 +207,12 @@ export function ChatRoom({
 
         {grouped.map(({ day, items }) => (
           <div key={day}>
-            <div className="sticky top-0 z-10 my-4 flex items-center justify-center">
-              <span className="rounded-full border border-border bg-surface/90 px-3 py-0.5 text-xs font-medium text-muted shadow-sm backdrop-blur">
+            <div className="sticky top-0 z-10 my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-border/60" />
+              <span className="rounded-full border border-border bg-surface/90 px-3 py-1 text-xs font-medium text-muted shadow-sm backdrop-blur">
                 {day}
               </span>
+              <span className="h-px flex-1 bg-border/60" />
             </div>
             {items.map((m, i) => {
               const prev = items[i - 1];

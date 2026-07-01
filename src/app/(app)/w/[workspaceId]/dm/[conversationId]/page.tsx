@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { Avatar } from "@/components/avatar";
 import { getProfile, requireUser } from "@/lib/auth";
 import {
   dmCounterpart,
@@ -8,6 +7,7 @@ import {
 } from "@/lib/chat";
 import { ChatHeader } from "../../chat/chat-header";
 import { ChatRoom } from "../../chat/chat-room";
+import { DmHeaderAvatar } from "../../chat/dm-header-avatar";
 
 export default async function DMPage({
   params,
@@ -32,12 +32,14 @@ export default async function DMPage({
         title={title}
         subtitle={other?.email ?? undefined}
         icon={
-          <Avatar
-            name={other?.full_name}
-            email={other?.email}
-            avatarUrl={other?.avatar_url}
-            size="sm"
-          />
+          other ? (
+            <DmHeaderAvatar
+              userId={other.id}
+              name={other.full_name}
+              email={other.email}
+              avatarUrl={other.avatar_url}
+            />
+          ) : undefined
         }
       />
       <div className="min-h-0 flex-1">

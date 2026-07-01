@@ -31,9 +31,13 @@ export default async function ChannelPage({
   return (
     <div className="flex h-full flex-col">
       <ChatHeader
-        title={`# ${channel.name}`}
+        title={channel.name}
         subtitle={channel.description ?? undefined}
-        icon={<span className="text-muted">#</span>}
+        icon={
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-br from-primary/20 to-primary/5 text-base font-semibold text-primary ring-1 ring-inset ring-primary/15">
+            #
+          </span>
+        }
         actions={
           <GroupMembers
             workspaceId={workspaceId}

@@ -248,8 +248,12 @@ export function MessageItem({
           </div>
         ) : (
           <div
-            className={`inline-block max-w-[68ch] rounded-2xl rounded-tl-md border border-border/60 bg-surface px-3.5 py-2 text-sm leading-relaxed text-foreground ${
-              isMine ? "border-l-2 border-l-primary/50" : ""
+            className={`inline-block max-w-[68ch] px-3.5 py-2 text-sm leading-relaxed shadow-sm transition-colors duration-150 ${
+              grouped ? "rounded-2xl" : "rounded-2xl rounded-tl-md"
+            } ${
+              isMine
+                ? "bg-primary/20 text-foreground ring-1 ring-inset ring-primary/45 dark:bg-primary/25"
+                : "border border-border/70 bg-surface-2 text-foreground dark:bg-surface"
             }`}
           >
             <Body text={message.body} />

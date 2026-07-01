@@ -228,9 +228,19 @@ export function Composer({
                   setUploads((prev) => prev.filter((x) => x.id !== u.id))
                 }
                 aria-label="Remove"
-                className="text-muted hover:text-danger"
+                className="grid h-4 w-4 place-items-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger"
               >
-                ✕
+                <svg
+                  className="h-3 w-3"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
               </button>
             </div>
           ))}
@@ -244,10 +254,41 @@ export function Composer({
             taRef.current?.focus();
           }
         }}
-        className="flex cursor-text flex-col rounded-xl border border-border bg-background transition-colors focus-within:border-primary/50"
+        className="flex cursor-text flex-col rounded-2xl border border-border bg-background shadow-sm transition-all duration-150 focus-within:border-primary/50 focus-within:shadow-md focus-within:ring-2 focus-within:ring-primary/15"
       >
-        {/* Formatting toolbar (Slack-style mrkdwn) */}
-        <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1.5">
+        {/* Text input */}
+        <div className="relative px-4 pt-3">
+          {/* Styled mirror behind the textarea: shows bold/italic/etc. live.
+              Shares identical box metrics with the textarea so the caret and
+              text line up exactly. */}
+          <div
+            ref={overlayRef}
+            aria-hidden
+            className="pointer-events-none absolute inset-x-4 top-3 max-h-48 overflow-hidden whitespace-pre-wrap wrap-break-word text-sm leading-6 text-foreground"
+          >
+            {highlightComposerValue(value)}
+          </div>
+          <textarea
+            ref={taRef}
+            value={value}
+            rows={1}
+            placeholder={placeholder}
+            onScroll={(e) => {
+              if (overlayRef.current)
+                overlayRef.current.scrollTop = e.currentTarget.scrollTop;
+            }}
+            onChange={(e) => {
+              setValue(e.target.value);
+              autoGrow(e.target);
+              onTyping?.();
+            }}
+            onKeyDown={handleKeyDown}
+            className="relative block max-h-48 w-full resize-none bg-transparent text-sm leading-6 text-transparent caret-foreground placeholder:text-muted focus:outline-none"
+          />
+        </div>
+
+        {/* Action bar: formatting on the left, attach/emoji/send on the right */}
+        <div className="flex items-center gap-1 px-2.5 pb-2 pt-1">
           <FmtBtn label="Bold" onClick={() => wrapSelection("*", "*")} d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z" />
           <FmtBtn label="Italic" onClick={() => wrapSelection("_", "_")} d="M19 4h-9M14 20H5M15 4L9 20" />
           <FmtBtn label="Strikethrough" onClick={() => wrapSelection("~", "~")} d="M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6M4 12h16" />
@@ -256,80 +297,17 @@ export function Composer({
           <FmtBtn label="Ordered list" onClick={() => { let n = 0; prefixLines(() => `${++n}. `); }} d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3a1 1 0 0 0-2-1" />
           <FmtBtn label="Bulleted list" onClick={() => prefixLines(() => "- ")} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
           <FmtBtn label="Blockquote" onClick={() => prefixLines(() => "> ")} d="M3 21V8a2 2 0 0 1 2-2h0M3 13h6M9 21V8a2 2 0 0 1 2-2h0M9 13h6" />
-          <FmtDivider />
           <FmtBtn label="Code" onClick={() => wrapSelection("`", "`")} d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
-          <FmtBtn label="Code block" onClick={() => wrapSelection("```\n", "\n```")} d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 9l-2 3 2 3M15 9l2 3-2 3" />
-        </div>
 
-        {/* Input row */}
-        <div className="flex items-end gap-2 px-3 py-2">
-          <button
-            onClick={() => fileRef.current?.click()}
-            aria-label="Attach file"
-            title="Attach file"
-            className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground"
-          >
-            <svg
-              className="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => {
-              if (e.target.files) void handleFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <div className="relative flex-1 self-center">
-            {/* Styled mirror behind the textarea: shows bold/italic/etc. live.
-                Shares identical box metrics with the textarea so the caret and
-                text line up exactly. */}
-            <div
-              ref={overlayRef}
-              aria-hidden
-              className="pointer-events-none absolute inset-0 max-h-48 overflow-hidden whitespace-pre-wrap break-words py-1 text-sm leading-6 text-foreground"
-            >
-              {highlightComposerValue(value)}
-            </div>
-            <textarea
-              ref={taRef}
-              value={value}
-              rows={1}
-              placeholder={placeholder}
-              onScroll={(e) => {
-                if (overlayRef.current)
-                  overlayRef.current.scrollTop = e.currentTarget.scrollTop;
-              }}
-              onChange={(e) => {
-                setValue(e.target.value);
-                autoGrow(e.target);
-                onTyping?.();
-              }}
-              onKeyDown={handleKeyDown}
-              className="relative max-h-48 w-full resize-none bg-transparent py-1 text-sm leading-6 text-transparent caret-foreground placeholder:text-muted focus:outline-none"
-            />
-          </div>
-          <div className="relative">
+          <span className="ml-auto flex items-center gap-1">
             <button
-              onClick={() => setEmojiOpen((o) => !o)}
-              aria-label="Emoji"
-              title="Emoji"
-              aria-expanded={emojiOpen}
-              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground"
+              onClick={() => fileRef.current?.click()}
+              aria-label="Attach file"
+              title="Attach file"
+              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
             >
               <svg
-                className="h-5 w-5"
+                className="h-4.5 w-4.5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -337,42 +315,76 @@ export function Composer({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
               </svg>
             </button>
-            {emojiOpen && (
-              <div className="absolute bottom-10 right-0 z-30 animate-scale-in">
-                <EmojiPicker
-                  onSelect={(emoji) => insertEmoji(emoji)}
-                  onClose={() => setEmojiOpen(false)}
-                />
-              </div>
-            )}
-          </div>
-          <button
-            onClick={submit}
-            disabled={!canSend}
-            aria-label="Send"
-            className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
-          >
-            <svg
-              className="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                if (e.target.files) void handleFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <div className="relative">
+              <button
+                onClick={() => setEmojiOpen((o) => !o)}
+                aria-label="Emoji"
+                title="Emoji"
+                aria-expanded={emojiOpen}
+                className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+              >
+                <svg
+                  className="h-4.5 w-4.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+                </svg>
+              </button>
+              {emojiOpen && (
+                <div className="absolute bottom-10 right-0 z-30 animate-scale-in">
+                  <EmojiPicker
+                    onSelect={(emoji) => insertEmoji(emoji)}
+                    onClose={() => setEmojiOpen(false)}
+                  />
+                </div>
+              )}
+            </div>
+            <span className="mx-1 h-5 w-px bg-border" />
+            <button
+              onClick={submit}
+              disabled={!canSend}
+              aria-label="Send"
+              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-all duration-150 hover:-translate-y-px hover:opacity-95 hover:shadow-md hover:shadow-primary/25 active:scale-95 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
             >
-              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-            </svg>
-          </button>
+              <svg
+                className="h-4.5 w-4.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
+            </button>
+          </span>
         </div>
       </div>
-      <p className="mt-1 px-1 text-[11px] text-muted/70">
-        Enter to send · Shift+Enter for a new line · select text, then use the
-        toolbar to format
+      <p className="mt-1.5 px-1 text-[11px] text-muted/70">
+        <kbd className="rounded border border-border bg-surface-2 px-1 py-0.5 font-sans text-[10px] text-muted">Enter</kbd>{" "}
+        to send ·{" "}
+        <kbd className="rounded border border-border bg-surface-2 px-1 py-0.5 font-sans text-[10px] text-muted">Shift+Enter</kbd>{" "}
+        for a new line
       </p>
     </div>
   );
