@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Profile } from "@/lib/supabase/types";
 import { Avatar } from "@/components/avatar";
+import { useProfileCard } from "@/components/profile-card";
 import { addGroupMembers } from "../../chat-actions";
 
 function Icon({
@@ -43,6 +44,7 @@ export function GroupMembers({
   workspaceMembers: Profile[];
 }) {
   const router = useRouter();
+  const openProfile = useProfileCard();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -149,9 +151,14 @@ export function GroupMembers({
               {/* Current roster */}
               <div className="max-h-52 space-y-0.5 overflow-y-auto">
                 {members.map((m) => (
-                  <div
+                  <button
+                    type="button"
                     key={m.id}
-                    className="group flex items-center gap-3 rounded-xl px-2 py-1.5 transition-all duration-150 hover:translate-x-0.5 hover:bg-primary/5"
+                    onClick={() => {
+                      setOpen(false);
+                      openProfile(m);
+                    }}
+                    className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-all duration-150 hover:translate-x-0.5 hover:bg-primary/5"
                   >
                     <Avatar
                       name={m.full_name}
@@ -169,7 +176,7 @@ export function GroupMembers({
                         </span>
                       )}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
 

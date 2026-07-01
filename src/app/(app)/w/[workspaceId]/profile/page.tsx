@@ -14,7 +14,7 @@ export default async function ProfilePage() {
           This is how teammates see you across the workspace.
         </p>
       </header>
-      <div className="rounded-xl border border-border bg-surface p-6">
+      <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
         <ProfileForm profile={profile} />
       </div>
     </div>

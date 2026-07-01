@@ -44,7 +44,7 @@ export default async function SettingsPage({
           Customize the name and accent color teammates see in this workspace.
         </p>
       </header>
-      <div className="rounded-xl border border-border bg-surface p-6">
+      <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
         {canManage ? (
           <SettingsForm
             workspaceId={workspace.id}

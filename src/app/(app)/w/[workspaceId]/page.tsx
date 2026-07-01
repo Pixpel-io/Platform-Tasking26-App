@@ -20,7 +20,7 @@ function StatCard({
   const body = (
     <div
       style={{ animationDelay: `${index * 60}ms` }}
-      className={`group relative h-full animate-fade-in-up overflow-hidden rounded-xl border border-border bg-surface p-5 transition-all duration-200 ${
+      className={`group relative h-full animate-fade-in-up overflow-hidden rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 ${
         href
           ? "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
           : ""
@@ -171,7 +171,7 @@ export default async function WorkspaceDashboard({
       </div>
 
       <div className="mt-8 grid animate-fade-in-up gap-6 lg:grid-cols-3">
-        <section className="rounded-xl border border-border bg-surface p-6 lg:col-span-2">
+        <section className="rounded-xl border border-border bg-surface shadow-sm p-6 lg:col-span-2">
           <h2 className="text-lg font-semibold text-foreground">
             Recent activity
           </h2>
@@ -199,7 +199,7 @@ export default async function WorkspaceDashboard({
           )}
         </section>
 
-        <section className="rounded-xl border border-border bg-surface p-6">
+        <section className="rounded-xl border border-border bg-surface shadow-sm p-6">
           <h2 className="text-lg font-semibold text-foreground">Quick links</h2>
           <div className="mt-4 flex flex-col gap-2">
             <Link

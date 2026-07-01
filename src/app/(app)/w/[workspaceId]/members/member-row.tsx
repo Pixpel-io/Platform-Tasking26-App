@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Avatar } from "@/components/avatar";
 import { usePresence } from "@/components/presence-provider";
+import { useProfileCard } from "@/components/profile-card";
 import type { Profile, WorkspaceMember } from "@/lib/supabase/types";
 import { removeMember } from "@/app/(app)/actions";
 import { openDirectMessage } from "../chat-actions";
@@ -22,6 +23,7 @@ const roleBadge: Record<string, string> = {
 
 export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
   const online = usePresence(member.user_id);
+  const openProfile = useProfileCard();
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +44,13 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
   }
 
   return (
-    <li className="group flex items-center justify-between px-5 py-3">
-      <div className="flex items-center gap-3">
+    <li className="group flex items-center justify-between px-5 py-3 transition-colors duration-150 hover:bg-surface-2/50">
+      <button
+        type="button"
+        onClick={() => profile && openProfile(profile)}
+        disabled={!profile}
+        className="flex items-center gap-3 text-left disabled:cursor-default"
+      >
         <span className="relative">
           <Avatar
             name={profile?.full_name}
@@ -65,7 +72,7 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
           <p className="text-xs text-muted">{profile?.email}</p>
           {error && <p className="mt-0.5 text-xs text-danger">{error}</p>}
         </div>
-      </div>
+      </button>
       <div className="flex items-center gap-3">
         {confirming ? (
           <div className="flex items-center gap-2">

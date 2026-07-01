@@ -12,6 +12,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "../notifications-actions";
+import { Button, EmptyState } from "@/components/ui";
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -115,19 +116,31 @@ export function NotificationsList({
           </p>
         </div>
         {unread > 0 && (
-          <button
-            onClick={onMarkAll}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-2"
-          >
+          <Button variant="outline" size="sm" onClick={onMarkAll}>
             Mark all read
-          </button>
+          </Button>
         )}
       </header>
 
       {items.length === 0 ? (
-        <div className="rounded-xl border border-border bg-surface p-10 text-center text-muted">
-          No notifications yet.
-        </div>
+        <EmptyState
+          icon={
+            <svg
+              viewBox="0 0 24 24"
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          }
+          title="No notifications yet"
+          description="Mentions, direct messages, and task updates will show up here."
+        />
       ) : (
         <div className="space-y-2">
           {items.map((n) => {
@@ -135,7 +148,7 @@ export function NotificationsList({
             const icon = TYPE_ICON[n.type] ?? TYPE_ICON.dm;
             const inner = (
               <div
-                className={`flex items-start gap-3 rounded-xl border p-4 transition-colors ${
+                className={`flex items-start gap-3 rounded-xl border p-4 shadow-sm transition-colors ${
                   n.read_at
                     ? "border-border bg-surface hover:bg-surface-2"
                     : "border-primary/30 bg-primary/5 hover:bg-primary/10"

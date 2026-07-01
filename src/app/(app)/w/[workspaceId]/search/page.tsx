@@ -44,13 +44,16 @@ export default async function SearchPage({
   if (query.length >= 2) {
     const supabase = await createClient();
 
-    // websearch_to_tsquery handles quoted phrases and operators safely.
+    // Case-insensitive partial match so typing a fragment surfaces results
+    // (tsvector only matches whole word stems, which misses partial queries).
+    const like = `%${escapeLike(query)}%`;
     const messagesP = supabase
       .from("messages")
       .select(MESSAGE_SELECT)
       .eq("workspace_id", workspaceId)
+      .eq("kind", "user")
       .is("deleted_at", null)
-      .textSearch("body_tsv", query, { type: "websearch", config: "english" })
+      .ilike("body", like)
       .order("created_at", { ascending: false })
       .limit(50);
 
@@ -59,7 +62,6 @@ export default async function SearchPage({
     const projects = await getProjects(workspaceId);
     const projectIds = projects.map((p) => p.id);
 
-    const like = `%${escapeLike(query)}%`;
     const tasksP =
       projectIds.length > 0
         ? supabase

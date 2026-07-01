@@ -11,10 +11,12 @@ import {
 import { getProjects } from "@/lib/projects";
 import { getUnreadNotificationCount } from "@/lib/notifications";
 import { PresenceProvider } from "@/components/presence-provider";
+import { ProfileCardProvider } from "@/components/profile-card";
 import { NotificationToaster } from "@/components/notification-toaster";
 import { normalizeColor } from "@/lib/workspace-theme";
 import { Sidebar } from "./sidebar";
 import { NotificationBell } from "./notification-bell";
+import { HeaderSearch } from "./header-search";
 import { WorkspaceLoader } from "./workspace-loader";
 
 export default async function WorkspaceLayout({
@@ -65,6 +67,7 @@ export default async function WorkspaceLayout({
 
   return (
     <PresenceProvider workspaceId={workspaceId} userId={user.id}>
+      <ProfileCardProvider workspaceId={workspaceId} meId={user.id}>
       <WorkspaceLoader name={workspaceName} accent={accent} />
       <div
         className="flex h-screen overflow-hidden"
@@ -84,16 +87,20 @@ export default async function WorkspaceLayout({
           channelUnreads={channelUnreads}
         />
         <div className="relative flex-1 overflow-hidden">
-          <NotificationBell
-            workspaceId={workspaceId}
-            userId={user.id}
-            initialCount={unreadNotifications}
-          />
+          <div className="absolute right-3 top-2.5 z-30 flex items-center gap-2">
+            <HeaderSearch workspaceId={workspaceId} />
+            <NotificationBell
+              workspaceId={workspaceId}
+              userId={user.id}
+              initialCount={unreadNotifications}
+            />
+          </div>
           <main className="h-full overflow-y-auto bg-background">
             {children}
           </main>
         </div>
       </div>
+      </ProfileCardProvider>
     </PresenceProvider>
   );
 }

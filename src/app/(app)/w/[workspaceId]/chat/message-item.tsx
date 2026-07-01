@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar";
+import { useProfileCard } from "@/components/profile-card";
 import { EmojiPicker } from "@/components/emoji-picker";
 import type { MessageWithRelations } from "@/lib/chat-shared";
 import { QUICK_REACTIONS } from "@/lib/emoji";
@@ -71,6 +72,7 @@ export function MessageItem({
   onOpenThread?: () => void;
   replyCount?: number;
 }) {
+  const openProfile = useProfileCard();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.body);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -158,19 +160,32 @@ export function MessageItem({
           {time}
         </span>
       ) : (
-        <Avatar
-          name={author?.full_name ?? null}
-          email={author?.email ?? null}
-          avatarUrl={author?.avatar_url ?? null}
-        />
+        <button
+          type="button"
+          onClick={() => author && openProfile(author)}
+          disabled={!author}
+          aria-label={`View ${author?.full_name ?? author?.email ?? "profile"}`}
+          className="shrink-0 cursor-pointer rounded-full transition-transform hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
+        >
+          <Avatar
+            name={author?.full_name ?? null}
+            email={author?.email ?? null}
+            avatarUrl={author?.avatar_url ?? null}
+          />
+        </button>
       )}
 
       <div className="min-w-0 flex-1">
         {!grouped && (
           <div className="flex items-baseline gap-2">
-            <span className="text-sm font-semibold text-foreground">
+            <button
+              type="button"
+              onClick={() => author && openProfile(author)}
+              disabled={!author}
+              className="cursor-pointer text-sm font-semibold text-foreground hover:underline disabled:cursor-default disabled:no-underline"
+            >
               {author?.full_name ?? author?.email ?? "Unknown"}
-            </span>
+            </button>
             <span className="text-xs text-muted">{time}</span>
             {message.pinned_at && (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">

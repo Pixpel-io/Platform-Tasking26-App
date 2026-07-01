@@ -18,6 +18,7 @@ import { useGroupMembership } from "@/lib/use-group-membership";
 import { signOut } from "@/app/(auth)/actions";
 import { openDirectMessage } from "./chat-actions";
 import { CreateChannelDialog } from "./create-channel-dialog";
+import { WorkspaceSplash } from "./workspace-loader";
 
 function Icon({ d, className = "h-4 w-4 shrink-0" }: { d: string; className?: string }) {
   return (
@@ -113,11 +114,6 @@ export function Sidebar({
       href: `${base}/members`,
       label: "Members",
       icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m14 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
-    },
-    {
-      href: `${base}/search`,
-      label: "Search",
-      icon: "M21 21l-4.35-4.35M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z",
     },
     {
       href: `${base}/settings`,
@@ -492,28 +488,10 @@ export function Sidebar({
       />
 
       {switchingTo && (
-        <div
-          className="fixed inset-0 z-70 flex animate-fade-in flex-col items-center justify-center gap-6 bg-background/90 backdrop-blur-md"
-          style={
-            {
-              "--primary":
-                switchingTo.workspaces?.color ?? "#4f46e5",
-            } as React.CSSProperties
-          }
-        >
-          <div className="relative grid place-items-center">
-            <span className="absolute h-16 w-16 rounded-2xl bg-primary/40 animate-ping-ring" />
-            <span className="relative grid h-16 w-16 animate-scale-in place-items-center rounded-2xl bg-linear-to-br from-primary to-primary/60 text-2xl font-bold text-primary-foreground shadow-lg shadow-primary/40">
-              {switchingTo.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
-            </span>
-          </div>
-          <div className="flex flex-col items-center gap-3">
-            <p className="animate-fade-in-up text-sm font-medium text-foreground">
-              Switching to {switchingTo.workspaces?.name}…
-            </p>
-            <span className="inline-block h-4 w-4 animate-spin-fast rounded-full border-2 border-primary border-t-transparent" />
-          </div>
-        </div>
+        <WorkspaceSplash
+          name={switchingTo.workspaces?.name ?? "Workspace"}
+          accent={switchingTo.workspaces?.color ?? "#4f46e5"}
+        />
       )}
     </aside>
   );

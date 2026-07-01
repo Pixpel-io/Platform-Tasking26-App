@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { getWorkspaceMembersForChat } from "@/lib/chat";
 import { getProjects, PRIORITY_META } from "@/lib/projects";
 import type { ProjectStatus } from "@/lib/supabase/types";
+import { EmptyState } from "@/components/ui";
 import { NewProjectButton } from "./projects-client";
 
 const STATUS_META: Record<ProjectStatus, { label: string; className: string }> = {
@@ -42,12 +43,33 @@ export default async function ProjectsPage({
       </header>
 
       {projects.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-surface p-12 text-center">
-          <p className="text-foreground">No projects yet</p>
-          <p className="mt-1 text-sm text-muted">
-            Create your first project to start tracking tasks on a Kanban board.
-          </p>
-        </div>
+        <EmptyState
+          icon={
+            <svg
+              className="h-6 w-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          }
+          title="No projects yet"
+          description="Create your first project to start tracking tasks on a Kanban board."
+          action={
+            <NewProjectButton
+              workspaceId={workspaceId}
+              members={members}
+              meId={user.id}
+            />
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p, i) => {
@@ -59,7 +81,7 @@ export default async function ProjectsPage({
                 key={p.id}
                 href={`/w/${workspaceId}/projects/${p.id}`}
                 style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}
-                className="hover-glow group relative flex animate-fade-in-up flex-col overflow-hidden rounded-xl border border-border bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-primary/50"
+                className="hover-glow group relative flex animate-fade-in-up flex-col overflow-hidden rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/50"
               >
                 <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                 <div className="flex items-center justify-between gap-2">

@@ -27,7 +27,7 @@ export function NotificationBell({
       aria-label={
         count > 0 ? `Notifications, ${count} unread` : "Notifications"
       }
-      className={`absolute right-3 top-2.5 z-30 grid h-9 w-9 place-items-center rounded-lg border transition-colors ${
+      className={`relative grid h-9 w-9 place-items-center rounded-lg border transition-colors ${
         active
           ? "border-primary/40 bg-primary/10 text-primary"
           : "border-border bg-surface text-muted hover:bg-surface-2 hover:text-foreground"
