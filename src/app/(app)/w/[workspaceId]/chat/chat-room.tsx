@@ -233,8 +233,14 @@ export function ChatRoom({
             </div>
             {items.map((m, i) => {
               const prev = items[i - 1];
+              // A message only chains onto the previous one when that message
+              // actually shows an author header — deleted rows and system
+              // lines render without one, so they break the group.
               const grouped =
                 prev &&
+                !prev.deleted_at &&
+                prev.kind !== "system" &&
+                m.kind !== "system" &&
                 prev.user_id === m.user_id &&
                 !m.parent_id &&
                 new Date(m.created_at).getTime() -
