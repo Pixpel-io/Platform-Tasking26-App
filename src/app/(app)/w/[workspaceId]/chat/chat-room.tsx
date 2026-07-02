@@ -187,7 +187,12 @@ export function ChatRoom({
     });
   }
 
-  const grouped = useMemo(() => groupByDay(optimistic), [optimistic]);
+  // Deleted messages disappear entirely (no placeholder row). Filtering before
+  // day-grouping also removes dividers for days left with no visible messages.
+  const grouped = useMemo(
+    () => groupByDay(optimistic.filter((m) => !m.deleted_at)),
+    [optimistic],
+  );
 
   return (
     <div className="relative flex h-full flex-col">
