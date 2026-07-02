@@ -67,15 +67,17 @@ export function useTyping(target: Target, meId: string, meName: string) {
 }
 
 export function TypingIndicator({ users }: { users: string[] }) {
-  if (users.length === 0) return <div className="h-5" />;
+  if (users.length === 0) return <div className="h-6" />;
   return (
-    <div className="flex h-5 items-center gap-2 px-5 text-xs text-muted">
-      <span className="flex gap-0.5">
-        <Dot delay="0ms" />
-        <Dot delay="150ms" />
-        <Dot delay="300ms" />
+    <div className="flex h-6 items-center px-5">
+      <span className="inline-flex animate-fade-in items-center gap-2 rounded-full bg-primary/8 px-2.5 py-0.5 text-[11px] font-medium text-primary">
+        <span className="flex gap-0.5">
+          <Dot delay="0ms" />
+          <Dot delay="150ms" />
+          <Dot delay="300ms" />
+        </span>
+        {formatTyping(users)}
       </span>
-      {formatTyping(users)}
     </div>
   );
 }
@@ -90,7 +92,7 @@ function formatTyping(users: string[]): string {
 function Dot({ delay }: { delay: string }) {
   return (
     <span
-      className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted"
+      className="h-1 w-1 animate-bounce rounded-full bg-primary"
       style={{ animationDelay: delay }}
     />
   );

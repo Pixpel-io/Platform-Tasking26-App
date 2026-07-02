@@ -7,7 +7,7 @@ export default async function ProfilePage() {
   if (!profile) redirect("/login");
 
   return (
-    <div className="mx-auto max-w-2xl p-8">
+    <div className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">Your profile</h1>
         <p className="mt-1 text-muted">

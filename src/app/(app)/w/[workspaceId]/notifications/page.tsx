@@ -8,7 +8,7 @@ export default async function NotificationsPage({
   const notifications = await getNotifications(workspaceId);
 
   return (
-    <div className="mx-auto max-w-2xl p-8">
+    <div className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
       <NotificationsList
         workspaceId={workspaceId}
         initial={notifications}

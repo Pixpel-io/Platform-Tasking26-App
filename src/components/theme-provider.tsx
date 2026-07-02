@@ -21,26 +21,23 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const STORAGE_KEY = "tasking-theme";
 
 // Runs before React hydrates to set the initial class and avoid a flash.
+// Dark is the default; light is an explicit user choice persisted in storage.
 export const themeInitScript = `
 (function () {
   try {
     var stored = localStorage.getItem('${STORAGE_KEY}');
-    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var theme = stored || (prefersDark ? 'dark' : 'light');
+    var theme = stored || 'dark';
     document.documentElement.classList.toggle('dark', theme === 'dark');
   } catch (e) {}
 })();
 `;
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>("dark");
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    setThemeState(stored ?? (prefersDark ? "dark" : "light"));
+    setThemeState(stored ?? "dark");
   }, []);
 
   const setTheme = useCallback((next: Theme) => {

@@ -15,6 +15,7 @@ import { ProfileCardProvider } from "@/components/profile-card";
 import { NotificationToaster } from "@/components/notification-toaster";
 import { normalizeColor } from "@/lib/workspace-theme";
 import { Sidebar } from "./sidebar";
+import { AppShell } from "./app-shell";
 import { NotificationBell } from "./notification-bell";
 import { HeaderSearch } from "./header-search";
 import { WorkspaceLoader } from "./workspace-loader";
@@ -74,31 +75,47 @@ export default async function WorkspaceLayout({
         style={{ "--primary": accent } as React.CSSProperties}
       >
         <NotificationToaster workspaceId={workspaceId} userId={user.id} />
-        <Sidebar
-          workspaceId={workspaceId}
-          workspaces={workspaces}
-          profile={profile}
-          userId={user.id}
-          channels={channels}
-          conversations={conversations}
-          members={members}
-          projects={projects}
-          dmUnreads={dmUnreads}
-          channelUnreads={channelUnreads}
-        />
-        <div className="relative flex-1 overflow-hidden">
-          <div className="absolute right-5 top-3.5 z-30 flex items-center gap-2">
-            <HeaderSearch workspaceId={workspaceId} />
-            <NotificationBell
+        <AppShell
+          topBarTitle={workspaceName}
+          topBarActions={
+            <>
+              <HeaderSearch workspaceId={workspaceId} />
+              <NotificationBell
+                workspaceId={workspaceId}
+                userId={user.id}
+                initialCount={unreadNotifications}
+              />
+            </>
+          }
+          sidebar={
+            <Sidebar
               workspaceId={workspaceId}
+              workspaces={workspaces}
+              profile={profile}
               userId={user.id}
-              initialCount={unreadNotifications}
+              channels={channels}
+              conversations={conversations}
+              members={members}
+              projects={projects}
+              dmUnreads={dmUnreads}
+              channelUnreads={channelUnreads}
             />
+          }
+        >
+          <div className="relative flex-1 overflow-hidden pt-13 lg:pt-0">
+            <div className="absolute right-5 top-3.5 z-30 hidden items-center gap-2 lg:flex">
+              <HeaderSearch workspaceId={workspaceId} />
+              <NotificationBell
+                workspaceId={workspaceId}
+                userId={user.id}
+                initialCount={unreadNotifications}
+              />
+            </div>
+            <main className="h-full overflow-y-auto bg-background">
+              {children}
+            </main>
           </div>
-          <main className="h-full overflow-y-auto bg-background">
-            {children}
-          </main>
-        </div>
+        </AppShell>
       </div>
       </ProfileCardProvider>
     </PresenceProvider>

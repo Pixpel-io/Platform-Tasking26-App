@@ -5,24 +5,26 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f6f8fb;
+  /* Light theme — cool, faintly indigo-washed neutrals so surfaces feel airy
+     rather than sterile white-on-gray. */
+  --background: #f3f5fa;
   --surface: #ffffff;
-  --surface-2: #eef2f7;
-  --border: #e2e8f0;
+  --surface-2: #eaeef6;
+  --border: #dde3ee;
   --foreground: #0f172a;
   --muted: #556274;
   --primary: #4f46e5;
   --primary-foreground: #ffffff;
   --danger: #dc2626;
   --success: #16a34a;
-  /* Elevation — soft, layered shadows for a premium sense of depth. */
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  /* Elevation — indigo-tinted layered shadows read softer than pure black. */
+  --shadow-sm: 0 1px 2px rgba(49, 46, 129, 0.07);
   --shadow-md:
-    0 2px 4px -1px rgba(15, 23, 42, 0.06),
-    0 4px 12px -2px rgba(15, 23, 42, 0.08);
+    0 2px 4px -1px rgba(49, 46, 129, 0.06),
+    0 4px 14px -2px rgba(49, 46, 129, 0.1);
   --shadow-lg:
-    0 8px 24px -6px rgba(15, 23, 42, 0.12),
-    0 2px 6px -2px rgba(15, 23, 42, 0.08);
+    0 8px 28px -6px rgba(49, 46, 129, 0.16),
+    0 2px 6px -2px rgba(49, 46, 129, 0.08);
   /* Motion — shared easing curves for consistent, smooth animation. */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
@@ -94,9 +96,26 @@ h3 {
   letter-spacing: -0.02em;
 }
 
-/* In dark mode, layer faint color washes behind everything so large surfaces
-   read as atmospheric depth rather than flat charcoal. Fixed so it doesn't
-   scroll, subtle enough not to hurt text contrast. */
+/* Faint color washes behind everything so large surfaces read as atmospheric
+   depth rather than flat gray. Fixed so it doesn't scroll, subtle enough not
+   to hurt text contrast. */
+body {
+  background-image:
+    radial-gradient(
+      44rem 44rem at 12% -8%,
+      color-mix(in srgb, var(--primary) 7%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      40rem 40rem at 108% 6%,
+      color-mix(in srgb, #a855f7 5%, transparent),
+      transparent 62%
+    );
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* In dark mode the washes can be stronger without hurting contrast. */
 .dark body {
   background-image:
     radial-gradient(

@@ -151,8 +151,8 @@ export function MessageItem({
 
   return (
     <div
-      className={`group relative flex animate-fade-in gap-3 rounded-lg px-2 transition-colors duration-150 hover:bg-surface-2/40 ${
-        grouped ? "py-0.5" : "mt-3 py-0.5"
+      className={`group relative flex animate-fade-in gap-3 rounded-lg px-2 py-1 transition-colors duration-150 hover:bg-surface-2/60 ${
+        grouped ? "" : "mt-2.5"
       } ${isOptimistic ? "opacity-60" : ""}`}
     >
       {grouped ? (
@@ -247,15 +247,7 @@ export function MessageItem({
             </div>
           </div>
         ) : (
-          <div
-            className={`inline-block max-w-[68ch] px-3.5 py-2 text-sm leading-relaxed shadow-sm transition-colors duration-150 ${
-              grouped ? "rounded-2xl" : "rounded-2xl rounded-tl-md"
-            } ${
-              isMine
-                ? "bg-primary/20 text-foreground ring-1 ring-inset ring-primary/45 dark:bg-primary/25"
-                : "border border-border/70 bg-surface-2 text-foreground dark:bg-surface"
-            }`}
-          >
+          <div className="max-w-[72ch] text-[15px] leading-relaxed text-foreground">
             <Body text={message.body} />
             {message.edited_at && (
               <span className="ml-1.5 align-baseline text-[10px] text-muted">

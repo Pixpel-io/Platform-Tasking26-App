@@ -194,7 +194,7 @@ export function ChatRoom({
       <div
         ref={scrollRef}
         onScroll={() => setAtBottom(isNearBottom())}
-        className="flex-1 overflow-y-auto px-4 py-6"
+        className="flex-1 overflow-y-auto px-2 py-4 sm:px-4 sm:py-6"
       >
         {optimistic.length === 0 && (
           <div className="grid h-full place-items-center text-center">
@@ -225,11 +225,11 @@ export function ChatRoom({
         {grouped.map(({ day, items }) => (
           <div key={day}>
             <div className="sticky top-0 z-10 my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-border/60" />
-              <span className="rounded-full border border-border bg-surface/90 px-3 py-1 text-xs font-medium text-muted shadow-sm backdrop-blur">
+              <span className="h-px flex-1 bg-linear-to-r from-transparent to-border" />
+              <span className="rounded-full border border-border bg-surface px-3.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted shadow-sm">
                 {day}
               </span>
-              <span className="h-px flex-1 bg-border/60" />
+              <span className="h-px flex-1 bg-linear-to-l from-transparent to-border" />
             </div>
             {items.map((m, i) => {
               const prev = items[i - 1];
@@ -306,14 +306,24 @@ export function ChatRoom({
   );
 }
 
+function dayLabel(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function groupByDay(messages: MessageWithRelations[]) {
   const out: { day: string; items: MessageWithRelations[] }[] = [];
   for (const m of messages) {
-    const day = new Date(m.created_at).toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-    });
+    const day = dayLabel(m.created_at);
     const last = out[out.length - 1];
     if (last && last.day === day) last.items.push(m);
     else out.push({ day, items: [m] });

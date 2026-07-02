@@ -313,7 +313,7 @@ export function Composer({
   }
 
   return (
-    <div className="border-t border-border bg-surface p-3">
+    <div className="border-t border-border bg-surface p-2 sm:p-3">
       {uploads.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {uploads.map((u) => (
@@ -321,7 +321,7 @@ export function Composer({
               key={u.id}
               className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs"
             >
-              <span className="max-w-[160px] truncate text-foreground">
+              <span className="max-w-40 truncate text-foreground">
                 {u.fileName}
               </span>
               {u.progress === "uploading" && (
@@ -361,7 +361,7 @@ export function Composer({
             taRef.current?.focus();
           }
         }}
-        className="flex cursor-text flex-col rounded-2xl border border-border bg-background shadow-sm transition-all duration-150 focus-within:border-border/80 focus-within:shadow-md"
+        className="flex cursor-text flex-col rounded-2xl border border-border bg-background shadow-sm transition-all duration-200 focus-within:shadow-md"
       >
         {/* Text input */}
         <div className="relative px-4 pt-3">
@@ -442,16 +442,17 @@ export function Composer({
           )}
         </div>
 
-        {/* Action bar: formatting on the left, attach/emoji/send on the right */}
+        {/* Action bar: formatting on the left, attach/emoji/send on the right.
+            On small screens only the essentials show; the rest appear at sm+. */}
         <div className="flex items-center gap-1 px-2.5 pb-2 pt-1">
           <FmtBtn label="Bold" onClick={() => wrapSelection("*", "*")} d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z" />
           <FmtBtn label="Italic" onClick={() => wrapSelection("_", "_")} d="M19 4h-9M14 20H5M15 4L9 20" />
-          <FmtBtn label="Strikethrough" onClick={() => wrapSelection("~", "~")} d="M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6M4 12h16" />
-          <FmtDivider />
-          <FmtBtn label="Link" onClick={insertLink} d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          <FmtBtn label="Ordered list" onClick={() => { let n = 0; prefixLines(() => `${++n}. `); }} d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3a1 1 0 0 0-2-1" />
-          <FmtBtn label="Bulleted list" onClick={() => prefixLines(() => "- ")} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-          <FmtBtn label="Blockquote" onClick={() => prefixLines(() => "> ")} d="M3 21V8a2 2 0 0 1 2-2h0M3 13h6M9 21V8a2 2 0 0 1 2-2h0M9 13h6" />
+          <FmtBtn label="Strikethrough" className="hidden sm:grid" onClick={() => wrapSelection("~", "~")} d="M16 4H9a3 3 0 0 0-2.83 4M14 12a4 4 0 0 1 0 8H6M4 12h16" />
+          <FmtDivider className="hidden sm:block" />
+          <FmtBtn label="Link" className="hidden sm:grid" onClick={insertLink} d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          <FmtBtn label="Ordered list" className="hidden sm:grid" onClick={() => { let n = 0; prefixLines(() => `${++n}. `); }} d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3a1 1 0 0 0-2-1" />
+          <FmtBtn label="Bulleted list" className="hidden sm:grid" onClick={() => prefixLines(() => "- ")} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          <FmtBtn label="Blockquote" className="hidden sm:grid" onClick={() => prefixLines(() => "> ")} d="M3 21V8a2 2 0 0 1 2-2h0M3 13h6M9 21V8a2 2 0 0 1 2-2h0M9 13h6" />
           <FmtBtn label="Code" onClick={() => wrapSelection("`", "`")} d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
 
           <span className="ml-auto flex items-center gap-1">
@@ -518,7 +519,7 @@ export function Composer({
               onClick={submit}
               disabled={!canSend}
               aria-label="Send"
-              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-all duration-150 hover:-translate-y-px hover:opacity-95 hover:shadow-md hover:shadow-primary/25 active:scale-95 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
+              className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-linear-to-br from-primary to-primary/75 text-primary-foreground shadow-sm shadow-primary/30 transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:shadow-primary/40 active:scale-95 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
             >
               <svg
                 className="h-4.5 w-4.5"
@@ -549,10 +550,12 @@ function FmtBtn({
   label,
   onClick,
   d,
+  className = "grid",
 }: {
   label: string;
   onClick: () => void;
   d: string;
+  className?: string;
 }) {
   return (
     <button
@@ -560,7 +563,7 @@ function FmtBtn({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="grid h-7 w-7 cursor-pointer place-items-center rounded text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+      className={`${className} h-7 w-7 cursor-pointer place-items-center rounded text-muted transition-colors hover:bg-surface-2 hover:text-foreground`}
     >
       <svg
         className="h-4 w-4"
@@ -577,6 +580,6 @@ function FmtBtn({
   );
 }
 
-function FmtDivider() {
-  return <span className="mx-1 h-4 w-px bg-border" />;
+function FmtDivider({ className = "" }: { className?: string }) {
+  return <span className={`mx-1 h-4 w-px bg-border ${className}`} />;
 }

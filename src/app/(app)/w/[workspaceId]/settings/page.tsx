@@ -36,7 +36,7 @@ export default async function SettingsPage({
   const isCompanyOwner = isOwner && org?.owner_id === user.id;
 
   return (
-    <div className="mx-auto max-w-2xl p-8">
+    <div className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-foreground">
           Workspace settings

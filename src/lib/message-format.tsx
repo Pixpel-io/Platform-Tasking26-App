@@ -63,7 +63,7 @@ function renderLinksAndMentions(text: string, key: string): ReactNode[] {
         out.push(
           <span
             key={`${key}-m-${i}-${j}`}
-            className="rounded bg-primary/10 px-1 font-medium text-primary"
+            className="mention rounded-md bg-primary/12 px-1 font-medium text-primary"
           >
             {part}
           </span>,
@@ -200,7 +200,7 @@ function renderBlocks(text: string, key: string): ReactNode[] {
       i++;
     }
     out.push(
-      <span key={`${key}-p-${i}`} className="whitespace-pre-wrap break-words">
+      <span key={`${key}-p-${i}`} className="whitespace-pre-wrap wrap-break-word">
         {renderInline(para.join("\n"), `${key}-p-${i}`)}
       </span>,
     );
