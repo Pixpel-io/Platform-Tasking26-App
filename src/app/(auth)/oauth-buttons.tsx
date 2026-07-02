@@ -4,20 +4,25 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui";
 
-export function GoogleButton({ redirectedFrom }: { redirectedFrom?: string }) {
+type Provider = "google" | "azure";
+
+// Runs in the browser so the PKCE code_verifier is stored in a cookie the
+// /auth/callback route can read back to complete the code exchange.
+function useOAuth(provider: Provider, redirectedFrom?: string, scopes?: string) {
   const [pending, setPending] = useState(false);
 
-  // Runs in the browser so the PKCE code_verifier is stored in a cookie the
-  // /auth/callback route can read back to complete the code exchange.
-  async function onClick() {
+  async function start() {
     setPending(true);
     const supabase = createClient();
     const next = redirectedFrom
       ? `?next=${encodeURIComponent(redirectedFrom)}`
       : "";
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback${next}` },
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback${next}`,
+        ...(scopes ? { scopes } : {}),
+      },
     });
     if (error || !data?.url) {
       setPending(false);
@@ -26,13 +31,19 @@ export function GoogleButton({ redirectedFrom }: { redirectedFrom?: string }) {
     window.location.href = data.url;
   }
 
+  return { pending, start };
+}
+
+export function GoogleButton({ redirectedFrom }: { redirectedFrom?: string }) {
+  const { pending, start } = useOAuth("google", redirectedFrom);
+
   return (
     <Button
       type="button"
       variant="outline"
       className="w-full"
       disabled={pending}
-      onClick={onClick}
+      onClick={start}
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24">
         <path
@@ -53,6 +64,34 @@ export function GoogleButton({ redirectedFrom }: { redirectedFrom?: string }) {
         />
       </svg>
       {pending ? "Redirecting…" : "Continue with Google"}
+    </Button>
+  );
+}
+
+export function MicrosoftButton({
+  redirectedFrom,
+}: {
+  redirectedFrom?: string;
+}) {
+  // Azure defaults to only the OpenID scopes; ask for email explicitly so the
+  // profile lands with a usable address.
+  const { pending, start } = useOAuth("azure", redirectedFrom, "email");
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full"
+      disabled={pending}
+      onClick={start}
+    >
+      <svg className="h-4 w-4" viewBox="0 0 24 24">
+        <path fill="#F25022" d="M2 2h9.5v9.5H2z" />
+        <path fill="#7FBA00" d="M12.5 2H22v9.5h-9.5z" />
+        <path fill="#00A4EF" d="M2 12.5h9.5V22H2z" />
+        <path fill="#FFB900" d="M12.5 12.5H22V22h-9.5z" />
+      </svg>
+      {pending ? "Redirecting…" : "Continue with Microsoft"}
     </Button>
   );
 }

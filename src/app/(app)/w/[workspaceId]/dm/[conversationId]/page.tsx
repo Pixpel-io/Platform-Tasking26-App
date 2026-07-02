@@ -3,6 +3,7 @@ import { getProfile, requireUser } from "@/lib/auth";
 import {
   dmCounterpart,
   getConversation,
+  getLastReadAt,
   getMessages,
 } from "@/lib/chat";
 import { ChatHeader } from "../../chat/chat-header";
@@ -14,10 +15,11 @@ export default async function DMPage({
 }: PageProps<"/w/[workspaceId]/dm/[conversationId]">) {
   const { workspaceId, conversationId } = await params;
   const user = await requireUser();
-  const [conversation, profile, messages] = await Promise.all([
+  const [conversation, profile, messages, lastReadAt] = await Promise.all([
     getConversation(conversationId),
     getProfile(),
     getMessages({ conversationId }),
+    getLastReadAt({ conversationId }),
   ]);
 
   if (!conversation) notFound();
@@ -40,6 +42,7 @@ export default async function DMPage({
           meName={meName}
           members={other ? [other] : []}
           initialMessages={messages}
+          lastReadAt={lastReadAt}
         />
       </div>
     </div>

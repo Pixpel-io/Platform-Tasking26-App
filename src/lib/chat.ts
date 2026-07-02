@@ -109,6 +109,25 @@ export async function getThreadReplies(
   return (data as MessageWithRelations[] | null) ?? [];
 }
 
+// When the current user last read a channel/conversation — null when they
+// never opened it. Drives "open at first unread" in the chat room.
+export async function getLastReadAt(target: {
+  channelId?: string;
+  conversationId?: string;
+}): Promise<string | null> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  let query = supabase
+    .from("read_state")
+    .select("last_read_at")
+    .eq("user_id", user.id);
+  query = target.channelId
+    ? query.eq("channel_id", target.channelId)
+    : query.eq("conversation_id", target.conversationId ?? "");
+  const { data } = await query.maybeSingle();
+  return data?.last_read_at ?? null;
+}
+
 // Per-conversation unread counts for the current user across all their DMs in
 // a workspace: messages newer than their last_read_at (and not their own).
 // Returns a map of conversation_id → unread count (omitting zeros).

@@ -27,7 +27,7 @@ export async function createWorkspace(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const parsed = CreateWorkspaceSchema.safeParse({
     workspaceName: formData.get("workspaceName"),
     organizationName: formData.get("organizationName"),
@@ -35,6 +35,28 @@ export async function createWorkspace(
   });
   if (!parsed.success) {
     return { fieldErrors: fieldErrorsOf(parsed.error) };
+  }
+
+  // Optional teammate emails collected by the chip input (JSON array).
+  let inviteEmails: string[] = [];
+  try {
+    const raw = formData.get("inviteEmails");
+    if (typeof raw === "string" && raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        inviteEmails = [
+          ...new Set(
+            list
+              .filter((e): e is string => typeof e === "string")
+              .map((e) => e.trim().toLowerCase())
+              .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+              .filter((e) => e !== user.email?.toLowerCase()),
+          ),
+        ].slice(0, 20);
+      }
+    }
+  } catch {
+    // Malformed JSON — ignore; invites are best-effort.
   }
 
   const supabase = await createClient();
@@ -45,6 +67,30 @@ export async function createWorkspace(
   });
 
   if (error) return { error: error.message };
+
+  // Fire the invites before redirecting. Best-effort: a failed invite must
+  // not block workspace creation.
+  for (const email of inviteEmails) {
+    const { data: invite } = await supabase
+      .from("invites")
+      .insert({
+        workspace_id: data,
+        email,
+        role: "member",
+        invited_by: user.id,
+      })
+      .select("token")
+      .single();
+    if (invite) {
+      await deliverInvite(supabase, {
+        workspaceId: data,
+        email,
+        token: invite.token,
+        userId: user.id,
+        userEmail: user.email,
+      });
+    }
+  }
 
   revalidatePath("/", "layout");
   redirect(`/w/${data}`);

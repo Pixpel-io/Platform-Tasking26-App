@@ -4,6 +4,7 @@ import { getProfile, requireUser } from "@/lib/auth";
 import {
   getChannel,
   getChannelMembers,
+  getLastReadAt,
   getMessages,
   getWorkspaceMembersForChat,
 } from "@/lib/chat";
@@ -17,17 +18,25 @@ export default async function ChannelPage({
   const { workspaceId, channelId } = await params;
   const user = await requireUser();
   const supabase = await createClient();
-  const [channel, profile, messages, channelMembers, workspaceMembers, isAdmin] =
-    await Promise.all([
-      getChannel(channelId),
-      getProfile(),
-      getMessages({ channelId }),
-      getChannelMembers(channelId),
-      getWorkspaceMembersForChat(workspaceId),
-      supabase
-        .rpc("is_workspace_admin", { p_workspace_id: workspaceId })
-        .then((r) => r.data ?? false),
-    ]);
+  const [
+    channel,
+    profile,
+    messages,
+    channelMembers,
+    workspaceMembers,
+    isAdmin,
+    lastReadAt,
+  ] = await Promise.all([
+    getChannel(channelId),
+    getProfile(),
+    getMessages({ channelId }),
+    getChannelMembers(channelId),
+    getWorkspaceMembersForChat(workspaceId),
+    supabase
+      .rpc("is_workspace_admin", { p_workspace_id: workspaceId })
+      .then((r) => r.data ?? false),
+    getLastReadAt({ channelId }),
+  ]);
 
   if (!channel) notFound();
 
@@ -64,6 +73,7 @@ export default async function ChannelPage({
           meName={meName}
           members={channelMembers}
           initialMessages={messages}
+          lastReadAt={lastReadAt}
         />
       </div>
     </div>

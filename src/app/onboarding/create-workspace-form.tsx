@@ -5,6 +5,7 @@ import { createWorkspace } from "@/app/(app)/actions";
 import { ColorPicker } from "@/components/color-picker";
 import { Button, FieldError, FormMessage, Input, Label } from "@/components/ui";
 import { DEFAULT_WORKSPACE_COLOR } from "@/lib/workspace-theme";
+import { InviteEmailsInput } from "./invite-emails-input";
 
 export function CreateWorkspaceForm() {
   const [state, action, pending] = useActionState(createWorkspace, undefined);
@@ -42,6 +43,16 @@ export function CreateWorkspaceForm() {
         </p>
         <ColorPicker name="color" value={color} onChange={setColor} />
         <FieldError message={state?.fieldErrors?.color} />
+      </div>
+      <div>
+        <Label htmlFor="inviteEmails">
+          Invite teammates{" "}
+          <span className="font-normal text-muted">(optional)</span>
+        </Label>
+        <p className="mb-2 text-sm text-muted">
+          They&apos;ll get an email invite as soon as the workspace is ready.
+        </p>
+        <InviteEmailsInput name="inviteEmails" />
       </div>
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? "Creating…" : "Create workspace"}

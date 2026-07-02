@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { FormMessage } from "@/components/ui";
-import { GoogleButton } from "../google-button";
+import { GoogleButton, MicrosoftButton } from "../oauth-buttons";
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage({
@@ -25,7 +25,10 @@ export default async function LoginPage({
 
       {error && <FormMessage type="error">{error}</FormMessage>}
 
-      <GoogleButton redirectedFrom={redirectedFrom} />
+      <div className="space-y-2.5">
+        <GoogleButton redirectedFrom={redirectedFrom} />
+        <MicrosoftButton redirectedFrom={redirectedFrom} />
+      </div>
 
       <div className="flex items-center gap-3 text-xs text-muted">
         <span className="h-px flex-1 bg-border" />

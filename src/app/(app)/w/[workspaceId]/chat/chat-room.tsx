@@ -36,12 +36,14 @@ export function ChatRoom({
   meName,
   members = [],
   initialMessages,
+  lastReadAt,
 }: {
   target: Target;
   meId: string;
   meName: string;
   members?: MentionMember[];
   initialMessages: MessageWithRelations[];
+  lastReadAt?: string | null;
 }) {
   const { messages, setMessages } = useChatMessages(
     { channelId: target.channelId, conversationId: target.conversationId },
@@ -50,6 +52,30 @@ export function ChatRoom({
   const [, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Where the user left off, computed once from the server-provided read
+  // state at open. markRead below advances the DB immediately, so this frozen
+  // snapshot is what keeps the "New" divider in place while reading.
+  const firstUnreadRef = useRef<{ id: string | null; count: number }>(
+    undefined as never,
+  );
+  if (firstUnreadRef.current === undefined) {
+    let id: string | null = null;
+    let count = 0;
+    // Never-opened rooms (no read state) open at the bottom like before.
+    if (lastReadAt) {
+      const cutoff = new Date(lastReadAt).getTime();
+      for (const m of initialMessages) {
+        if (m.deleted_at || m.user_id === meId) continue;
+        if (new Date(m.created_at).getTime() > cutoff) {
+          id ??= m.id;
+          count += 1;
+        }
+      }
+    }
+    firstUnreadRef.current = { id, count };
+  }
+  const firstUnreadId = firstUnreadRef.current.id;
 
   // Optimistic outgoing messages (instant echo before the server row arrives).
   // Realtime can deliver the real row before the send transition ends; once it
@@ -73,7 +99,11 @@ export function ChatRoom({
   );
 
   const { typingUsers, broadcastTyping } = useTyping(target, meId, meName);
-  const { unreadCount, setAtBottom } = useMessageAlerts(messages, meId);
+  const { unreadCount, setAtBottom } = useMessageAlerts(
+    messages,
+    meId,
+    firstUnreadRef.current.count,
+  );
 
   // Whether the viewport is near the bottom — controls auto-scroll and whether
   // the "new messages" pill accrues.
@@ -85,6 +115,25 @@ export function ChatRoom({
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     bottomRef.current?.scrollIntoView({ behavior });
+  }, []);
+
+  // Initial position: land on the first unread message (with the "New"
+  // divider just above the viewport top) so reading resumes where the user
+  // left off; with nothing unread, open at the newest message.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (firstUnreadId) {
+      const row = el.querySelector(`[data-message-id="${firstUnreadId}"]`);
+      if (row) {
+        (row as HTMLElement).scrollIntoView({ block: "start" });
+        el.scrollTop -= 56; // breathing room so the divider is visible
+        setAtBottom(isNearBottom());
+        return;
+      }
+    }
+    bottomRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-scroll to newest only when the user is already at the bottom, so we
@@ -252,8 +301,16 @@ export function ChatRoom({
                   new Date(prev.created_at).getTime() <
                   5 * 60 * 1000;
               return (
+                <div key={m.id} data-message-id={m.id}>
+                  {m.id === firstUnreadId && (
+                    <div className="my-3 flex items-center gap-3" aria-label="New messages">
+                      <span className="h-px flex-1 bg-danger/50" />
+                      <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-danger">
+                        New
+                      </span>
+                    </div>
+                  )}
                 <MessageItem
-                  key={m.id}
                   message={m}
                   meId={meId}
                   grouped={!!grouped}
@@ -274,6 +331,7 @@ export function ChatRoom({
                     })
                   }
                 />
+                </div>
               );
             })}
           </div>

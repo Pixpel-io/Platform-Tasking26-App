@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GoogleButton } from "../google-button";
+import { GoogleButton, MicrosoftButton } from "../oauth-buttons";
 import { SignupForm } from "./signup-form";
 
 export default async function SignupPage({
@@ -23,7 +23,10 @@ export default async function SignupPage({
         <p className="text-sm text-muted">Start collaborating in minutes.</p>
       </div>
 
-      <GoogleButton redirectedFrom={redirectedFrom} />
+      <div className="space-y-2.5">
+        <GoogleButton redirectedFrom={redirectedFrom} />
+        <MicrosoftButton redirectedFrom={redirectedFrom} />
+      </div>
 
       <div className="flex items-center gap-3 text-xs text-muted">
         <span className="h-px flex-1 bg-border" />

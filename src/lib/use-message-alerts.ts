@@ -43,11 +43,14 @@ function playDing() {
 // count and play a notification sound. Messages the current user sends never
 // count and never ding. The count only accrues while the user is scrolled away
 // from the bottom; when they're at the bottom they're "reading" so it stays 0.
+// `initialCount` seeds the pill with unreads that already existed when the
+// room opened (the user lands at the first of them, above the bottom).
 export function useMessageAlerts(
   messages: MessageWithRelations[],
   meId: string,
+  initialCount = 0,
 ) {
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(initialCount);
   const atBottomRef = useRef(true);
   const seenRef = useRef<Set<string>>(new Set());
 
