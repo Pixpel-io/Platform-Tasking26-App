@@ -5,7 +5,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Light theme — cool, faintly indigo-washed neutrals so surfaces feel airy
+  /* Light theme - cool, faintly indigo-washed neutrals so surfaces feel airy
      rather than sterile white-on-gray. */
   --background: #f3f5fa;
   --surface: #ffffff;
@@ -17,7 +17,7 @@
   --primary-foreground: #ffffff;
   --danger: #dc2626;
   --success: #16a34a;
-  /* Elevation — indigo-tinted layered shadows read softer than pure black. */
+  /* Elevation - indigo-tinted layered shadows read softer than pure black. */
   --shadow-sm: 0 1px 2px rgba(49, 46, 129, 0.07);
   --shadow-md:
     0 2px 4px -1px rgba(49, 46, 129, 0.06),
@@ -25,7 +25,7 @@
   --shadow-lg:
     0 8px 28px -6px rgba(49, 46, 129, 0.16),
     0 2px 6px -2px rgba(49, 46, 129, 0.08);
-  /* Motion — shared easing curves for consistent, smooth animation. */
+  /* Motion - shared easing curves for consistent, smooth animation. */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
 }
@@ -244,7 +244,7 @@ body,
     transform: translateX(500%);
   }
 }
-/* Full page-load reveal — runs once on hard reload (body remounts). */
+/* Full page-load reveal - runs once on hard reload (body remounts). */
 @keyframes page-load {
   from {
     opacity: 0;
@@ -274,7 +274,7 @@ body,
   }
 }
 /* Top progress bar: a determinate-feel fill that eases toward the end with a
-   glowing comet head — grows from the left rather than sweeping across. */
+   glowing comet head - grows from the left rather than sweeping across. */
 @keyframes nav-grow {
   0% {
     width: 0%;
@@ -369,7 +369,7 @@ body,
   animation: dot-wave 1.3s var(--ease-in-out-soft) infinite;
 }
 
-/* Top navigation progress bar — render fixed at the top while a route
+/* Top navigation progress bar - render fixed at the top while a route
    transition is pending. A determinate-feel fill grows from the left and eases
    toward completion, led by a glowing comet head. */
 .nav-progress {
@@ -515,7 +515,7 @@ body,
     0 14px 40px -12px color-mix(in srgb, var(--primary) 60%, transparent);
 }
 
-/* Skeleton shimmer sweep — pair with a bg-surface-2 element + overflow-hidden. */
+/* Skeleton shimmer sweep - pair with a bg-surface-2 element + overflow-hidden. */
 .shimmer {
   position: relative;
   overflow: hidden;

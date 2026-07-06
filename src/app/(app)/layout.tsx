@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getMyWorkspaces, requireUser } from "@/lib/auth";
 
 // Gate: any route under (app) requires an authenticated user. We do NOT do the
-// auth check in this layout alone (layouts don't re-render on every nav) — the
+// auth check in this layout alone (layouts don't re-render on every nav) - the
 // proxy already enforces it; this is the data-layer guard.
 export default async function AppLayout({
   children,

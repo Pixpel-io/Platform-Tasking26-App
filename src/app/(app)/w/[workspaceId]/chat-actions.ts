@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
+import { CLEOTILDA_HANDLE, respondAsCleotilda } from "@/lib/cleotilda";
 
 type ChatResult = { error?: string };
 
@@ -44,7 +45,7 @@ export async function createChannel(
   redirect(`/w/${workspaceId}/c/${data}`);
 }
 
-// Add existing workspace members to a group (creator/admin only — enforced in
+// Add existing workspace members to a group (creator/admin only - enforced in
 // the RPC and RLS).
 export async function addGroupMembers(
   workspaceId: string,
@@ -63,7 +64,7 @@ export async function addGroupMembers(
   return {};
 }
 
-// Remove a member from a group (creator/admin only — enforced in the RPC and
+// Remove a member from a group (creator/admin only - enforced in the RPC and
 // RLS). The group creator can't be removed.
 export async function removeGroupMember(
   workspaceId: string,
@@ -202,6 +203,26 @@ export async function sendMessage(args: {
     }
   }
 
+  // @cleotilda summons the AI assistant. Awaited so the serverless action
+  // isn't frozen mid-reply, but failures never affect the user's message.
+  if (handles.includes(CLEOTILDA_HANDLE) && !args.parentId) {
+    const { data: me } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single();
+    await respondAsCleotilda({
+      target: {
+        workspaceId: args.workspaceId,
+        channelId: args.channelId,
+        conversationId: args.conversationId,
+      },
+      userId: user.id,
+      userName: me?.full_name ?? me?.email ?? "Someone",
+      prompt: body,
+    });
+  }
+
   return { id: message.id };
 }
 
@@ -289,7 +310,7 @@ export async function markRead(args: {
   const now = new Date().toISOString();
 
   // read_state uses partial unique indexes (one per target type), which
-  // PostgREST upsert can't infer — so select-then-update/insert manually.
+  // PostgREST upsert can't infer - so select-then-update/insert manually.
   let existingQuery = supabase
     .from("read_state")
     .select("id")

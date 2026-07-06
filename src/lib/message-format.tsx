@@ -188,7 +188,7 @@ function renderBlocks(text: string, key: string): ReactNode[] {
       continue;
     }
 
-    // Plain paragraph lines — gather consecutive ones and keep newlines.
+    // Plain paragraph lines - gather consecutive ones and keep newlines.
     const para: string[] = [];
     while (
       i < lines.length &&
@@ -212,7 +212,7 @@ function renderBlocks(text: string, key: string): ReactNode[] {
 // Live highlighter for the composer overlay. Unlike formatMessageBody, this
 // KEEPS every character (including the markers) so the rendered text lines up
 // exactly, character-for-character, with the transparent textarea on top of
-// it — only the styling differs. Markers are dimmed; their content is styled.
+// it - only the styling differs. Markers are dimmed; their content is styled.
 function highlightInline(text: string, key: string): ReactNode[] {
   let best: { idx: number; len: number; inner: string; name: string } | null =
     null;

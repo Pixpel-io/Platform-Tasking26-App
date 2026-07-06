@@ -13,9 +13,9 @@ const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
   "http://localhost:3000";
 
-const TITLE = "TasKing — Team Collaboration";
+const TITLE = "TasKing - Team Collaboration";
 const DESCRIPTION =
-  "Chat, projects, and kanban boards for your whole team. Slack + ClickUp in one place — real-time messaging, task tracking, and workspaces that match your brand.";
+  "Chat, projects, and kanban boards for your whole team. Slack + ClickUp in one place - real-time messaging, task tracking, and workspaces that match your brand.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

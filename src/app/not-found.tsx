@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 const WAIT_SECONDS = 5;
 
 // Global 404. Shown for any unmatched route (and notFound() calls that no
-// nested boundary catches). Counts down, then sends the visitor to /login —
+// nested boundary catches). Counts down, then sends the visitor to /login -
 // the auth middleware bounces already-signed-in users on to their workspace.
 export default function NotFound() {
   const router = useRouter();

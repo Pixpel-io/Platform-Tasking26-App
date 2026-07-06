@@ -56,7 +56,7 @@ export async function createWorkspace(
       }
     }
   } catch {
-    // Malformed JSON — ignore; invites are best-effort.
+    // Malformed JSON - ignore; invites are best-effort.
   }
 
   const supabase = await createClient();
@@ -177,7 +177,7 @@ export async function inviteMember(
   }
 
   // Reuse an existing pending invite for the same email instead of stacking
-  // duplicate rows — refresh its role + token and re-send.
+  // duplicate rows - refresh its role + token and re-send.
   const { data: existing } = await supabase
     .from("invites")
     .select("id")
@@ -270,7 +270,7 @@ async function deliverInvite(
 
   if (!emailEnabled()) {
     return {
-      success: `Invite created. Email isn't configured — share this link: ${acceptUrl}`,
+      success: `Invite created. Email isn't configured - share this link: ${acceptUrl}`,
     };
   }
 

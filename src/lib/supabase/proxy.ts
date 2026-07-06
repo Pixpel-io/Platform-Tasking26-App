@@ -44,7 +44,7 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // IMPORTANT: getUser() (not getSession) — it revalidates the token with
+  // IMPORTANT: getUser() (not getSession) - it revalidates the token with
   // Supabase Auth and must run between client creation and any other logic.
   const {
     data: { user },

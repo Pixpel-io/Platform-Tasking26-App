@@ -43,7 +43,7 @@ export default async function ProjectListPage({
                     </td>
                     <td className="px-4 py-2.5 text-muted">
                       {assignees.length === 0
-                        ? "—"
+                        ? "-"
                         : assignees
                             .map((a) => a.full_name ?? a.email)
                             .join(", ")}
@@ -54,7 +54,7 @@ export default async function ProjectListPage({
                             month: "short",
                             day: "numeric",
                           })
-                        : "—"}
+                        : "-"}
                     </td>
                   </tr>
                 );

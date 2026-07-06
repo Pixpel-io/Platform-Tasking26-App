@@ -77,7 +77,7 @@ export function MessageItem({
   const [draft, setDraft] = useState(message.body);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFullPicker, setShowFullPicker] = useState(false);
-  // "down" opens below the button, "up" opens above it — chosen by available
+  // "down" opens below the button, "up" opens above it - chosen by available
   // viewport space so the picker is never clipped off the bottom/top.
   const [pickerDir, setPickerDir] = useState<"down" | "up">("down");
   const reactRef = useRef<HTMLDivElement>(null);
@@ -124,7 +124,7 @@ export function MessageItem({
   }
 
   // System events (e.g. "Alice added Bob") render as a centered, unobtrusive
-  // line with no avatar or bubble — Slack-style.
+  // line with no avatar or bubble - Slack-style.
   if (message.kind === "system") {
     return (
       <div className="my-2 flex items-center justify-center gap-2 px-4 text-center">

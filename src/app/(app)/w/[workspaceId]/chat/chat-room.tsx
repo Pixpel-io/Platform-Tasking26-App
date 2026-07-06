@@ -105,7 +105,7 @@ export function ChatRoom({
     firstUnreadRef.current.count,
   );
 
-  // Whether the viewport is near the bottom — controls auto-scroll and whether
+  // Whether the viewport is near the bottom - controls auto-scroll and whether
   // the "new messages" pill accrues.
   const isNearBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -288,7 +288,7 @@ export function ChatRoom({
             {items.map((m, i) => {
               const prev = items[i - 1];
               // A message only chains onto the previous one when that message
-              // actually shows an author header — deleted rows and system
+              // actually shows an author header - deleted rows and system
               // lines render without one, so they break the group.
               const grouped =
                 prev &&

@@ -16,6 +16,15 @@ export type MentionMember = {
   avatar_url: string | null;
 };
 
+// Cleotilda, the AI assistant, is always mentionable even though she isn't a
+// workspace member. Mentioning @cleotilda triggers an AI reply server-side.
+export const CLEOTILDA_MENTION: MentionMember = {
+  id: "c1e0711d-a000-4000-a000-000000000001",
+  full_name: "Cleotilda (AI)",
+  email: "cleotilda@tasking.app",
+  avatar_url: null,
+};
+
 // The handle we insert must match how the server resolves mentions (the email
 // local part, e.g. "@jane" for "jane@acme.com"). See sendMessage in chat-actions.
 function mentionHandle(m: MentionMember): string {
@@ -78,10 +87,11 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Members matching the active @token, capped so the list stays scannable.
+  // Cleotilda (the AI assistant) is always offered alongside real members.
   const matches = (() => {
     if (!mention) return [];
     const q = mention.query.toLowerCase();
-    return members
+    return [...members, CLEOTILDA_MENTION]
       .filter((m) => {
         if (m.id === meId) return false;
         const handle = mentionHandle(m).toLowerCase();

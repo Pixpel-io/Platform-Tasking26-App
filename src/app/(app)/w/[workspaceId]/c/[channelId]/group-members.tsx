@@ -118,7 +118,7 @@ export function GroupMembers({
     <>
       <button
         onClick={() => setOpen(true)}
-        aria-label={`${members.length} members — view or add people`}
+        aria-label={`${members.length} members - view or add people`}
         className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-sm text-muted transition-all duration-150 hover:border-primary/50 hover:bg-primary/10 hover:text-primary hover:shadow-sm hover:shadow-primary/20"
       >
         <Icon

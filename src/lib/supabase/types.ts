@@ -941,6 +941,14 @@ export interface Database {
         Args: { p_channel_id: string; p_member_id: string };
         Returns: undefined;
       };
+      cleotilda_post_message: {
+        Args: {
+          p_body: string;
+          p_channel_id?: string;
+          p_conversation_id?: string;
+        };
+        Returns: string;
+      };
       get_or_create_dm: {
         Args: { p_workspace_id: string; p_other_user_id: string };
         Returns: string;

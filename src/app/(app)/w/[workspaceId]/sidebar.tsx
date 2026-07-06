@@ -299,7 +299,7 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Direct messages — every other workspace member is listed; clicking
+        {/* Direct messages - every other workspace member is listed; clicking
             one opens an existing DM or creates it on the fly. */}
         <div>
           <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">

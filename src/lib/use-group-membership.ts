@@ -7,7 +7,7 @@ import { getRealtimeClient } from "@/lib/supabase/client";
 
 // When the current user is added to (or removed from) a group, their own
 // channel_members row changes. Refresh the router so the sidebar's group list
-// reloads live — no page reload needed. Realtime evaluates the row against the
+// reloads live - no page reload needed. Realtime evaluates the row against the
 // user's SELECT policy, which now passes because they're a member.
 export function useGroupMembership(userId: string) {
   const router = useRouter();

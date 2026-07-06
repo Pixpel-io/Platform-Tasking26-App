@@ -1,4 +1,4 @@
-// A self-contained emoji set grouped by category — no external dependency.
+// A self-contained emoji set grouped by category - no external dependency.
 // Used by the composer picker and the message reaction popup.
 
 export type EmojiCategory = {

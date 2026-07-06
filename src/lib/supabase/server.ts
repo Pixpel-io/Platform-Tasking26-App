@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "@/lib/supabase/types";
 
-// `cookies()` is async in Next.js 16 — this helper must be awaited.
+// `cookies()` is async in Next.js 16 - this helper must be awaited.
 export async function createClient() {
   const cookieStore = await cookies();
 
@@ -20,7 +20,7 @@ export async function createClient() {
               cookieStore.set(name, value, options),
             );
           } catch {
-            // Called from a Server Component — cookies are read-only here.
+            // Called from a Server Component - cookies are read-only here.
             // The proxy (proxy.ts) refreshes the session, so this is safe to ignore.
           }
         },

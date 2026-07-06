@@ -27,7 +27,7 @@ export default async function WorkspaceLayout({
   const { workspaceId } = await params;
   const user = await requireUser();
 
-  // Membership guard — RLS would hide the row anyway, but fail fast + clearly.
+  // Membership guard - RLS would hide the row anyway, but fail fast + clearly.
   const supabase = await createClient();
   const { data: workspace } = await supabase
     .from("workspaces")

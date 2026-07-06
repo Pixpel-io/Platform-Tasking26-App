@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -28,9 +29,19 @@ export default function AuthLayout({
 
         <Link
           href="/"
-          className="relative text-xl font-bold tracking-tight transition-opacity hover:opacity-80"
+          className="relative flex items-center gap-2.5 transition-opacity hover:opacity-80"
         >
-          Tasking
+          <Image
+            src="/image/taskcycle-ios-appicon-1024.png"
+            alt="TasKing logo"
+            width={36}
+            height={36}
+            className="rounded-lg ring-1 ring-white/20"
+            draggable={false}
+          />
+          <span className="text-xl font-bold tracking-tight">
+            tas<span className="text-sky-300">K</span>ing
+          </span>
         </Link>
         <div className="relative space-y-4">
           <h1 className="text-4xl font-semibold leading-tight tracking-tight">
@@ -38,7 +49,7 @@ export default function AuthLayout({
           </h1>
           <p className="max-w-md text-white/80">
             Chat in groups and DMs, run projects on Kanban, lists, and
-            calendars — all in real time, for your whole team.
+            calendars - all in real time, for your whole team.
           </p>
         </div>
         <p className="relative text-sm text-white/60">
@@ -51,7 +62,23 @@ export default function AuthLayout({
         <div className="absolute right-4 top-4">
           <ThemeToggle />
         </div>
-        <div className="w-full max-w-sm">{children}</div>
+        <div className="w-full max-w-sm">
+          {/* Brand for small screens where the left panel is hidden */}
+          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+            <Image
+              src="/image/taskcycle-ios-appicon-1024.png"
+              alt="TasKing logo"
+              width={36}
+              height={36}
+              className="rounded-lg"
+              draggable={false}
+            />
+            <span className="text-xl font-bold tracking-tight text-foreground">
+              tas<span className="text-primary">K</span>ing
+            </span>
+          </div>
+          {children}
+        </div>
       </div>
     </div>
   );

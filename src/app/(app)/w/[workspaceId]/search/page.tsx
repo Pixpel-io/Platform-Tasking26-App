@@ -57,7 +57,7 @@ export default async function SearchPage({
       .order("created_at", { ascending: false })
       .limit(50);
 
-    // Tasks have no tsvector — scope to accessible projects (RLS-filtered) and
+    // Tasks have no tsvector - scope to accessible projects (RLS-filtered) and
     // match title/description with a case-insensitive LIKE.
     const projects = await getProjects(workspaceId);
     const projectIds = projects.map((p) => p.id);

@@ -12,7 +12,7 @@ export { dmCounterpart };
 export type { ConversationWithParticipants, MessageWithRelations };
 
 // `messages` has two FKs to profiles (user_id and pinned_by), so the embed
-// must name the sender FK explicitly — otherwise PostgREST can't disambiguate
+// must name the sender FK explicitly - otherwise PostgREST can't disambiguate
 // and the join resolves to null ("Unknown" sender).
 const MESSAGE_SELECT =
   "*, profiles:profiles!messages_user_id_fkey(*), message_reactions(*), message_attachments(*)";
@@ -109,7 +109,7 @@ export async function getThreadReplies(
   return (data as MessageWithRelations[] | null) ?? [];
 }
 
-// When the current user last read a channel/conversation — null when they
+// When the current user last read a channel/conversation - null when they
 // never opened it. Drives "open at first unread" in the chat room.
 export async function getLastReadAt(target: {
   channelId?: string;

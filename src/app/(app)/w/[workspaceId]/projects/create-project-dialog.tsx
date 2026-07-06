@@ -126,7 +126,7 @@ export function CreateProjectDialog({
             <Label>Members</Label>
             {others.length === 0 ? (
               <p className="mt-1 text-sm text-muted">
-                No other workspace members yet — invite teammates first.
+                No other workspace members yet - invite teammates first.
               </p>
             ) : (
               <div className="mt-1 max-h-44 space-y-1 overflow-y-auto rounded-lg border border-border p-1">

@@ -364,7 +364,7 @@ function SectionedResults({
   );
 }
 
-// SVG path data per hit kind — a distinct glyph so each result type reads at a
+// SVG path data per hit kind - a distinct glyph so each result type reads at a
 // glance (group, chat bubble, person, folder, checkbox, message).
 const ICONS: Record<SearchHit["kind"], string> = {
   channel:

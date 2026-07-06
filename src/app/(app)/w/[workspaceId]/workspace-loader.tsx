@@ -95,7 +95,7 @@ export function WorkspaceSplash({
 
 // Branded splash shown on a hard page load inside a workspace. The workspace
 // layout persists across client-side navigation, so this only mounts on a real
-// browser refresh — then it fades itself out once the page is ready.
+// browser refresh - then it fades itself out once the page is ready.
 export function WorkspaceLoader({
   name,
   accent,

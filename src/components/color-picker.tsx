@@ -21,7 +21,7 @@ export function ColorPicker({
     >
       <input type="hidden" name={name} value={value} />
 
-      {/* Live preview — shows the accent applied to real UI so the choice
+      {/* Live preview - shows the accent applied to real UI so the choice
           feels tangible instead of abstract. */}
       <div className="overflow-hidden rounded-xl border border-border bg-surface">
         <div
@@ -58,7 +58,7 @@ export function ColorPicker({
         </div>
       </div>
 
-      {/* Spectrum strip — swatches sit flush like a rainbow bar; the active
+      {/* Spectrum strip - swatches sit flush like a rainbow bar; the active
           one lifts out with a check, so the palette reads as one continuous
           gradient rather than a scattered grid. Each swatch rises in with a
           staggered delay, and a soft shimmer keeps sweeping across the bar. */}
@@ -105,7 +105,7 @@ export function ColorPicker({
             </button>
           );
         })}
-        {/* Continuous shimmer sweep — a soft light band gliding across the bar */}
+        {/* Continuous shimmer sweep - a soft light band gliding across the bar */}
         <span className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 animate-spectrum-sweep bg-linear-to-r from-transparent via-white/25 to-transparent" />
       </div>
     </div>

@@ -62,8 +62,8 @@ export function CreateChannelDialog({
           Create a group
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Groups are private to their members. Add people now or invite them
-          later.
+          A group is a chat room inside this workspace for one topic - only
+          the members you add can see it. Add people now or invite them later.
         </p>
 
         <form action={formAction} className="mt-4 space-y-4">
@@ -104,7 +104,7 @@ export function CreateChannelDialog({
             <Label>Members</Label>
             {others.length === 0 ? (
               <p className="mt-1 text-sm text-muted">
-                No other workspace members yet — invite teammates first.
+                No other workspace members yet - invite teammates first.
               </p>
             ) : (
               <div className="mt-1 max-h-44 space-y-1 overflow-y-auto rounded-lg border border-border p-1">

@@ -75,7 +75,7 @@ export function buildBoard(
 }
 
 export function formatDuration(minutes: number | null | undefined): string {
-  if (!minutes) return "—";
+  if (!minutes) return "-";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   if (h && m) return `${h}h ${m}m`;
