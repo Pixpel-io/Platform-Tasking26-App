@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { SettingsForm } from "./settings-form";
 import { SettingsTabs } from "./settings-tabs";
+import { NotificationSoundPicker } from "./notification-sound-picker";
 
 export default async function SettingsPage({
   params,
@@ -61,6 +62,11 @@ export default async function SettingsPage({
             Only workspace admins can change these settings.
           </p>
         )}
+      </div>
+
+      {/* Personal preferences - every member sees these. */}
+      <div className="mt-6">
+        <NotificationSoundPicker />
       </div>
     </div>
   );

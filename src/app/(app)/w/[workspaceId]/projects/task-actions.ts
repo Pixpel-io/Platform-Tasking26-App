@@ -332,3 +332,34 @@ export async function logTime(
   if (error) return { error: error.message };
   return {};
 }
+
+// Add a status column to a project's board (any project member; RLS-gated).
+export async function createColumn(
+  projectId: string,
+  name: string,
+): Promise<Result & { id?: string }> {
+  await requireUser();
+  const trimmed = name.trim();
+  if (trimmed.length < 2) return { error: "Status name must be at least 2 characters." };
+
+  const supabase = await createClient();
+  const { data: last } = await supabase
+    .from("kanban_columns")
+    .select("position")
+    .eq("project_id", projectId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data, error } = await supabase
+    .from("kanban_columns")
+    .insert({
+      project_id: projectId,
+      name: trimmed,
+      position: (last?.position ?? 0) + 1024,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+  return { id: data.id };
+}

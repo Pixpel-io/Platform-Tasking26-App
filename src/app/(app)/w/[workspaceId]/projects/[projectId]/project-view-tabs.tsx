@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { segment: "", label: "Board" },
-  { segment: "/list", label: "List" },
+  { segment: "", label: "Tasks" },
   { segment: "/calendar", label: "Calendar" },
 ];
 

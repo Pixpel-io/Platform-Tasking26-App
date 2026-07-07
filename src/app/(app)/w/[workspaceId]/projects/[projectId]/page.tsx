@@ -1,7 +1,7 @@
 import { getBoard, getProjectMembers } from "@/lib/projects";
-import { KanbanBoard } from "./kanban-board";
+import { MondayTable } from "./monday-table";
 
-export default async function ProjectBoardPage({
+export default async function ProjectTasksPage({
   params,
 }: PageProps<"/w/[workspaceId]/projects/[projectId]">) {
   const { projectId } = await params;
@@ -11,6 +11,6 @@ export default async function ProjectBoardPage({
   ]);
 
   return (
-    <KanbanBoard projectId={projectId} initialBoard={board} members={members} />
+    <MondayTable projectId={projectId} initialBoard={board} members={members} />
   );
 }
