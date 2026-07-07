@@ -404,7 +404,7 @@ export function Composer({
             onClick={(e) => syncMention(e.currentTarget)}
             onBlur={() => setMention(null)}
             onKeyDown={handleKeyDown}
-            className="relative block max-h-48 w-full resize-none bg-transparent text-sm leading-6 text-transparent caret-foreground placeholder:text-muted focus:outline-none focus-visible:outline-none"
+            className="no-focus-ring relative block max-h-48 w-full resize-none bg-transparent text-sm leading-6 text-transparent caret-foreground placeholder:text-muted"
           />
 
           {mentionOpen && mention && (

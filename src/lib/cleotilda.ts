@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { CLEOTILDA_VIA } from "@/lib/cleotilda-shared";
 
 // Cleotilda - the workspace AI assistant, powered by Kimi (Moonshot AI's
 // OpenAI-compatible API). Triggered when a message mentions @cleotilda; it can
@@ -11,7 +12,7 @@ export const CLEOTILDA_HANDLE = "cleotilda";
 
 const KIMI_URL =
   process.env.KIMI_BASE_URL?.replace(/\/$/, "") ?? "https://api.moonshot.ai/v1";
-const MODEL = process.env.KIMI_MODEL ?? "kimi-k2-turbo-preview";
+const MODEL = process.env.KIMI_MODEL ?? "moonshot-v1-auto";
 
 export function cleotildaEnabled(): boolean {
   return !!process.env.KIMI_API_KEY;
@@ -53,6 +54,25 @@ const TOOLS = [
       description:
         "List workspace members with their id, name and email. Call this when you need to resolve a person's name to assign a task.",
       parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "send_dm",
+      description:
+        "Send a direct message to a workspace member on behalf of the requesting user. The message is delivered into the 1:1 DM between the requester and that member, posted by you (Cleotilda) with attribution. Call list_members first to resolve the person's name to a member_id.",
+      parameters: {
+        type: "object",
+        properties: {
+          member_id: {
+            type: "string",
+            description: "Profile id of the recipient, from list_members",
+          },
+          message: { type: "string", description: "The message text to send" },
+        },
+        required: ["member_id", "message"],
+      },
     },
   },
   {
@@ -116,6 +136,41 @@ async function runTool(
       .is("deleted_at", null);
     const members = (rows ?? []).map((r) => r.profiles).filter(Boolean);
     return JSON.stringify(members);
+  }
+
+  if (name === "send_dm") {
+    const memberId = String(input.member_id ?? "");
+    const message = String(input.message ?? "").trim();
+    if (!memberId || !message) {
+      return JSON.stringify({ error: "member_id and message are required" });
+    }
+    if (memberId === userId) {
+      return JSON.stringify({ error: "cannot DM the requester themselves" });
+    }
+    if (memberId === CLEOTILDA_ID) {
+      return JSON.stringify({ error: "cannot DM Cleotilda" });
+    }
+
+    // Open (or reuse) the 1:1 DM between the requester and the recipient.
+    const { data: convId, error: dmErr } = await supabase.rpc(
+      "get_or_create_dm",
+      { p_workspace_id: target.workspaceId, p_other_user_id: memberId },
+    );
+    if (dmErr || !convId) {
+      return JSON.stringify({ error: dmErr?.message ?? "could not open DM" });
+    }
+
+    // Sent AS the requesting user (their name/avatar), tagged with the via
+    // marker so the UI shows a small "via Cleotilda" logo beside their name.
+    const { error: postErr } = await supabase.from("messages").insert({
+      workspace_id: target.workspaceId,
+      conversation_id: convId,
+      user_id: userId,
+      body: `${CLEOTILDA_VIA} ${message}`,
+    });
+    if (postErr) return JSON.stringify({ error: postErr.message });
+
+    return JSON.stringify({ ok: true, conversation_id: convId });
   }
 
   if (name === "create_task") {
@@ -208,7 +263,7 @@ async function kimiChat(messages: ChatMessage[]): Promise<{
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1024,
-      temperature: 0.3,
+      // No temperature: kimi-k2.x models reject anything but the default.
       messages,
       tools: TOOLS,
     }),
@@ -224,6 +279,84 @@ async function kimiChat(messages: ChatMessage[]): Promise<{
   };
   const msg = data.choices?.[0]?.message;
   return { content: msg?.content ?? null, tool_calls: msg?.tool_calls };
+}
+
+const RULES = (
+  today: string,
+) => `- Be brief and friendly, like a helpful coworker on chat. A few sentences at most.
+- Use the tools to actually do things (create tasks, send DMs, look up projects/members) instead of describing how the user could do them. Call list_projects before create_task, and list_members before send_dm or assigning people.
+- Pick the right tool for the request: "send a message to X" / "X ko msg karo" means send_dm, NOT create_task. Only create a task when the user asks for a task, todo, or work item.
+- When you act, confirm in one line what you did (task created on which project / message sent to whom).
+- If the request is ambiguous (e.g. multiple matching projects or people), ask one short clarifying question instead of guessing.
+- If you cannot do something with your tools (tasks, DMs, lookups, answering questions), say so briefly.
+- Today's date is ${today}. Resolve relative dates like "tomorrow" or "Friday" to YYYY-MM-DD yourself.
+- Write in the language the user wrote in.`;
+
+// Direct 1:1 chat with Cleotilda (the assistant panel). The caller supplies
+// the running conversation; nothing is posted to any room - the reply is
+// returned to render in the panel. Same tools as the in-room assistant.
+export async function chatWithCleotilda(args: {
+  workspaceId: string;
+  userId: string;
+  userName: string;
+  history: { role: "user" | "assistant"; content: string }[];
+}): Promise<string> {
+  if (!cleotildaEnabled()) {
+    return "Cleotilda isn't configured yet (missing API key).";
+  }
+  const supabase = await createClient();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const system = `You are Cleotilda, the built-in AI teammate of TasKing, a team collaboration app (chat + kanban projects). You are chatting 1:1 with ${args.userName} in your assistant panel.
+
+Rules:
+${RULES(today)}`;
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: system },
+    ...args.history.slice(-16).map((m): ChatMessage =>
+      m.role === "user"
+        ? { role: "user", content: m.content }
+        : { role: "assistant", content: m.content },
+    ),
+  ];
+
+  const target: RoomTarget = { workspaceId: args.workspaceId };
+
+  let reply = "";
+  for (let i = 0; i < 5; i++) {
+    const msg = await kimiChat(messages);
+
+    if (!msg.tool_calls || msg.tool_calls.length === 0) {
+      reply = (msg.content ?? "").trim();
+      break;
+    }
+
+    messages.push({
+      role: "assistant",
+      content: msg.content,
+      tool_calls: msg.tool_calls,
+    });
+
+    for (const tc of msg.tool_calls) {
+      let input: Record<string, unknown> = {};
+      try {
+        input = JSON.parse(tc.function.arguments || "{}");
+      } catch {
+        // leave input empty; the tool will report what's missing
+      }
+      const result = await runTool(
+        supabase,
+        target,
+        args.userId,
+        tc.function.name,
+        input,
+      );
+      messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+    }
+  }
+
+  return reply || "Sorry, I couldn't finish that one. Try rephrasing?";
 }
 
 // Fire-and-forget entry point. Called from sendMessage after the user's
@@ -276,13 +409,7 @@ export async function respondAsCleotilda(args: {
     const system = `You are Cleotilda, the built-in AI teammate of TasKing, a team collaboration app (chat + kanban projects). You are talking inside a chat room; your reply is posted as a normal chat message visible to the room.
 
 Rules:
-- Be brief and friendly, like a helpful coworker on chat. A few sentences at most.
-- Use the tools to actually do things (create tasks, look up projects/members) instead of describing how the user could do them. Call list_projects before create_task so you use a real project id.
-- When you create a task, confirm it in one line: what you created, on which project, and any assignee/due date.
-- If the request is ambiguous (e.g. multiple matching projects), ask one short clarifying question instead of guessing.
-- If you cannot do something with your tools (you can only create tasks and answer from chat context), say so briefly.
-- Today's date is ${today}. Resolve relative dates like "tomorrow" or "Friday" to YYYY-MM-DD yourself.
-- Write in the language the user wrote in.`;
+${RULES(today)}`;
 
     const messages: ChatMessage[] = [
       { role: "system", content: system },

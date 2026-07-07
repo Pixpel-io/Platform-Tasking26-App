@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar";
 import { useProfileCard } from "@/components/profile-card";
@@ -7,11 +8,33 @@ import { EmojiPicker } from "@/components/emoji-picker";
 import type { MessageWithRelations } from "@/lib/chat-shared";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatMessageBody } from "@/lib/message-format";
+import { isViaCleotilda, stripViaCleotilda } from "@/lib/cleotilda-shared";
 import { AttachmentView } from "./attachment-view";
 
 // Renders body text with @mentions highlighted + Slack-style code formatting.
 function Body({ text }: { text: string }) {
   return formatMessageBody(text);
+}
+
+// Small badge shown beside the sender's name when the message was sent on
+// their behalf by the Cleotilda assistant.
+function ViaCleotilda() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-0.5 pl-0.5 pr-1.5 text-[10px] font-medium text-primary"
+      title="Sent via Cleotilda"
+    >
+      <Image
+        src="/image/taskcycle-ios-appicon-1024.png"
+        alt=""
+        width={14}
+        height={14}
+        className="rounded-full"
+        draggable={false}
+      />
+      via Cleotilda
+    </span>
+  );
 }
 
 function ReactionPills({
@@ -186,6 +209,7 @@ export function MessageItem({
             >
               {author?.full_name ?? author?.email ?? "Unknown"}
             </button>
+            {isViaCleotilda(message.body) && <ViaCleotilda />}
             <span className="text-xs text-muted">{time}</span>
             {message.pinned_at && (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
@@ -248,7 +272,13 @@ export function MessageItem({
           </div>
         ) : (
           <div className="max-w-[72ch] text-[15px] leading-relaxed text-foreground">
-            <Body text={message.body} />
+            {/* Grouped rows have no name line, so the via-badge rides inline. */}
+            {grouped && isViaCleotilda(message.body) && (
+              <span className="mr-1.5 inline-block align-middle">
+                <ViaCleotilda />
+              </span>
+            )}
+            <Body text={stripViaCleotilda(message.body)} />
             {message.edited_at && (
               <span className="ml-1.5 align-baseline text-[10px] text-muted">
                 (edited)

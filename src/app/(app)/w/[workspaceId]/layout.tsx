@@ -19,6 +19,7 @@ import { AppShell } from "./app-shell";
 import { NotificationBell } from "./notification-bell";
 import { HeaderSearch } from "./header-search";
 import { WorkspaceLoader } from "./workspace-loader";
+import { CleotildaPanel } from "./cleotilda-panel";
 
 export default async function WorkspaceLayout({
   children,
@@ -116,6 +117,7 @@ export default async function WorkspaceLayout({
             </main>
           </div>
         </AppShell>
+        <CleotildaPanel workspaceId={workspaceId} />
       </div>
       </ProfileCardProvider>
     </PresenceProvider>

@@ -541,6 +541,13 @@ body,
   border-radius: 0.5rem;
 }
 
+/* Opt-out for fields whose container styles its own focus state (chat
+   composers etc.) - the global ring double-borders there. */
+.no-focus-ring:focus,
+.no-focus-ring:focus-visible {
+  outline: none !important;
+}
+
 /* ---------- Respect reduced-motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *,
