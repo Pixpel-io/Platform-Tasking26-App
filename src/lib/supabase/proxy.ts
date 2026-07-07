@@ -52,6 +52,41 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // -- Pending-invite memory ------------------------------------------------
+  // OAuth sign-in can lose the ?next=/invite/{token} chain (e.g. Supabase
+  // falling back to the Site URL for brand-new users), stranding invitees on
+  // onboarding. Remember the token in a cookie when a signed-out visitor
+  // opens an invite, and route them back to it right after they sign in.
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const pendingInvite = request.cookies.get("pending_invite")?.value;
+
+  if (!user && pathname.startsWith("/invite/")) {
+    const token = pathname.split("/")[2];
+    if (token && UUID_RE.test(token)) {
+      response.cookies.set("pending_invite", token, {
+        path: "/",
+        maxAge: 3600,
+        httpOnly: true,
+        sameSite: "lax",
+      });
+    }
+  }
+
+  if (user && pendingInvite && UUID_RE.test(pendingInvite)) {
+    if (pathname.startsWith("/invite/")) {
+      // They made it to an invite page - stop remembering.
+      response.cookies.delete("pending_invite");
+    } else if (!pathname.startsWith("/auth")) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/invite/${pendingInvite}`;
+      url.search = "";
+      const redirect = NextResponse.redirect(url);
+      redirect.cookies.delete("pending_invite");
+      return redirect;
+    }
+  }
+
   if (!user && !isPublic(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
