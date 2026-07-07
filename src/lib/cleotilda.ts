@@ -78,6 +78,56 @@ const TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "create_project",
+      description:
+        "Create a new project (kanban board) in this workspace. The requester becomes the owner automatically. Use member_ids (from list_members) only when the user names people to add.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Project name" },
+          description: { type: "string", description: "Optional short description" },
+          priority: {
+            type: "string",
+            enum: ["none", "low", "medium", "high", "urgent"],
+            description: "Project priority, defaults to none",
+          },
+          member_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "Profile ids from list_members to add as project members",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "create_group",
+      description:
+        "Create a new group (chat channel) in this workspace. The requester becomes a member automatically. Use member_ids (from list_members) only when the user names people to add.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "Group name, short and lowercase like a Slack channel",
+          },
+          description: { type: "string", description: "Optional topic description" },
+          member_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "Profile ids from list_members to add to the group",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "create_task",
       description:
         "Create a task on a project's board. Call list_projects first to get a valid project_id (and optionally a column_id - if omitted the task lands in the project's first column). Use assignee_ids only with ids from list_members.",
@@ -136,6 +186,55 @@ async function runTool(
       .is("deleted_at", null);
     const members = (rows ?? []).map((r) => r.profiles).filter(Boolean);
     return JSON.stringify(members);
+  }
+
+  if (name === "create_project") {
+    const projectName = String(input.name ?? "").trim();
+    if (projectName.length < 2) {
+      return JSON.stringify({ error: "project name must be at least 2 characters" });
+    }
+    const priorities = ["none", "low", "medium", "high", "urgent"] as const;
+    const priority = priorities.includes(
+      input.priority as (typeof priorities)[number],
+    )
+      ? (input.priority as (typeof priorities)[number])
+      : "none";
+    const memberIds = Array.isArray(input.member_ids)
+      ? (input.member_ids as string[]).filter((id) => id !== CLEOTILDA_ID).slice(0, 20)
+      : [];
+
+    const { data: projectId, error } = await supabase.rpc("create_project", {
+      p_workspace_id: target.workspaceId,
+      p_name: projectName,
+      p_description: String(input.description ?? "") || undefined,
+      p_priority: priority,
+      p_member_ids: memberIds,
+    });
+    if (error) return JSON.stringify({ error: error.message });
+    return JSON.stringify({ ok: true, project_id: projectId, name: projectName });
+  }
+
+  if (name === "create_group") {
+    const groupName = String(input.name ?? "")
+      .trim()
+      .replace(/^#/, "")
+      .toLowerCase()
+      .replace(/\s+/g, "-");
+    if (groupName.length < 2) {
+      return JSON.stringify({ error: "group name must be at least 2 characters" });
+    }
+    const memberIds = Array.isArray(input.member_ids)
+      ? (input.member_ids as string[]).filter((id) => id !== CLEOTILDA_ID).slice(0, 50)
+      : [];
+
+    const { data: channelId, error } = await supabase.rpc("create_channel", {
+      p_workspace_id: target.workspaceId,
+      p_name: groupName,
+      p_description: String(input.description ?? "") || undefined,
+      p_member_ids: memberIds,
+    });
+    if (error) return JSON.stringify({ error: error.message });
+    return JSON.stringify({ ok: true, channel_id: channelId, name: groupName });
   }
 
   if (name === "send_dm") {
@@ -284,25 +383,31 @@ async function kimiChat(messages: ChatMessage[]): Promise<{
 const RULES = (
   today: string,
 ) => `- Be brief and friendly, like a helpful coworker on chat. A few sentences at most.
-- Use the tools to actually do things (create tasks, send DMs, look up projects/members) instead of describing how the user could do them. Call list_projects before create_task, and list_members before send_dm or assigning people.
-- Pick the right tool for the request: "send a message to X" / "X ko msg karo" means send_dm, NOT create_task. Only create a task when the user asks for a task, todo, or work item.
-- When you act, confirm in one line what you did (task created on which project / message sent to whom).
+- You have tools that ACT: create_project (new kanban board), create_group (new chat channel), create_task (work item on a project), send_dm (message a member), plus list_projects and list_members for lookups. Use them to actually do things instead of describing how the user could do them. Never say you can't create something that one of your tools creates.
+- Pick the right tool: "make/create a project X" means create_project. "Make a group/channel X" means create_group. "Send a message to X" / "X ko msg karo" means send_dm. Only create_task when they ask for a task, todo, or work item.
+- Call list_projects before create_task (real project id), and list_members before send_dm or adding/assigning people by name.
+- When you act, confirm in one line what you did (project/group created, task created on which project, message sent to whom).
 - If the request is ambiguous (e.g. multiple matching projects or people), ask one short clarifying question instead of guessing.
-- If you cannot do something with your tools (tasks, DMs, lookups, answering questions), say so briefly.
+- If something is truly outside your tools (deleting things, editing settings), say so briefly.
 - Today's date is ${today}. Resolve relative dates like "tomorrow" or "Friday" to YYYY-MM-DD yourself.
 - Write in the language the user wrote in.`;
 
 // Direct 1:1 chat with Cleotilda (the assistant panel). The caller supplies
 // the running conversation; nothing is posted to any room - the reply is
 // returned to render in the panel. Same tools as the in-room assistant.
+// `mutated` tells the caller whether any create/send tool actually ran, so
+// the UI can refresh server-rendered data (sidebar lists etc.).
 export async function chatWithCleotilda(args: {
   workspaceId: string;
   userId: string;
   userName: string;
   history: { role: "user" | "assistant"; content: string }[];
-}): Promise<string> {
+}): Promise<{ reply: string; mutated: boolean }> {
   if (!cleotildaEnabled()) {
-    return "Cleotilda isn't configured yet (missing API key).";
+    return {
+      reply: "Cleotilda isn't configured yet (missing API key).",
+      mutated: false,
+    };
   }
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -322,8 +427,10 @@ ${RULES(today)}`;
   ];
 
   const target: RoomTarget = { workspaceId: args.workspaceId };
+  const MUTATING = new Set(["create_project", "create_group", "create_task", "send_dm"]);
 
   let reply = "";
+  let mutated = false;
   for (let i = 0; i < 5; i++) {
     const msg = await kimiChat(messages);
 
@@ -352,11 +459,17 @@ ${RULES(today)}`;
         tc.function.name,
         input,
       );
+      if (MUTATING.has(tc.function.name) && result.includes('"ok":true')) {
+        mutated = true;
+      }
       messages.push({ role: "tool", tool_call_id: tc.id, content: result });
     }
   }
 
-  return reply || "Sorry, I couldn't finish that one. Try rephrasing?";
+  return {
+    reply: reply || "Sorry, I couldn't finish that one. Try rephrasing?",
+    mutated,
+  };
 }
 
 // Fire-and-forget entry point. Called from sendMessage after the user's

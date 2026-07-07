@@ -14,6 +14,9 @@ export function CreateWorkspaceForm() {
   return (
     <form action={action} className="space-y-4">
       {state?.error && <FormMessage type="error">{state.error}</FormMessage>}
+      {state?.success && (
+        <FormMessage type="success">{state.success}</FormMessage>
+      )}
       <div>
         <Label htmlFor="workspaceName">Workspace name</Label>
         <Input

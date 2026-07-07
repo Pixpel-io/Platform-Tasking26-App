@@ -131,6 +131,80 @@ export interface Database {
         };
         Relationships: [];
       };
+      app_admins: {
+        Row: {
+          id: string;
+          email: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          created_at?: string;
+        };
+        Update: {
+          email?: string;
+        };
+        Relationships: [];
+      };
+      workspace_creators: {
+        Row: {
+          id: string;
+          email: string;
+          added_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          added_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          email?: string;
+        };
+        Relationships: [];
+      };
+      workspace_requests: {
+        Row: {
+          id: string;
+          requested_by: string;
+          workspace_name: string;
+          organization_name: string | null;
+          color: string | null;
+          status: "pending" | "approved" | "rejected";
+          decided_by: string | null;
+          decided_at: string | null;
+          workspace_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          requested_by: string;
+          workspace_name: string;
+          organization_name?: string | null;
+          color?: string | null;
+          status?: "pending" | "approved" | "rejected";
+          decided_by?: string | null;
+          decided_at?: string | null;
+          workspace_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          status?: "pending" | "approved" | "rejected";
+          decided_by?: string | null;
+          decided_at?: string | null;
+          workspace_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workspace_requests_requested_by_fkey";
+            columns: ["requested_by"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       workspaces: {
         Row: {
           id: string;
@@ -899,6 +973,22 @@ export interface Database {
           p_color?: string;
         };
         Returns: string;
+      };
+      create_workspace_gated: {
+        Args: {
+          p_workspace_name: string;
+          p_organization_name?: string;
+          p_color?: string;
+        };
+        Returns: string;
+      };
+      is_super_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      can_create_workspace: {
+        Args: Record<string, never>;
+        Returns: boolean;
       };
       delete_workspace: {
         Args: { p_workspace_id: string };

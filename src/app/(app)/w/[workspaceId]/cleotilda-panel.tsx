@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { askCleotilda } from "./cleotilda-actions";
 
@@ -35,6 +36,7 @@ function CleotildaLogo({ size, className = "" }: { size: number; className?: str
 // on screen (position persists per browser); a short press opens the chatbot
 // panel, which anchors itself to whichever corner the button lives in.
 export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<PanelMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -189,6 +191,9 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
       if (res.error) setError(res.error);
       else if (res.reply) {
         setMessages((prev) => [...prev, { role: "assistant", content: res.reply! }]);
+        // Something was created (project/group/task) - re-render the
+        // server-side sidebar/boards so it appears without a manual reload.
+        if (res.mutated) router.refresh();
       }
     } catch {
       setError("Something went wrong. Try again.");

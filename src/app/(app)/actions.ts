@@ -60,13 +60,62 @@ export async function createWorkspace(
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("create_workspace", {
+
+  // Workspace creation is gated: allowlisted creators (and super admins)
+  // create directly; everyone else files a request for super admin approval.
+  const { data: allowed } = await supabase.rpc("can_create_workspace");
+  const { data: approvedRequest } = await supabase
+    .from("workspace_requests")
+    .select("id")
+    .eq("requested_by", user.id)
+    .eq("status", "approved")
+    .is("workspace_id", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (!allowed && !approvedRequest) {
+    // Reuse an existing pending request instead of stacking duplicates.
+    const { data: pending } = await supabase
+      .from("workspace_requests")
+      .select("id")
+      .eq("requested_by", user.id)
+      .eq("status", "pending")
+      .limit(1)
+      .maybeSingle();
+    if (pending) {
+      return {
+        error:
+          "Your workspace request is already pending super admin approval.",
+      };
+    }
+    const { error: reqError } = await supabase.from("workspace_requests").insert({
+      requested_by: user.id,
+      workspace_name: parsed.data.workspaceName,
+      organization_name: parsed.data.organizationName || null,
+      color: parsed.data.color || null,
+    });
+    if (reqError) return { error: reqError.message };
+    return {
+      success:
+        "Request sent! A super admin needs to approve it before your workspace is created. You'll be able to create it once approved.",
+    };
+  }
+
+  const { data, error } = await supabase.rpc("create_workspace_gated", {
     p_workspace_name: parsed.data.workspaceName,
     p_organization_name: parsed.data.organizationName || undefined,
     p_color: parsed.data.color || undefined,
   });
 
   if (error) return { error: error.message };
+
+  // Consume the approved request (one approval = one workspace).
+  if (!allowed && approvedRequest) {
+    await supabase
+      .from("workspace_requests")
+      .update({ workspace_id: data })
+      .eq("id", approvedRequest.id);
+  }
 
   // Fire the invites before redirecting. Best-effort: a failed invite must
   // not block workspace creation.

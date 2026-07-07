@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProject, PRIORITY_META } from "@/lib/projects";
 import { ProjectViewTabs } from "./project-view-tabs";
+import { DeleteProjectButton } from "./delete-project-button";
 
 export default async function ProjectLayout({
   children,
@@ -37,12 +38,20 @@ export default async function ProjectLayout({
               </p>
             )}
           </div>
-          <span
-            className={`flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium ${priority.color}`}
-          >
-            <span className={`h-2 w-2 rounded-full ${priority.dot}`} />
-            {priority.label}
-          </span>
+          {/* Right padding clears the fixed search/bell overlay on desktop. */}
+          <div className="flex shrink-0 items-center gap-2 lg:pr-24">
+            <span
+              className={`flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium ${priority.color}`}
+            >
+              <span className={`h-2 w-2 rounded-full ${priority.dot}`} />
+              {priority.label}
+            </span>
+            <DeleteProjectButton
+              workspaceId={workspaceId}
+              projectId={projectId}
+              projectName={project.name}
+            />
+          </div>
         </div>
         <ProjectViewTabs base={base} />
       </header>

@@ -44,6 +44,28 @@ export async function createProject(
   redirect(`/w/${workspaceId}/projects/${data}`);
 }
 
+// Soft-delete a project. RLS only lets the owner or a workspace admin update
+// the row, so permission is enforced at the database.
+export async function deleteProject(
+  workspaceId: string,
+  projectId: string,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", projectId)
+    .is("deleted_at", null)
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) {
+    return { error: "Only the project owner or a workspace admin can delete this project." };
+  }
+  revalidatePath(`/w/${workspaceId}`, "layout");
+  redirect(`/w/${workspaceId}/projects`);
+}
+
 export async function updateProject(
   workspaceId: string,
   projectId: string,

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { chatWithCleotilda } from "@/lib/cleotilda";
@@ -9,7 +10,7 @@ import { chatWithCleotilda } from "@/lib/cleotilda";
 export async function askCleotilda(
   workspaceId: string,
   history: { role: "user" | "assistant"; content: string }[],
-): Promise<{ reply?: string; error?: string }> {
+): Promise<{ reply?: string; mutated?: boolean; error?: string }> {
   const user = await requireUser();
   const supabase = await createClient();
 
@@ -41,13 +42,18 @@ export async function askCleotilda(
   }
 
   try {
-    const reply = await chatWithCleotilda({
+    const { reply, mutated } = await chatWithCleotilda({
       workspaceId,
       userId: user.id,
       userName: me?.full_name ?? me?.email ?? "Someone",
       history: safeHistory,
     });
-    return { reply };
+    // Anything created (project/group/task/DM) should show up in the
+    // server-rendered sidebar and boards immediately.
+    if (mutated) {
+      revalidatePath(`/w/${workspaceId}`, "layout");
+    }
+    return { reply, mutated };
   } catch (err) {
     console.error("[cleotilda-panel]", err);
     return { error: "Cleotilda couldn't respond right now. Try again." };
