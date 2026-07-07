@@ -165,14 +165,60 @@ export function MondayTable({
     });
   }
 
+  // -- Toolbar filters (Monday-style: search / person / status / priority) ---
+  const [search, setSearch] = useState("");
+  const [personFilter, setPersonFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
+  const [hideDone, setHideDone] = useState(false);
+
   // One flat list: every task with its status column, ordered by status then
   // position. Status lives ONLY in the Status cell - no duplicate grouping.
-  const rows = board.flatMap((column) =>
+  const allRows = board.flatMap((column) =>
     column.tasks.map((task) => ({ task, column })),
   );
 
+  const query = search.trim().toLowerCase();
+  const rows = allRows.filter(({ task, column }) => {
+    if (query && !task.title.toLowerCase().includes(query)) return false;
+    if (personFilter && !task.task_assignees.some((a) => a.user_id === personFilter)) {
+      return false;
+    }
+    if (statusFilter && column.id !== statusFilter) return false;
+    if (priorityFilter && task.priority !== priorityFilter) return false;
+    if (hideDone && task.completed_at != null) return false;
+    return true;
+  });
+  const filtering =
+    query !== "" ||
+    personFilter != null ||
+    statusFilter != null ||
+    priorityFilter != null ||
+    hideDone;
+  const doneCount = allRows.filter(({ task }) => task.completed_at != null).length;
+
   return (
     <div className="overflow-y-auto p-4 sm:p-6">
+      <TableToolbar
+        board={board}
+        members={members}
+        search={search}
+        onSearch={setSearch}
+        personFilter={personFilter}
+        onPersonFilter={setPersonFilter}
+        statusFilter={statusFilter}
+        onStatusFilter={setStatusFilter}
+        priorityFilter={priorityFilter}
+        onPriorityFilter={setPriorityFilter}
+        hideDone={hideDone}
+        onHideDone={setHideDone}
+        shown={rows.length}
+        total={allRows.length}
+        done={doneCount}
+        filtering={filtering}
+        groupColorOf={(name, i) => groupColor(name, i)}
+      />
+
       <div className="overflow-hidden rounded-lg border border-border">
         {/* Header row */}
         <div className="grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_120px] items-center gap-0 border-b border-border bg-surface-2/40 text-xs font-medium text-muted max-lg:grid-cols-[minmax(160px,1fr)_110px_100px]">
@@ -185,7 +231,9 @@ export function MondayTable({
 
         {rows.length === 0 && (
           <p className="bg-surface px-4 py-8 text-center text-sm text-muted">
-            No tasks yet. Add the first one below.
+            {filtering
+              ? "No tasks match the current filters."
+              : "No tasks yet. Add the first one below."}
           </p>
         )}
 
@@ -219,6 +267,305 @@ export function MondayTable({
           onClose={() => setOpenTaskId(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ── Toolbar: search + person / status / priority filters + progress ─────────
+
+function TableToolbar({
+  board,
+  members,
+  search,
+  onSearch,
+  personFilter,
+  onPersonFilter,
+  statusFilter,
+  onStatusFilter,
+  priorityFilter,
+  onPriorityFilter,
+  hideDone,
+  onHideDone,
+  shown,
+  total,
+  done,
+  filtering,
+  groupColorOf,
+}: {
+  board: BoardColumn[];
+  members: Profile[];
+  search: string;
+  onSearch: (v: string) => void;
+  personFilter: string | null;
+  onPersonFilter: (v: string | null) => void;
+  statusFilter: string | null;
+  onStatusFilter: (v: string | null) => void;
+  priorityFilter: string | null;
+  onPriorityFilter: (v: string | null) => void;
+  hideDone: boolean;
+  onHideDone: (v: boolean) => void;
+  shown: number;
+  total: number;
+  done: number;
+  filtering: boolean;
+  groupColorOf: (name: string, index: number) => string;
+}) {
+  // Anchor lives in state (not a ref) so the popover can render off it.
+  const [openMenu, setOpenMenu] = useState<{
+    kind: "person" | "status" | "priority";
+    anchor: HTMLElement;
+  } | null>(null);
+
+  function toggleMenu(
+    kind: "person" | "status" | "priority",
+    e: React.MouseEvent<HTMLButtonElement>,
+  ) {
+    const anchor = e.currentTarget;
+    setOpenMenu((prev) => (prev?.kind === kind ? null : { kind, anchor }));
+  }
+
+  const activePerson = members.find((m) => m.id === personFilter);
+  const activeStatus = board.find((c) => c.id === statusFilter);
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+
+  const chipBase =
+    "flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors";
+  const chipIdle = "border-border text-muted hover:bg-surface-2 hover:text-foreground";
+  const chipActive = "border-primary/40 bg-primary/10 text-primary";
+
+  function clearAll() {
+    onSearch("");
+    onPersonFilter(null);
+    onStatusFilter(null);
+    onPriorityFilter(null);
+    onHideDone(false);
+  }
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      {/* Search */}
+      <div className="relative">
+        <svg
+          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+        <input
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          placeholder="Search tasks…"
+          className="h-8 w-44 rounded-lg border border-border bg-surface pl-8 pr-7 text-xs text-foreground placeholder:text-muted focus:border-primary focus:outline-none sm:w-56"
+        />
+        {search && (
+          <button
+            onClick={() => onSearch("")}
+            aria-label="Clear search"
+            className="absolute right-1.5 top-1/2 grid h-5 w-5 -translate-y-1/2 cursor-pointer place-items-center rounded text-muted hover:text-foreground"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Person filter */}
+      <button
+        onClick={(e) => toggleMenu("person", e)}
+        className={`${chipBase} ${activePerson ? chipActive : chipIdle}`}
+      >
+        {activePerson ? (
+          <>
+            <Avatar
+              name={activePerson.full_name}
+              email={activePerson.email}
+              avatarUrl={activePerson.avatar_url}
+              size="xs"
+            />
+            <span className="max-w-24 truncate">
+              {activePerson.full_name ?? activePerson.email}
+            </span>
+          </>
+        ) : (
+          <>
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            Person
+          </>
+        )}
+      </button>
+      {openMenu?.kind === "person" && (
+        <CellPopover anchor={openMenu.anchor} onClose={() => setOpenMenu(null)} width={208}>
+          {members.map((m) => {
+            const active = personFilter === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => {
+                  onPersonFilter(active ? null : m.id);
+                  setOpenMenu(null);
+                }}
+                className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                  active ? "bg-primary/10 text-primary" : "text-foreground hover:bg-surface-2"
+                }`}
+              >
+                <Avatar name={m.full_name} email={m.email} avatarUrl={m.avatar_url} size="xs" />
+                <span className="min-w-0 flex-1 truncate">{m.full_name ?? m.email}</span>
+              </button>
+            );
+          })}
+        </CellPopover>
+      )}
+
+      {/* Status filter */}
+      <button
+        onClick={(e) => toggleMenu("status", e)}
+        className={`${chipBase} ${activeStatus ? chipActive : chipIdle}`}
+      >
+        {activeStatus ? (
+          <>
+            <span
+              className="h-2.5 w-2.5 rounded-sm"
+              style={{
+                backgroundColor: groupColorOf(
+                  activeStatus.name,
+                  board.findIndex((c) => c.id === activeStatus.id),
+                ),
+              }}
+            />
+            <span className="max-w-24 truncate">{activeStatus.name}</span>
+          </>
+        ) : (
+          <>
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 3H2l8 9.46V19l4 2v-8.54z" />
+            </svg>
+            Status
+          </>
+        )}
+      </button>
+      {openMenu?.kind === "status" && (
+        <CellPopover anchor={openMenu.anchor} onClose={() => setOpenMenu(null)} width={192}>
+          {board.map((c, i) => {
+            const active = statusFilter === c.id;
+            return (
+              <button
+                key={c.id}
+                onClick={() => {
+                  onStatusFilter(active ? null : c.id);
+                  setOpenMenu(null);
+                }}
+                className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                  active ? "bg-primary/10 text-primary" : "text-foreground hover:bg-surface-2"
+                }`}
+              >
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ backgroundColor: groupColorOf(c.name, i) }}
+                />
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                <span className="text-xs text-muted">{c.tasks.length}</span>
+              </button>
+            );
+          })}
+        </CellPopover>
+      )}
+
+      {/* Priority filter */}
+      <button
+        onClick={(e) => toggleMenu("priority", e)}
+        className={`${chipBase} ${priorityFilter ? chipActive : chipIdle}`}
+      >
+        {priorityFilter ? (
+          <>
+            <span
+              className="h-2.5 w-2.5 rounded-sm"
+              style={{ backgroundColor: PRIORITY_BG[priorityFilter] }}
+            />
+            {PRIORITY_META[priorityFilter as keyof typeof PRIORITY_META]?.label ?? priorityFilter}
+          </>
+        ) : (
+          <>
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" />
+            </svg>
+            Priority
+          </>
+        )}
+      </button>
+      {openMenu?.kind === "priority" && (
+        <CellPopover anchor={openMenu.anchor} onClose={() => setOpenMenu(null)} width={176}>
+          {Object.entries(PRIORITY_BG).map(([p, color]) => {
+            const active = priorityFilter === p;
+            return (
+              <button
+                key={p}
+                onClick={() => {
+                  onPriorityFilter(active ? null : p);
+                  setOpenMenu(null);
+                }}
+                className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                  active ? "bg-primary/10 text-primary" : "text-foreground hover:bg-surface-2"
+                }`}
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: color }} />
+                {PRIORITY_META[p as keyof typeof PRIORITY_META]?.label ?? p}
+              </button>
+            );
+          })}
+        </CellPopover>
+      )}
+
+      {/* Hide done toggle */}
+      <button
+        onClick={() => onHideDone(!hideDone)}
+        className={`${chipBase} ${hideDone ? chipActive : chipIdle}`}
+        title="Hide completed tasks"
+      >
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" />
+        </svg>
+        Hide done
+      </button>
+
+      {filtering && (
+        <button
+          onClick={clearAll}
+          className="flex h-8 shrink-0 cursor-pointer items-center gap-1 rounded-lg px-2 text-xs font-medium text-muted transition-colors hover:text-danger"
+        >
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+          Clear
+        </button>
+      )}
+
+      {/* Progress summary, right-aligned */}
+      <div className="ml-auto flex shrink-0 items-center gap-2 text-xs text-muted">
+        {filtering && (
+          <span>
+            {shown} of {total}
+          </span>
+        )}
+        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-2 max-sm:hidden">
+          <div
+            className="h-full rounded-full bg-success transition-all duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className="max-sm:hidden">
+          {done}/{total} done
+        </span>
+      </div>
     </div>
   );
 }

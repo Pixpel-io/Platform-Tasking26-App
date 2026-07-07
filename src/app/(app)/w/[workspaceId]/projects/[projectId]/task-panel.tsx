@@ -304,11 +304,7 @@ function UpdatesTab({
     <div className="flex-1 overflow-y-auto">
       <div className="space-y-4 p-5">
         {/* Composer */}
-        <div
-          className={`rounded-xl border bg-background transition-colors ${
-            focused ? "border-primary shadow-sm shadow-primary/10" : "border-border"
-          }`}
-        >
+        <div className="rounded-2xl border border-border bg-background shadow-sm transition-all duration-200 focus-within:shadow-md">
           <textarea
             ref={taRef}
             value={draft}
