@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { decideWorkspaceRequest } from "./admin-actions";
+import { decideWorkspaceRequest, revokeApprovedRequest } from "./admin-actions";
 
 type Request = {
   id: string;
@@ -34,6 +34,16 @@ export function RequestList({
     setActingOn(id);
     startTransition(async () => {
       const res = await decideWorkspaceRequest(id, decision);
+      setActingOn(null);
+      if (res.error) setError(res.error);
+    });
+  }
+
+  function revoke(id: string) {
+    setError(null);
+    setActingOn(id);
+    startTransition(async () => {
+      const res = await revokeApprovedRequest(id);
       setActingOn(null);
       if (res.error) setError(res.error);
     });
@@ -115,6 +125,16 @@ export function RequestList({
                 >
                   {r.status}
                 </span>
+                {r.status === "approved" && (
+                  <button
+                    onClick={() => revoke(r.id)}
+                    disabled={actingOn === r.id}
+                    title="Revoke this approval - they'll need permission again"
+                    className="shrink-0 cursor-pointer rounded-lg border border-danger/40 px-2.5 py-1 text-xs font-medium text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
+                  >
+                    {actingOn === r.id ? "Revoking..." : "Revoke"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

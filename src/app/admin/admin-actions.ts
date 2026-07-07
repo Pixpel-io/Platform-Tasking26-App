@@ -65,6 +65,50 @@ export async function decideWorkspaceRequest(
   return {};
 }
 
+// Revoke a previously-approved request. If the approval is still unused the
+// requester loses the pending green light; either way their email comes off
+// the creator allowlist. Existing workspaces are untouched (delete those
+// from the All Workspaces section).
+export async function revokeApprovedRequest(requestId: string): Promise<Result> {
+  await requireSuperAdmin();
+  const supabase = await createClient();
+
+  const { data: request } = await supabase
+    .from("workspace_requests")
+    .select("id, status, requested_by, requester:profiles!workspace_requests_requested_by_fkey(email)")
+    .eq("id", requestId)
+    .maybeSingle();
+  const req = request as
+    | { id: string; status: string; requested_by: string; requester: { email: string } | null }
+    | null;
+  if (!req) return { error: "Request not found." };
+  if (req.status !== "approved") return { error: "Only approved requests can be revoked." };
+
+  // Void every unused approval this user still holds.
+  const { error } = await supabase
+    .from("workspace_requests")
+    .delete()
+    .eq("requested_by", req.requested_by)
+    .eq("status", "approved")
+    .is("workspace_id", null);
+  if (error) return { error: error.message };
+
+  // And take their email off the standing allowlist, if present.
+  if (req.requester?.email) {
+    await supabase
+      .from("workspace_creators")
+      .delete()
+      .eq("email", req.requester.email.toLowerCase());
+  }
+
+  // If the approval was already used (workspace exists), mark it revoked by
+  // deleting the record too - it no longer grants anything and just clutters.
+  await supabase.from("workspace_requests").delete().eq("id", requestId);
+
+  revalidatePath("/admin");
+  return { success: "Approval revoked." };
+}
+
 // -- Workspaces (platform-wide governance) --------------------------------
 
 // Soft-delete any workspace. The delete_workspace RPC allows the owner OR a
