@@ -6,6 +6,7 @@ import { isSuperAdmin } from "@/lib/admin";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RequestList } from "./request-list";
 import { CreatorAllowlist } from "./creator-allowlist";
+import { WorkspaceList } from "./workspace-list";
 
 export const metadata = { title: "Super Admin" };
 
@@ -36,6 +37,42 @@ export default async function AdminPage() {
         .order("created_at", { ascending: false })
         .limit(100),
     ]);
+
+  // Owner + member count per workspace (single roster query).
+  const wsIds = (workspaces ?? []).map((w) => w.id);
+  const rosters = new Map<string, { count: number; ownerName: string }>();
+  if (wsIds.length > 0) {
+    const { data: memberRows } = await supabase
+      .from("workspace_members")
+      .select("workspace_id, role, member:profiles(full_name, email)")
+      .in("workspace_id", wsIds)
+      .is("deleted_at", null);
+    type RosterRow = {
+      workspace_id: string;
+      role: string;
+      member: { full_name: string | null; email: string } | null;
+    };
+    for (const m of (memberRows as RosterRow[] | null) ?? []) {
+      const cur = rosters.get(m.workspace_id) ?? { count: 0, ownerName: "Unknown" };
+      cur.count += 1;
+      if (m.role === "owner") {
+        cur.ownerName = m.member?.full_name ?? m.member?.email ?? "Unknown";
+      }
+      rosters.set(m.workspace_id, cur);
+    }
+  }
+
+  const workspaceRows = (workspaces ?? []).map((w) => {
+    const roster = rosters.get(w.id) ?? { count: 0, ownerName: "Unknown" };
+    return {
+      id: w.id,
+      name: w.name,
+      color: w.color,
+      created_at: w.created_at,
+      memberCount: roster.count,
+      ownerName: roster.ownerName,
+    };
+  });
 
   const pending = (requests ?? []).filter((r) => r.status === "pending");
   const decided = (requests ?? []).filter((r) => r.status !== "pending");
@@ -117,31 +154,14 @@ export default async function AdminPage() {
           <h2 className="text-lg font-semibold text-foreground">
             All workspaces{" "}
             <span className="text-sm font-normal text-muted">
-              ({workspaces?.length ?? 0})
+              ({workspaceRows.length})
             </span>
           </h2>
-          <ul className="mt-3 divide-y divide-border/60">
-            {(workspaces ?? []).map((w) => (
-              <li key={w.id} className="flex items-center gap-3 py-2.5">
-                <span
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-bold text-white"
-                  style={{ backgroundColor: w.color }}
-                >
-                  {w.name[0]?.toUpperCase()}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                  {w.name}
-                </span>
-                <span className="text-xs text-muted">
-                  {new Date(w.created_at).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <p className="mt-1 text-sm text-muted">
+            Every workspace on the platform, with its owner. Deleting removes
+            the workspace for everyone.
+          </p>
+          <WorkspaceList workspaces={workspaceRows} />
         </section>
       </main>
     </div>

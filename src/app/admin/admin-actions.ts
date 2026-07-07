@@ -64,3 +64,18 @@ export async function decideWorkspaceRequest(
   revalidatePath("/admin");
   return {};
 }
+
+// -- Workspaces (platform-wide governance) --------------------------------
+
+// Soft-delete any workspace. The delete_workspace RPC allows the owner OR a
+// super admin (0014); this action is the dashboard entry point.
+export async function adminDeleteWorkspace(workspaceId: string): Promise<Result> {
+  await requireSuperAdmin();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_workspace", {
+    p_workspace_id: workspaceId,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/admin");
+  return { success: "Workspace deleted." };
+}
