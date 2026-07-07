@@ -78,33 +78,48 @@ export async function adminDeleteWorkspace(
   await requireSuperAdmin();
   const supabase = await createClient();
 
-  // Resolve the owner's email BEFORE deleting (roster reads of a deleted
-  // workspace can be filtered out).
-  let ownerEmail: string | null = null;
-  if (revokeOwnerAccess) {
-    const { data: owner } = await supabase
-      .from("workspace_members")
-      .select("member:profiles(email)")
-      .eq("workspace_id", workspaceId)
-      .eq("role", "owner")
-      .is("deleted_at", null)
-      .limit(1)
-      .maybeSingle();
-    ownerEmail =
-      (owner as { member: { email: string } | null } | null)?.member?.email ??
-      null;
-  }
+  // Resolve the owner BEFORE deleting (roster reads of a deleted workspace
+  // can be filtered out).
+  const { data: owner } = await supabase
+    .from("workspace_members")
+    .select("user_id, member:profiles(email)")
+    .eq("workspace_id", workspaceId)
+    .eq("role", "owner")
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+  const ownerRow = owner as
+    | { user_id: string; member: { email: string } | null }
+    | null;
 
   const { error } = await supabase.rpc("delete_workspace", {
     p_workspace_id: workspaceId,
   });
   if (error) return { error: error.message };
 
-  if (revokeOwnerAccess && ownerEmail) {
+  // Drop the request that produced this workspace so it disappears from
+  // "Recent decisions" - the workspace no longer exists, so the record is
+  // just confusing.
+  await supabase
+    .from("workspace_requests")
+    .delete()
+    .eq("workspace_id", workspaceId);
+
+  if (revokeOwnerAccess && ownerRow) {
+    if (ownerRow.member?.email) {
+      await supabase
+        .from("workspace_creators")
+        .delete()
+        .eq("email", ownerRow.member.email.toLowerCase());
+    }
+    // Void any approved-but-unused requests too, or they could still
+    // create one more workspace from the old approval.
     await supabase
-      .from("workspace_creators")
+      .from("workspace_requests")
       .delete()
-      .eq("email", ownerEmail.toLowerCase());
+      .eq("requested_by", ownerRow.user_id)
+      .eq("status", "approved")
+      .is("workspace_id", null);
   }
 
   revalidatePath("/admin");
