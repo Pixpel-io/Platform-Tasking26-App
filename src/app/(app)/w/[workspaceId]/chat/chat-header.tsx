@@ -5,7 +5,7 @@ export function ChatHeader({
   actions,
 }: {
   title: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   icon?: React.ReactNode;
   actions?: React.ReactNode;
 }) {

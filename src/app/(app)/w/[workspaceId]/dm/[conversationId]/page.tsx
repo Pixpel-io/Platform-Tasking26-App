@@ -9,6 +9,7 @@ import {
 import { ChatHeader } from "../../chat/chat-header";
 import { ChatRoom } from "../../chat/chat-room";
 import { DmHeaderAvatar } from "../../chat/dm-header-avatar";
+import { TypingSubtitle } from "../../chat/typing";
 
 export default async function DMPage({
   params,
@@ -32,7 +33,12 @@ export default async function DMPage({
     <div className="flex h-full flex-col">
       <ChatHeader
         title={title}
-        subtitle={other?.email ?? undefined}
+        subtitle={
+          <TypingSubtitle
+            target={{ conversationId }}
+            fallback={other?.email}
+          />
+        }
         icon={other ? <DmHeaderAvatar profile={other} /> : undefined}
       />
       <div className="min-h-0 flex-1">

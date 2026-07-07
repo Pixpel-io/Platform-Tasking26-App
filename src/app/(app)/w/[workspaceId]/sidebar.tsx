@@ -17,6 +17,7 @@ import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
 import { signOut } from "@/app/(auth)/actions";
 import { openDirectMessage } from "./chat-actions";
+import { SidebarRowMeta } from "./chat/typing";
 import { CreateChannelDialog } from "./create-channel-dialog";
 import { WorkspaceSplash } from "./workspace-loader";
 
@@ -287,11 +288,10 @@ export function Sidebar({
                     className="h-3.5 w-3.5 shrink-0"
                   />
                   <span className="flex-1 truncate">{c.name}</span>
-                  {unreadCh > 0 && (
-                    <span className="grid h-5 min-w-5 animate-scale-in place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30">
-                      {unreadCh > 99 ? "99+" : unreadCh}
-                    </span>
-                  )}
+                  <SidebarRowMeta
+                    target={{ channelId: c.id }}
+                    unread={unreadCh}
+                  />
                 </Link>
               );
             })}
@@ -363,10 +363,11 @@ export function Sidebar({
                     />
                   </span>
                   <span className="flex-1 truncate">{label}</span>
-                  {unreadDm > 0 && (
-                    <span className="grid h-5 min-w-5 animate-scale-in place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30">
-                      {unreadDm > 99 ? "99+" : unreadDm}
-                    </span>
+                  {conversationId && (
+                    <SidebarRowMeta
+                      target={{ conversationId }}
+                      unread={unreadDm}
+                    />
                   )}
                 </>
               );

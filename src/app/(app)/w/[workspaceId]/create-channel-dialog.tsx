@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button, FieldError, FormMessage, Input, Label } from "@/components/ui";
 import type { Profile } from "@/lib/supabase/types";
 import { createChannel } from "./chat-actions";
@@ -49,9 +50,11 @@ export function CreateChannelDialog({
     });
   }
 
-  return (
+  // Portal to <body>: ancestors with backdrop-filter/transform would trap
+  // this fixed overlay and let page content bleed through the dialog.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -160,6 +163,7 @@ export function CreateChannelDialog({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

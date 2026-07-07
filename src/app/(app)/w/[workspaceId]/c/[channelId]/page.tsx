@@ -10,6 +10,7 @@ import {
 } from "@/lib/chat";
 import { ChatHeader } from "../../chat/chat-header";
 import { ChatRoom } from "../../chat/chat-room";
+import { TypingSubtitle } from "../../chat/typing";
 import { GroupMembers } from "./group-members";
 
 export default async function ChannelPage({
@@ -49,7 +50,12 @@ export default async function ChannelPage({
     <div className="flex h-full flex-col">
       <ChatHeader
         title={channel.name}
-        subtitle={channel.description ?? undefined}
+        subtitle={
+          <TypingSubtitle
+            target={{ channelId }}
+            fallback={channel.description}
+          />
+        }
         icon={
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-linear-to-br from-primary/20 to-primary/5 text-base font-semibold text-primary ring-1 ring-inset ring-primary/15">
             #

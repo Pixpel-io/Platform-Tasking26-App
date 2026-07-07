@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button, FieldError, FormMessage, Input, Label } from "@/components/ui";
 import type { PriorityLevel, Profile } from "@/lib/supabase/types";
 import { PRIORITY_META, PRIORITY_ORDER } from "@/lib/projects-shared";
@@ -52,13 +53,15 @@ export function CreateProjectDialog({
     });
   }
 
-  return (
+  // Portal to <body>: ancestors with backdrop-filter/transform would trap
+  // this fixed overlay and let page content bleed through the dialog.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold text-foreground">
@@ -180,6 +183,7 @@ export function CreateProjectDialog({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

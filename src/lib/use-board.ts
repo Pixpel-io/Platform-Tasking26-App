@@ -17,6 +17,14 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
 
   const initialRef = useRef(initial);
   initialRef.current = initial;
+  // Task ids currently on the board, so assignee events (whose table has no
+  // project_id to filter on server-side) can be scoped to this project.
+  const taskIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    taskIdsRef.current = new Set(
+      board.flatMap((c) => c.tasks.map((t) => t.id)),
+    );
+  }, [board]);
   useEffect(() => {
     setBoard(initialRef.current);
   }, [projectId]);
@@ -44,7 +52,8 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
         .from("tasks")
         .select(TASK_SELECT)
         .eq("id", id)
-        .single();
+        .eq("project_id", projectId)
+        .maybeSingle();
       const row = data as unknown as TaskWithRelations | null;
       setBoard((prev) => {
         const { columns, tasks } = flatten(prev);
@@ -78,6 +87,21 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
             (payload.new as { id?: string })?.id ??
             (payload.old as { id?: string })?.id;
           if (id) void refetchTask(id);
+        },
+      )
+      // Assignees live in their own table, so adding/removing a person never
+      // touches the tasks row - listen separately and refresh the task whose
+      // people changed. RLS scopes delivery; the id check scopes to this board.
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_assignees" },
+        (payload) => {
+          const taskId =
+            (payload.new as { task_id?: string })?.task_id ??
+            (payload.old as { task_id?: string })?.task_id;
+          if (taskId && taskIdsRef.current.has(taskId)) {
+            void refetchTask(taskId);
+          }
         },
       )
       .subscribe();

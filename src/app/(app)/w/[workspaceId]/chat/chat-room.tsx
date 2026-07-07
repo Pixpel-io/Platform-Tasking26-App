@@ -22,7 +22,11 @@ import {
 } from "../chat-actions";
 import { MessageItem } from "./message-item";
 import { Composer, type MentionMember } from "./composer";
-import { TypingIndicator, useTyping } from "./typing";
+import {
+  TypingIndicator,
+  useTypingBroadcast,
+  useTypingIn,
+} from "./typing";
 
 type Target = {
   workspaceId: string;
@@ -98,7 +102,8 @@ export function ChatRoom({
     },
   );
 
-  const { typingUsers, broadcastTyping } = useTyping(target, meId, meName);
+  const typingUsers = useTypingIn(target);
+  const broadcastTyping = useTypingBroadcast(target);
   const { unreadCount, setAtBottom } = useMessageAlerts(
     messages,
     meId,

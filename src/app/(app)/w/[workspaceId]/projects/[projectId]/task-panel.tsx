@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/ui";
@@ -35,8 +35,14 @@ export function TaskPanel({
   members: Profile[];
   onClose: () => void;
 }) {
-  const [task, setTask] = useState<TaskDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Keyed by task id so switching tasks shows "Loading…" (stale result from a
+  // previous task never renders) without a setState-in-effect reset.
+  const [result, setResult] = useState<{
+    id: string;
+    task: TaskDetail | null;
+  } | null>(null);
+  const loading = result?.id !== taskId;
+  const task = loading ? null : result.task;
   const [, startTransition] = useTransition();
 
   const reload = useCallback(async () => {
@@ -46,14 +52,40 @@ export function TaskPanel({
       .select(DETAIL_SELECT)
       .eq("id", taskId)
       .single();
-    setTask((data as unknown as TaskDetail | null) ?? null);
-    setLoading(false);
+    setResult({
+      id: taskId,
+      task: (data as unknown as TaskDetail | null) ?? null,
+    });
   }, [taskId]);
 
+  // Initial fetch happens once the realtime subscription is live, so no
+  // comment posted in between is missed. Live updates: another member
+  // commenting on this task shows up without reopening the panel.
   useEffect(() => {
-    setLoading(true);
-    void reload();
-  }, [reload]);
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`task-panel:${taskId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "task_comments",
+          filter: `task_id=eq.${taskId}`,
+        },
+        () => void reload(),
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void reload();
+      });
+    // Fallback: don't leave the panel on "Loading…" if realtime is slow or
+    // blocked - fetch after a beat regardless.
+    const fallback = setTimeout(() => void reload(), 800);
+    return () => {
+      clearTimeout(fallback);
+      supabase.removeChannel(channel);
+    };
+  }, [taskId, reload]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -72,11 +104,11 @@ export function TaskPanel({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/40"
+      className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs"
       onClick={onClose}
     >
       <div
-        className="flex h-full w-full max-w-xl flex-col overflow-y-auto bg-surface shadow-2xl"
+        className="flex h-full w-full max-w-2xl flex-col bg-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {loading || !task ? (
@@ -96,6 +128,8 @@ export function TaskPanel({
   );
 }
 
+type Tab = "updates" | "details";
+
 function TaskBody({
   task,
   members,
@@ -107,77 +141,295 @@ function TaskBody({
   onClose: () => void;
   act: (fn: () => Promise<unknown>) => void;
 }) {
+  const [tab, setTab] = useState<Tab>("updates");
   const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [comment, setComment] = useState("");
-  const [checklistItem, setChecklistItem] = useState<Record<string, string>>({});
-  const [timeInput, setTimeInput] = useState("");
   const done = task.completed_at != null;
-  const assigneeIds = new Set(task.task_assignees.map((a) => a.user_id));
+
+  const comments = task.task_comments
+    .filter((c) => !c.deleted_at)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
 
   return (
     <>
-      <div className="flex items-center justify-between border-b border-border px-5 py-3">
-        <button
-          onClick={() =>
-            act(() => setTaskCompleted(task.id, !done))
-          }
-          className={`flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-medium ${
-            done
-              ? "bg-success/10 text-success"
-              : "text-muted hover:bg-surface-2 hover:text-foreground"
-          }`}
-        >
-          <span
-            className={`grid h-4 w-4 place-items-center rounded-full border ${
-              done ? "border-success bg-success text-white" : "border-border"
+      {/* Header: close + editable title, Monday-style */}
+      <div className="shrink-0 border-b border-border px-5 pt-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => {
+              if (title.trim() && title !== task.title) {
+                act(() => updateTask(task.id, { title: title.trim() }));
+              }
+            }}
+            className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-foreground focus:outline-none"
+          />
+          <button
+            onClick={() => act(() => setTaskCompleted(task.id, !done))}
+            className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
+              done
+                ? "bg-success/10 text-success"
+                : "text-muted hover:bg-surface-2 hover:text-foreground"
             }`}
           >
-            {done && (
-              <svg
-                viewBox="0 0 24 24"
-                className="h-3 w-3"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
+            <span
+              className={`grid h-4 w-4 place-items-center rounded-full border ${
+                done ? "border-success bg-success text-white" : "border-border"
+              }`}
+            >
+              {done && (
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-3 w-3"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              )}
+            </span>
+            {done ? "Completed" : "Mark complete"}
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="mt-3 flex gap-1">
+          {(
+            [
+              {
+                id: "updates" as Tab,
+                label: "Updates",
+                icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+                count: comments.length,
+              },
+              {
+                id: "details" as Tab,
+                label: "Details",
+                icon: "M4 6h16M4 12h16M4 18h10",
+                count: 0,
+              },
+            ]
+          ).map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`relative flex cursor-pointer items-center gap-1.5 rounded-t-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  active
+                    ? "text-primary"
+                    : "text-muted hover:text-foreground"
+                }`}
               >
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
-            )}
-          </span>
-          {done ? "Completed" : "Mark complete"}
-        </button>
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-2"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d={t.icon} />
+                </svg>
+                {t.label}
+                {t.count > 0 && (
+                  <span className="rounded-full bg-primary/10 px-1.5 text-[11px] font-semibold text-primary">
+                    {t.count}
+                  </span>
+                )}
+                {active && (
+                  <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-primary" />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="space-y-6 p-5">
-        {/* Title */}
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => {
-            if (title.trim() && title !== task.title) {
-              act(() => updateTask(task.id, { title: title.trim() }));
-            }
-          }}
-          className="w-full bg-transparent text-xl font-semibold text-foreground focus:outline-none"
-        />
+      {tab === "updates" ? (
+        <UpdatesTab task={task} comments={comments} act={act} />
+      ) : (
+        <DetailsTab task={task} members={members} act={act} />
+      )}
+    </>
+  );
+}
 
+// =============================================================================
+// Updates tab: Monday-style composer on top, update cards below.
+// =============================================================================
+
+function UpdatesTab({
+  task,
+  comments,
+  act,
+}: {
+  task: TaskDetail;
+  comments: TaskDetail["task_comments"];
+  act: (fn: () => Promise<unknown>) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [focused, setFocused] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  function send() {
+    const value = draft.trim();
+    if (!value) return;
+    setDraft("");
+    act(() => addComment(task.id, value));
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="space-y-4 p-5">
+        {/* Composer */}
+        <div
+          className={`rounded-xl border bg-background transition-colors ${
+            focused ? "border-primary shadow-sm shadow-primary/10" : "border-border"
+          }`}
+        >
+          <textarea
+            ref={taRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send();
+            }}
+            placeholder="Write an update… Share progress or mention a blocker."
+            rows={focused || draft ? 4 : 2}
+            className="w-full resize-none bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted focus:outline-none"
+          />
+          <div className="flex items-center justify-between border-t border-border/60 px-3 py-2">
+            <span className="text-[11px] text-muted">
+              Ctrl+Enter to post
+            </span>
+            <Button onClick={send} disabled={!draft.trim()}>
+              Update
+            </Button>
+          </div>
+        </div>
+
+        {/* Updates feed */}
+        {comments.length === 0 ? (
+          <div className="flex flex-col items-center py-12 text-center">
+            <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br from-primary/15 to-primary/5 text-primary ring-1 ring-inset ring-primary/10">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-6 w-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </span>
+            <p className="text-base font-semibold text-foreground">
+              No updates yet
+            </p>
+            <p className="mt-1 max-w-60 text-sm text-muted">
+              Share progress or mention a teammate to get things moving.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {comments.map((c) => (
+              <div
+                key={c.id}
+                className="rounded-xl border border-border bg-background p-4"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Avatar
+                    name={c.profiles?.full_name}
+                    email={c.profiles?.email}
+                    avatarUrl={c.profiles?.avatar_url}
+                    size="sm"
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {c.profiles?.full_name ?? c.profiles?.email ?? "Someone"}
+                    </p>
+                    <p className="text-[11px] text-muted">
+                      {formatWhen(c.created_at)}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-2.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                  {c.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatWhen(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date();
+  const time = date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  if (date.toDateString() === today.toDateString()) return `Today ${time}`;
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `Yesterday ${time}`;
+  }
+  return `${date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  })} ${time}`;
+}
+
+// =============================================================================
+// Details tab: description + meta + checklists + time tracking.
+// =============================================================================
+
+function DetailsTab({
+  task,
+  members,
+  act,
+}: {
+  task: TaskDetail;
+  members: Profile[];
+  act: (fn: () => Promise<unknown>) => void;
+}) {
+  const [description, setDescription] = useState(task.description ?? "");
+  const [checklistItem, setChecklistItem] = useState<Record<string, string>>({});
+  const [timeInput, setTimeInput] = useState("");
+  const assigneeIds = new Set(task.task_assignees.map((a) => a.user_id));
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="space-y-6 p-5">
         {/* Meta grid: priority + due date */}
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -233,7 +485,7 @@ function TaskBody({
                 <button
                   key={m.id}
                   onClick={() => act(() => toggleAssignee(task.id, m.id))}
-                  className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                  className={`cursor-pointer rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     active
                       ? "bg-primary/10 text-primary"
                       : "bg-surface-2 text-muted hover:text-foreground"
@@ -277,7 +529,7 @@ function TaskBody({
             </p>
             <button
               onClick={() => act(() => addChecklist(task.id, "Checklist"))}
-              className="text-xs text-primary hover:underline"
+              className="cursor-pointer text-xs text-primary hover:underline"
             >
               + Add checklist
             </button>
@@ -327,7 +579,7 @@ function TaskBody({
                             onClick={() =>
                               act(() => deleteChecklistItem(item.id))
                             }
-                            className="text-xs text-muted hover:text-danger"
+                            className="cursor-pointer text-xs text-muted hover:text-danger"
                           >
                             ✕
                           </button>
@@ -391,62 +643,7 @@ function TaskBody({
             </Button>
           </div>
         </div>
-
-        {/* Comments */}
-        <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Comments
-          </p>
-          <div className="space-y-3">
-            {task.task_comments
-              .filter((c) => !c.deleted_at)
-              .map((c) => (
-                <div key={c.id} className="flex gap-2">
-                  <Avatar
-                    name={c.profiles?.full_name}
-                    email={c.profiles?.email}
-                    avatarUrl={c.profiles?.avatar_url}
-                    size="sm"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-muted">
-                      {c.profiles?.full_name ?? c.profiles?.email ?? "Someone"}
-                    </p>
-                    <p className="whitespace-pre-wrap text-sm text-foreground">
-                      {c.body}
-                    </p>
-                  </div>
-                </div>
-              ))}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <input
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && comment.trim()) {
-                  const value = comment.trim();
-                  setComment("");
-                  act(() => addComment(task.id, value));
-                }
-              }}
-              placeholder="Write a comment…"
-              className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
-            />
-            <Button
-              onClick={() => {
-                if (comment.trim()) {
-                  const value = comment.trim();
-                  setComment("");
-                  act(() => addComment(task.id, value));
-                }
-              }}
-            >
-              Send
-            </Button>
-          </div>
-        </div>
       </div>
-    </>
+    </div>
   );
 }

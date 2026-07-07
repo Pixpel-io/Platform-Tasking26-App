@@ -12,6 +12,7 @@ import { getProjects } from "@/lib/projects";
 import { getUnreadNotificationCount } from "@/lib/notifications";
 import { PresenceProvider } from "@/components/presence-provider";
 import { ProfileCardProvider } from "@/components/profile-card";
+import { TypingProvider } from "./chat/typing";
 import { NotificationToaster } from "@/components/notification-toaster";
 import { normalizeColor } from "@/lib/workspace-theme";
 import { Sidebar } from "./sidebar";
@@ -69,6 +70,11 @@ export default async function WorkspaceLayout({
 
   return (
     <PresenceProvider workspaceId={workspaceId} userId={user.id}>
+      <TypingProvider
+        workspaceId={workspaceId}
+        meId={user.id}
+        meName={profile?.full_name ?? profile?.email ?? "Someone"}
+      >
       <ProfileCardProvider workspaceId={workspaceId} meId={user.id}>
       <WorkspaceLoader name={workspaceName} accent={accent} />
       <div
@@ -120,6 +126,7 @@ export default async function WorkspaceLayout({
         <CleotildaPanel workspaceId={workspaceId} />
       </div>
       </ProfileCardProvider>
+      </TypingProvider>
     </PresenceProvider>
   );
 }
