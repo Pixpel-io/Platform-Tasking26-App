@@ -17,6 +17,7 @@ type Row = {
 // workspace for everyone).
 export function WorkspaceList({ workspaces }: { workspaces: Row[] }) {
   const [confirmTarget, setConfirmTarget] = useState<Row | null>(null);
+  const [revokeAccess, setRevokeAccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -24,7 +25,7 @@ export function WorkspaceList({ workspaces }: { workspaces: Row[] }) {
     if (!confirmTarget) return;
     setError(null);
     startTransition(async () => {
-      const res = await adminDeleteWorkspace(confirmTarget.id);
+      const res = await adminDeleteWorkspace(confirmTarget.id, revokeAccess);
       if (res.error) setError(res.error);
       else setConfirmTarget(null);
     });
@@ -72,6 +73,7 @@ export function WorkspaceList({ workspaces }: { workspaces: Row[] }) {
             <button
               onClick={() => {
                 setError(null);
+                setRevokeAccess(false);
                 setConfirmTarget(w);
               }}
               aria-label={`Delete ${w.name}`}
@@ -107,6 +109,22 @@ export function WorkspaceList({ workspaces }: { workspaces: Row[] }) {
               {confirmTarget.memberCount === 1 ? "" : "s"} - chats, projects,
               everything. This cannot be undone from the app.
             </p>
+            <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={revokeAccess}
+                onChange={(e) => setRevokeAccess(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-danger"
+              />
+              <span className="text-sm text-foreground">
+                Also revoke {confirmTarget.ownerName}&apos;s workspace-creation
+                access
+                <span className="block text-xs text-muted">
+                  They&apos;ll need super admin approval to create workspaces
+                  again.
+                </span>
+              </span>
+            </label>
             {error && (
               <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
                 {error}

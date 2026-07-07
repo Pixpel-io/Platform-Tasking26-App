@@ -68,14 +68,49 @@ export async function decideWorkspaceRequest(
 // -- Workspaces (platform-wide governance) --------------------------------
 
 // Soft-delete any workspace. The delete_workspace RPC allows the owner OR a
-// super admin (0014); this action is the dashboard entry point.
-export async function adminDeleteWorkspace(workspaceId: string): Promise<Result> {
+// super admin (0014); this action is the dashboard entry point. With
+// `revokeOwnerAccess`, the owner's email also comes off the creator
+// allowlist so they can't just create another workspace.
+export async function adminDeleteWorkspace(
+  workspaceId: string,
+  revokeOwnerAccess = false,
+): Promise<Result> {
   await requireSuperAdmin();
   const supabase = await createClient();
+
+  // Resolve the owner's email BEFORE deleting (roster reads of a deleted
+  // workspace can be filtered out).
+  let ownerEmail: string | null = null;
+  if (revokeOwnerAccess) {
+    const { data: owner } = await supabase
+      .from("workspace_members")
+      .select("member:profiles(email)")
+      .eq("workspace_id", workspaceId)
+      .eq("role", "owner")
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+    ownerEmail =
+      (owner as { member: { email: string } | null } | null)?.member?.email ??
+      null;
+  }
+
   const { error } = await supabase.rpc("delete_workspace", {
     p_workspace_id: workspaceId,
   });
   if (error) return { error: error.message };
+
+  if (revokeOwnerAccess && ownerEmail) {
+    await supabase
+      .from("workspace_creators")
+      .delete()
+      .eq("email", ownerEmail.toLowerCase());
+  }
+
   revalidatePath("/admin");
-  return { success: "Workspace deleted." };
+  return {
+    success: revokeOwnerAccess
+      ? "Workspace deleted and owner's creation access revoked."
+      : "Workspace deleted.",
+  };
 }
