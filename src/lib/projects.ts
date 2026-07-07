@@ -30,7 +30,7 @@ export type {
 } from "@/lib/projects-shared";
 
 const TASK_SELECT =
-  "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*))";
+  "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*)), comment_count:task_comments(count)";
 
 // Projects the current user can see in a workspace (member, or workspace admin).
 export const getProjects = cache(

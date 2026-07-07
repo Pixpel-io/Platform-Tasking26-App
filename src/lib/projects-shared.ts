@@ -16,7 +16,14 @@ import type {
 export type TaskWithRelations = Task & {
   task_assignees: { user_id: string; profiles: Profile | null }[];
   task_labels: { label_id: string; labels: Label | null }[];
+  // PostgREST count aggregate, aliased to avoid clashing with TaskDetail's
+  // full task_comments rows: [{ count: n }].
+  comment_count?: { count: number }[];
 };
+
+export function commentCount(task: TaskWithRelations): number {
+  return task.comment_count?.[0]?.count ?? 0;
+}
 
 export type ChecklistWithItems = Checklist & {
   checklist_items: ChecklistItem[];

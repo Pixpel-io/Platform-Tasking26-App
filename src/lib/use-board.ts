@@ -7,7 +7,7 @@ import type { KanbanColumn } from "@/lib/supabase/types";
 import type { TaskWithRelations } from "@/lib/projects-shared";
 
 const TASK_SELECT =
-  "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*))";
+  "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*)), comment_count:task_comments(count)";
 
 // Keeps a project's Kanban board live: reacts to task inserts/updates/deletes
 // via Supabase Realtime and re-derives the column layout. Reuses the same
@@ -95,6 +95,20 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "task_assignees" },
+        (payload) => {
+          const taskId =
+            (payload.new as { task_id?: string })?.task_id ??
+            (payload.old as { task_id?: string })?.task_id;
+          if (taskId && taskIdsRef.current.has(taskId)) {
+            void refetchTask(taskId);
+          }
+        },
+      )
+      // Same story for comments: the row's comment-count bubble should tick
+      // up live when someone posts an update.
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_comments" },
         (payload) => {
           const taskId =
             (payload.new as { task_id?: string })?.task_id ??

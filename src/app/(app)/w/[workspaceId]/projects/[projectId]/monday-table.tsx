@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { Profile } from "@/lib/supabase/types";
 import type { BoardColumn, TaskWithRelations } from "@/lib/projects-shared";
-import { PRIORITY_META } from "@/lib/projects-shared";
+import { commentCount, PRIORITY_META } from "@/lib/projects-shared";
 import { useBoard } from "@/lib/use-board";
 import { Avatar } from "@/components/avatar";
 import {
@@ -641,18 +641,37 @@ function TaskRow({
         >
           {task.title}
         </button>
-        {/* Monday-style "add update" bubble: opens the task's Updates tab. */}
-        <button
-          onClick={onOpen}
-          aria-label={`Open updates for ${task.title}`}
-          title="Updates"
-          className="grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md text-muted opacity-0 transition-all hover:bg-primary/10 hover:text-primary focus-visible:opacity-100 group-hover/row:opacity-100"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.5-.76L3 21l1.76-6A8.5 8.5 0 1 1 21 11.5z" />
-            <path d="M12 8v6M9 11h6" />
-          </svg>
-        </button>
+        {/* Monday-style "add update" bubble: opens the task's Updates tab.
+            With comments it stays visible and wears a count badge. */}
+        {(() => {
+          const updates = commentCount(task);
+          return (
+            <button
+              onClick={onOpen}
+              aria-label={
+                updates > 0
+                  ? `${updates} update${updates === 1 ? "" : "s"} on ${task.title}`
+                  : `Open updates for ${task.title}`
+              }
+              title="Updates"
+              className={`relative grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md transition-all hover:bg-primary/10 hover:text-primary focus-visible:opacity-100 ${
+                updates > 0
+                  ? "text-primary opacity-100"
+                  : "text-muted opacity-0 group-hover/row:opacity-100"
+              }`}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.5-.76L3 21l1.76-6A8.5 8.5 0 1 1 21 11.5z" />
+                {updates === 0 && <path d="M12 8v6M9 11h6" />}
+              </svg>
+              {updates > 0 && (
+                <span className="absolute -right-1 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-primary px-0.5 text-[9px] font-bold leading-none text-primary-foreground">
+                  {updates > 9 ? "9+" : updates}
+                </span>
+              )}
+            </button>
+          );
+        })()}
         <button
           onClick={removeTask}
           aria-label={`Delete ${task.title}`}
