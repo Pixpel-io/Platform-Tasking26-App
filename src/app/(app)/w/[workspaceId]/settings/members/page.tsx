@@ -15,7 +15,7 @@ export default async function SettingsMembersPage({
   const user = await requireUser();
   const supabase = await createClient();
 
-  const [{ data: members }, { data: invites }, { data: me }] =
+  const [{ data: members }, { data: invites }, { data: me }, { data: superAdmin }] =
     await Promise.all([
       supabase
         .from("workspace_members")
@@ -35,10 +35,13 @@ export default async function SettingsMembersPage({
         .eq("workspace_id", workspaceId)
         .eq("user_id", user.id)
         .single(),
+      supabase.rpc("is_super_admin"),
     ]);
 
   const myRole = me?.role ?? "member";
-  const canManage = myRole === "owner" || myRole === "admin";
+  // Super admins can invite in any workspace they're a member of (matches the
+  // invites RLS in 0021); role management below stays owner-only.
+  const canManage = myRole === "owner" || myRole === "admin" || !!superAdmin;
   const memberList = (members as MemberWithProfile[] | null) ?? [];
 
   return (
