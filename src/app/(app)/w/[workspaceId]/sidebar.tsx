@@ -487,6 +487,7 @@ export function Sidebar({
         <WorkspaceSplash
           name={switchingTo.workspaces?.name ?? "Workspace"}
           accent={switchingTo.workspaces?.color ?? "#4f46e5"}
+          portal
         />
       )}
     </aside>

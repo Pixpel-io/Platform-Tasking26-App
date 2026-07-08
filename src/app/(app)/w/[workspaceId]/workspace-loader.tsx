@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // The single, shared workspace loading animation. Used both on a hard page
 // load (WorkspaceLoader below) and while switching workspaces (from the
@@ -9,14 +10,20 @@ export function WorkspaceSplash({
   name,
   accent,
   fading = false,
+  portal = false,
 }: {
   name: string;
   accent: string;
   fading?: boolean;
+  // Portal to <body> when a transformed ancestor (the sidebar drawer's
+  // translate-x wrapper) would otherwise trap this fixed overlay inside it
+  // instead of covering the whole page. Off by default so the hard-load
+  // splash still server-renders.
+  portal?: boolean;
 }) {
   const initial = name?.[0]?.toUpperCase() ?? "?";
 
-  return (
+  const splash = (
     <div
       aria-hidden
       className={`fixed inset-0 z-100 grid place-items-center bg-background/95 backdrop-blur-sm transition-opacity duration-500 ease-out ${
@@ -91,6 +98,8 @@ export function WorkspaceSplash({
       </div>
     </div>
   );
+
+  return portal ? createPortal(splash, document.body) : splash;
 }
 
 // Branded splash shown on a hard page load inside a workspace. The workspace
