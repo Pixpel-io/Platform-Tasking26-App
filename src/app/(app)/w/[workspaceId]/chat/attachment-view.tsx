@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageAttachment } from "@/lib/supabase/types";
 
@@ -18,8 +19,52 @@ function formatSize(bytes: number | null): string {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
+// Force a download instead of opening the file in a tab.
+async function downloadUrl(url: string, fileName: string) {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    window.open(url, "_blank");
+  }
+}
+
+// Copy image bytes to the clipboard (PNG - the only type ClipboardItem
+// reliably supports across browsers).
+async function copyImage(url: string) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  if (blob.type === "image/png" && navigator.clipboard?.write) {
+    await navigator.clipboard.write([
+      new ClipboardItem({ [blob.type]: blob }),
+    ]);
+    return;
+  }
+  // Re-encode to PNG through a canvas.
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+  const png = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png"),
+  );
+  if (png) {
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+  }
+}
+
 export function AttachmentView({ attachment }: { attachment: MessageAttachment }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -35,20 +80,83 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
     };
   }, [attachment.storage_path]);
 
+  const flash = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 1600);
+  }, []);
+
   if (attachment.kind === "image") {
     return (
-      <a href={url ?? undefined} target="_blank" rel="noreferrer" className="block">
-        {url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={url}
-            alt={attachment.file_name}
-            className="max-h-80 max-w-sm rounded-lg border border-border object-cover"
+      <>
+        <button
+          type="button"
+          onClick={() => url && setViewerOpen(true)}
+          onContextMenu={(e) => {
+            if (!url) return;
+            e.preventDefault();
+            setMenu({ x: e.clientX, y: e.clientY });
+          }}
+          className="block cursor-zoom-in text-left"
+          aria-label={`View ${attachment.file_name}`}
+        >
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt={attachment.file_name}
+              className="max-h-80 max-w-sm rounded-lg border border-border object-cover transition-opacity hover:opacity-95"
+            />
+          ) : (
+            <div className="h-40 w-64 animate-pulse rounded-lg bg-surface-2" />
+          )}
+        </button>
+
+        {menu && url && (
+          <ImageContextMenu
+            x={menu.x}
+            y={menu.y}
+            onClose={() => setMenu(null)}
+            onCopyImage={() => {
+              setMenu(null);
+              void copyImage(url)
+                .then(() => flash("Image copied"))
+                .catch(() => flash("Couldn't copy image"));
+            }}
+            onCopyLink={() => {
+              setMenu(null);
+              void navigator.clipboard
+                .writeText(url)
+                .then(() => flash("Link copied"))
+                .catch(() => flash("Couldn't copy link"));
+            }}
+            onDownload={() => {
+              setMenu(null);
+              void downloadUrl(url, attachment.file_name);
+            }}
           />
-        ) : (
-          <div className="h-40 w-64 animate-pulse rounded-lg bg-surface-2" />
         )}
-      </a>
+
+        {viewerOpen && url && (
+          <ImageViewer
+            url={url}
+            fileName={attachment.file_name}
+            onClose={() => setViewerOpen(false)}
+            onCopyImage={() =>
+              void copyImage(url)
+                .then(() => flash("Image copied"))
+                .catch(() => flash("Couldn't copy image"))
+            }
+          />
+        )}
+
+        {toast &&
+          createPortal(
+            <div className="fixed bottom-6 left-1/2 z-120 -translate-x-1/2 animate-fade-in rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background shadow-lg">
+              {toast}
+            </div>,
+            document.body,
+          )}
+      </>
     );
   }
 
@@ -103,5 +211,203 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
         </span>
       </span>
     </a>
+  );
+}
+
+// ── Right-click context menu (Slack: Copy image / Copy link / Download) ─────
+
+function ImageContextMenu({
+  x,
+  y,
+  onClose,
+  onCopyImage,
+  onCopyLink,
+  onDownload,
+}: {
+  x: number;
+  y: number;
+  onClose: () => void;
+  onCopyImage: () => void;
+  onCopyLink: () => void;
+  onDownload: () => void;
+}) {
+  useEffect(() => {
+    function onDoc() {
+      onClose();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const items = [
+    { label: "Copy image", action: onCopyImage },
+    { label: "Copy link to file", action: onCopyLink },
+    { label: "Download", action: onDownload },
+  ];
+
+  // Keep the menu on-screen near the click.
+  const width = 208;
+  const left = Math.min(x, window.innerWidth - width - 8);
+  const top = Math.min(y, window.innerHeight - items.length * 36 - 16);
+
+  return createPortal(
+    <div
+      style={{ position: "fixed", top, left, width, zIndex: 110 }}
+      className="animate-scale-in rounded-xl border border-border bg-surface p-1.5 shadow-xl shadow-black/30"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {items.map((item) => (
+        <button
+          key={item.label}
+          onClick={item.action}
+          className="block w-full cursor-pointer rounded-lg px-3 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-surface-2"
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
+// ── Full-screen viewer (Slack-style lightbox: zoom, download, close) ────────
+
+function ImageViewer({
+  url,
+  fileName,
+  onClose,
+  onCopyImage,
+}: {
+  url: string;
+  fileName: string;
+  onClose: () => void;
+  onCopyImage: () => void;
+}) {
+  const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+      if (e.key === "+" || e.key === "=") setZoom((z) => Math.min(z + 0.25, 4));
+      if (e.key === "-") setZoom((z) => Math.max(z - 0.25, 0.25));
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const btn =
+    "grid h-9 w-9 cursor-pointer place-items-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white";
+
+  return createPortal(
+    <div className="fixed inset-0 z-100 flex flex-col bg-black/90 backdrop-blur-sm">
+      {/* Top bar */}
+      <div className="flex shrink-0 items-center justify-between px-4 py-3">
+        <p className="min-w-0 truncate text-sm font-medium text-white/90">
+          {fileName}
+        </p>
+        <button onClick={onClose} aria-label="Close" className={btn}>
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Image area - click outside the image closes */}
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4"
+        onClick={onClose}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={fileName}
+          onClick={(e) => e.stopPropagation()}
+          style={{ transform: `scale(${zoom})` }}
+          className="max-h-full max-w-full rounded-lg object-contain transition-transform duration-150"
+        />
+      </div>
+
+      {/* Bottom toolbar */}
+      <div className="flex shrink-0 items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-1 rounded-xl bg-white/5 p-1">
+          <button
+            onClick={() => setZoom((z) => Math.max(z - 0.25, 0.25))}
+            aria-label="Zoom out"
+            className={btn}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M5 12h14" />
+            </svg>
+          </button>
+          <span className="min-w-12 text-center text-xs font-medium text-white/80">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            onClick={() => setZoom((z) => Math.min(z + 0.25, 4))}
+            aria-label="Zoom in"
+            className={btn}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setZoom(1)}
+            aria-label="Reset zoom"
+            className={btn}
+            title="Reset"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1 rounded-xl bg-white/5 p-1">
+          <button
+            onClick={onCopyImage}
+            aria-label="Copy image"
+            title="Copy image"
+            className={btn}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
+          <button
+            onClick={() => void downloadUrl(url, fileName)}
+            aria-label="Download"
+            title="Download"
+            className={btn}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+          </button>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open in new tab"
+            title="Open in new tab"
+            className={btn}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
