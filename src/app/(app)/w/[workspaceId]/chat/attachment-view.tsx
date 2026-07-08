@@ -21,20 +21,34 @@ function formatSize(bytes: number | null): string {
   return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-// Force a download instead of opening the file in a tab.
-async function downloadUrl(url: string, fileName: string) {
-  try {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = objectUrl;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(objectUrl);
-  } catch {
-    window.open(url, "_blank");
+// Force a download instead of opening the file in a tab. Signs a fresh URL
+// with Content-Disposition: attachment and navigates to it, so the browser
+// streams the file itself (native progress, original filename) - the old
+// fetch()->blob approach died on cross-origin S3 URLs and buffered the whole
+// file in memory.
+async function downloadAttachment(attachment: MessageAttachment) {
+  let href: string | null = null;
+  if (isS3Path(attachment.storage_path)) {
+    const res = await getS3DownloadUrl(attachment.storage_path, {
+      downloadAs: attachment.file_name,
+    });
+    href = res.url ?? null;
+  } else {
+    const supabase = createClient();
+    const { data } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(attachment.storage_path, 60 * 60, {
+        download: attachment.file_name,
+      });
+    href = data?.signedUrl ?? null;
   }
+  if (!href) return;
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = attachment.file_name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 // Copy image bytes to the clipboard (PNG - the only type ClipboardItem
@@ -101,7 +115,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        void downloadUrl(url, attachment.file_name);
+        void downloadAttachment(attachment);
       }}
       aria-label={`Download ${attachment.file_name}`}
       title="Download"
@@ -162,7 +176,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
             }}
             onDownload={() => {
               setMenu(null);
-              void downloadUrl(url, attachment.file_name);
+              void downloadAttachment(attachment);
             }}
           />
         )}
@@ -177,6 +191,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
                 .then(() => flash("Image copied"))
                 .catch(() => flash("Couldn't copy image"))
             }
+            onDownload={() => void downloadAttachment(attachment)}
           />
         )}
 
@@ -212,7 +227,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
         <audio src={url} controls className="max-w-xs" />
         <button
           type="button"
-          onClick={() => void downloadUrl(url, attachment.file_name)}
+          onClick={() => void downloadAttachment(attachment)}
           aria-label={`Download ${attachment.file_name}`}
           title="Download"
           className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all hover:bg-surface-2 hover:text-foreground focus-visible:opacity-100 group-hover/att:opacity-100"
@@ -262,7 +277,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
       {url && (
         <button
           type="button"
-          onClick={() => void downloadUrl(url, attachment.file_name)}
+          onClick={() => void downloadAttachment(attachment)}
           aria-label={`Download ${attachment.file_name}`}
           title="Download"
           className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all hover:bg-primary/10 hover:text-primary focus-visible:opacity-100 group-hover/att:opacity-100"
@@ -346,11 +361,13 @@ function ImageViewer({
   fileName,
   onClose,
   onCopyImage,
+  onDownload,
 }: {
   url: string;
   fileName: string;
   onClose: () => void;
   onCopyImage: () => void;
+  onDownload: () => void;
 }) {
   const [zoom, setZoom] = useState(1);
 
@@ -446,7 +463,7 @@ function ImageViewer({
             </svg>
           </button>
           <button
-            onClick={() => void downloadUrl(url, fileName)}
+            onClick={onDownload}
             aria-label="Download"
             title="Download"
             className={btn}

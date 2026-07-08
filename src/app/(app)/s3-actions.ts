@@ -62,6 +62,7 @@ export async function createUploadUrl(input: {
 // require a session and the uploads/ prefix.
 export async function getS3DownloadUrl(
   storagePath: string,
+  opts?: { downloadAs?: string },
 ): Promise<{ url?: string; error?: string }> {
   await requireUser();
 
@@ -75,7 +76,7 @@ export async function getS3DownloadUrl(
   if (!s3Enabled()) return { error: "S3 is not configured." };
 
   try {
-    return { url: await presignDownload(key) };
+    return { url: await presignDownload(key, opts) };
   } catch {
     return { error: "Could not sign the download." };
   }

@@ -111,10 +111,24 @@ export async function presignUpload(input: {
 
 // -- Presigned GET (download/view) --------------------------------------------
 
-export async function presignDownload(key: string): Promise<string> {
+export async function presignDownload(
+  key: string,
+  opts?: { downloadAs?: string },
+): Promise<string> {
+  // `downloadAs` signs Content-Disposition: attachment into the URL, so the
+  // browser saves the file natively (its own progress UI, original filename)
+  // instead of the app buffering the whole object through fetch().
   return getSignedUrl(
     s3,
-    new GetObjectCommand({ Bucket: config.AWS.BUCKET, Key: key }),
+    new GetObjectCommand({
+      Bucket: config.AWS.BUCKET,
+      Key: key,
+      ...(opts?.downloadAs
+        ? {
+            ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(opts.downloadAs)}`,
+          }
+        : {}),
+    }),
     { expiresIn: 3600 },
   );
 }
