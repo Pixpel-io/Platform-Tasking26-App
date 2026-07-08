@@ -93,8 +93,9 @@ export function Sidebar({
   const base = `/w/${workspaceId}`;
   const current = workspaces.find((w) => w.workspace_id === workspaceId);
 
-  // One row per other member. If a 1:1 conversation already exists, reuse its
-  // id so the link is direct; otherwise it's created on click.
+  // One row per member - yourself first (Slack-style notes-to-self), then
+  // everyone else. If a conversation already exists, reuse its id so the link
+  // is direct; otherwise it's created on click.
   const dmList = useMemo(() => {
     const convByUser = new Map<string, string>();
     for (const conv of conversations) {
@@ -103,12 +104,16 @@ export function Sidebar({
         convByUser.set(other.id, conv.id);
       }
     }
-    return members
-      .filter((m) => m.id !== userId)
-      .map((member) => ({
-        member,
-        conversationId: convByUser.get(member.id) ?? null,
-      }));
+    const me = members.find((m) => m.id === userId);
+    return [
+      ...(me ? [{ member: me, isSelf: true }] : []),
+      ...members
+        .filter((m) => m.id !== userId)
+        .map((member) => ({ member, isSelf: false })),
+    ].map((row) => ({
+      ...row,
+      conversationId: convByUser.get(row.member.id) ?? null,
+    }));
   }, [members, conversations, userId]);
 
   const topNav = [
@@ -333,7 +338,7 @@ export function Sidebar({
                 No other members yet
               </p>
             )}
-            {dmList.map(({ member, conversationId }) => {
+            {dmList.map(({ member, conversationId, isSelf }) => {
               const label = member.full_name ?? member.email;
               const href = conversationId ? `${base}/dm/${conversationId}` : null;
               const active = href != null && pathname === href;
@@ -366,6 +371,7 @@ export function Sidebar({
                   </span>
                   <span className="min-w-0 flex-1 truncate">
                     {label}
+                    {isSelf && <span className="ml-1 text-muted">(you)</span>}
                     {activeStatus(member)?.emoji && (
                       <span className="ml-1.5">
                         {activeStatus(member)?.emoji}

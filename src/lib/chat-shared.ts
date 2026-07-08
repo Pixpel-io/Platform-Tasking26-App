@@ -16,7 +16,8 @@ export type ConversationWithParticipants = Conversation & {
   conversation_participants: { user_id: string; profiles: Profile | null }[];
 };
 
-// The display label + avatar source for a DM (the "other" person in a 1:1).
+// The display label + avatar source for a DM (the "other" person in a 1:1;
+// yourself in a self-DM notes space).
 export function dmCounterpart(
   conversation: ConversationWithParticipants,
   meId: string,
@@ -24,5 +25,19 @@ export function dmCounterpart(
   const others = conversation.conversation_participants.filter(
     (p) => p.user_id !== meId,
   );
-  return others[0]?.profiles ?? null;
+  return (
+    others[0]?.profiles ??
+    conversation.conversation_participants[0]?.profiles ??
+    null
+  );
+}
+
+// A conversation whose only participant is me (Slack-style "message yourself").
+export function isSelfDm(
+  conversation: ConversationWithParticipants,
+  meId: string,
+): boolean {
+  return conversation.conversation_participants.every(
+    (p) => p.user_id === meId,
+  );
 }

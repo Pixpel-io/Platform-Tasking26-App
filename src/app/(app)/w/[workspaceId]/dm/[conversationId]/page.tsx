@@ -6,6 +6,7 @@ import {
   getLastReadAt,
   getMessages,
 } from "@/lib/chat";
+import { isSelfDm } from "@/lib/chat-shared";
 import { ChatHeader } from "../../chat/chat-header";
 import { ChatRoom } from "../../chat/chat-room";
 import { DmHeaderAvatar } from "../../chat/dm-header-avatar";
@@ -26,18 +27,25 @@ export default async function DMPage({
   if (!conversation) notFound();
 
   const other = dmCounterpart(conversation, user.id);
+  const self = isSelfDm(conversation, user.id);
   const meName = profile?.full_name ?? profile?.email ?? "You";
-  const title = other?.full_name ?? other?.email ?? "Direct message";
+  const title = self
+    ? `${meName} (you)`
+    : (other?.full_name ?? other?.email ?? "Direct message");
 
   return (
     <div className="flex h-full flex-col">
       <ChatHeader
         title={title}
         subtitle={
-          <TypingSubtitle
-            target={{ conversationId }}
-            fallback={other?.email}
-          />
+          self ? (
+            "Your space - jot notes, drafts and reminders."
+          ) : (
+            <TypingSubtitle
+              target={{ conversationId }}
+              fallback={other?.email}
+            />
+          )
         }
         icon={other ? <DmHeaderAvatar profile={other} /> : undefined}
       />
