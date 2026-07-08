@@ -95,31 +95,52 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
     setTimeout(() => setToast(null), 1600);
   }, []);
 
+  // Hover download button shared by the media renders below.
+  const downloadBtn = url && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        void downloadUrl(url, attachment.file_name);
+      }}
+      aria-label={`Download ${attachment.file_name}`}
+      title="Download"
+      className="absolute right-2 top-2 z-10 grid h-8 w-8 cursor-pointer place-items-center rounded-lg bg-black/60 text-white opacity-0 shadow-md backdrop-blur-sm transition-opacity hover:bg-black/80 focus-visible:opacity-100 group-hover/att:opacity-100"
+    >
+      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+      </svg>
+    </button>
+  );
+
   if (attachment.kind === "image") {
     return (
       <>
-        <button
-          type="button"
-          onClick={() => url && setViewerOpen(true)}
-          onContextMenu={(e) => {
-            if (!url) return;
-            e.preventDefault();
-            setMenu({ x: e.clientX, y: e.clientY });
-          }}
-          className="block cursor-zoom-in text-left"
-          aria-label={`View ${attachment.file_name}`}
-        >
-          {url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={url}
-              alt={attachment.file_name}
-              className="max-h-80 max-w-sm rounded-lg border border-border object-cover transition-opacity hover:opacity-95"
-            />
-          ) : (
-            <div className="h-40 w-64 animate-pulse rounded-lg bg-surface-2" />
-          )}
-        </button>
+        <div className="group/att relative inline-block">
+          <button
+            type="button"
+            onClick={() => url && setViewerOpen(true)}
+            onContextMenu={(e) => {
+              if (!url) return;
+              e.preventDefault();
+              setMenu({ x: e.clientX, y: e.clientY });
+            }}
+            className="block cursor-zoom-in text-left"
+            aria-label={`View ${attachment.file_name}`}
+          >
+            {url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={url}
+                alt={attachment.file_name}
+                className="max-h-80 max-w-sm rounded-lg border border-border object-cover transition-opacity hover:opacity-95"
+              />
+            ) : (
+              <div className="h-40 w-64 animate-pulse rounded-lg bg-surface-2" />
+            )}
+          </button>
+          {downloadBtn}
+        </div>
 
         {menu && url && (
           <ImageContextMenu
@@ -172,11 +193,14 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
 
   if (attachment.kind === "video") {
     return url ? (
-      <video
-        src={url}
-        controls
-        className="max-h-80 max-w-sm rounded-lg border border-border"
-      />
+      <div className="group/att relative inline-block">
+        <video
+          src={url}
+          controls
+          className="max-h-80 max-w-sm rounded-lg border border-border"
+        />
+        {downloadBtn}
+      </div>
     ) : (
       <div className="h-40 w-64 animate-pulse rounded-lg bg-surface-2" />
     );
@@ -184,43 +208,71 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
 
   if (attachment.kind === "voice") {
     return url ? (
-      <audio src={url} controls className="max-w-xs" />
+      <div className="group/att flex items-center gap-1.5">
+        <audio src={url} controls className="max-w-xs" />
+        <button
+          type="button"
+          onClick={() => void downloadUrl(url, attachment.file_name)}
+          aria-label={`Download ${attachment.file_name}`}
+          title="Download"
+          className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all hover:bg-surface-2 hover:text-foreground focus-visible:opacity-100 group-hover/att:opacity-100"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+        </button>
+      </div>
     ) : (
       <div className="h-10 w-48 animate-pulse rounded-lg bg-surface-2" />
     );
   }
 
-  // Generic file
+  // Generic file: open in a new tab on click, download via the hover button.
   return (
-    <a
-      href={url ?? undefined}
-      target="_blank"
-      rel="noreferrer"
-      className="flex max-w-sm items-center gap-3 rounded-lg border border-border bg-surface p-3 hover:bg-surface-2"
-    >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-        <svg
-          className="h-4 w-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+    <div className="group/att relative inline-block w-full max-w-sm">
+      <a
+        href={url ?? undefined}
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3 pr-11 hover:bg-surface-2"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+          <svg
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+            <path d="M13 2v7h7" />
+          </svg>
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium text-foreground">
+            {attachment.file_name}
+          </span>
+          <span className="block text-xs text-muted">
+            {formatSize(attachment.size_bytes)}
+          </span>
+        </span>
+      </a>
+      {url && (
+        <button
+          type="button"
+          onClick={() => void downloadUrl(url, attachment.file_name)}
+          aria-label={`Download ${attachment.file_name}`}
+          title="Download"
+          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all hover:bg-primary/10 hover:text-primary focus-visible:opacity-100 group-hover/att:opacity-100"
         >
-          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
-          <path d="M13 2v7h7" />
-        </svg>
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-medium text-foreground">
-          {attachment.file_name}
-        </span>
-        <span className="block text-xs text-muted">
-          {formatSize(attachment.size_bytes)}
-        </span>
-      </span>
-    </a>
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 

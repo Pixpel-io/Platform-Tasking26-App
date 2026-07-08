@@ -509,6 +509,18 @@ export function Composer({
             value={value}
             rows={1}
             placeholder={placeholder}
+            // Chat is often Roman Urdu / mixed language: OS + browser
+            // autocorrect and text-prediction mangle words on space (and the
+            // spellcheck squiggle fights the styled overlay), so disable all
+            // input assistance here. writingsuggestions is the Edge/Chrome
+            // text-prediction opt-out; data-gramm keeps Grammarly out.
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="none"
+            autoComplete="off"
+            data-gramm="false"
+            data-enable-grammarly="false"
+            {...{ writingsuggestions: "false" }}
             onScroll={(e) => {
               if (overlayRef.current)
                 overlayRef.current.scrollTop = e.currentTarget.scrollTop;

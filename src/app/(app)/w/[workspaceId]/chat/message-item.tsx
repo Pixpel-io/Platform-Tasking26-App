@@ -188,7 +188,7 @@ export function MessageItem({
           onClick={() => author && openProfile(author)}
           disabled={!author}
           aria-label={`View ${author?.full_name ?? author?.email ?? "profile"}`}
-          className="shrink-0 cursor-pointer rounded-full transition-transform hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
+          className="shrink-0 cursor-pointer self-start rounded-full transition-transform hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
         >
           <Avatar
             name={author?.full_name ?? null}
