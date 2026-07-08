@@ -6,6 +6,8 @@ import { Avatar } from "@/components/avatar";
 import { EmojiPicker } from "@/components/emoji-picker";
 import { highlightComposerValue } from "@/lib/message-format";
 import type { PendingAttachment } from "../chat-actions";
+import { createUploadUrl } from "@/app/(app)/s3-actions";
+import { S3_PATH_PREFIX } from "@/lib/s3-shared";
 
 const BUCKET = "chat-attachments";
 
@@ -35,8 +37,75 @@ type Uploading = {
   id: string;
   fileName: string;
   progress: "uploading" | "done" | "error";
+  // 0..100 while uploading (S3 XHR reports real progress; Supabase fallback
+  // stays indeterminate at 0).
+  percent: number;
   attachment?: PendingAttachment;
 };
+
+// POST a presigned form to S3 via XHR so we get upload progress events
+// (fetch has no upload progress API).
+function postWithProgress(
+  url: string,
+  form: FormData,
+  onProgress: (percent: number) => void,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+    xhr.onerror = () => resolve(false);
+    xhr.send(form);
+  });
+}
+
+// Small circular progress ring + percent label for an in-flight upload.
+// percent 0 with no progress events yet renders as a spinning arc.
+function UploadRing({ percent }: { percent: number }) {
+  const R = 7;
+  const CIRC = 2 * Math.PI * R;
+  const indeterminate = percent <= 0;
+  return (
+    <span className="flex items-center gap-1 text-muted">
+      <svg
+        className={`h-4 w-4 -rotate-90 ${indeterminate ? "animate-spin" : ""}`}
+        viewBox="0 0 20 20"
+      >
+        <circle
+          cx="10"
+          cy="10"
+          r={R}
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity="0.2"
+          strokeWidth="2.5"
+        />
+        <circle
+          cx="10"
+          cy="10"
+          r={R}
+          fill="none"
+          stroke="var(--primary)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={CIRC}
+          strokeDashoffset={
+            indeterminate ? CIRC * 0.75 : CIRC * (1 - percent / 100)
+          }
+          className="transition-[stroke-dashoffset] duration-200"
+        />
+      </svg>
+      {!indeterminate && (
+        <span className="min-w-7 tabular-nums">{percent}%</span>
+      )}
+    </span>
+  );
+}
 
 function attachmentKind(mime: string): PendingAttachment["kind"] {
   if (mime.startsWith("image/")) return "image";
@@ -285,25 +354,62 @@ export function Composer({
     });
   }
 
-  async function handleFiles(files: FileList | File[]) {
+  // Upload one file. S3 first (via a server-issued presigned POST - the
+  // browser never sees AWS credentials); Supabase Storage when S3 isn't
+  // configured. Returns the storage path or null on failure.
+  async function uploadOne(file: File, id: string): Promise<string | null> {
+    const setPercent = (percent: number) =>
+      setUploads((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, percent } : u)),
+      );
+
+    const presign = await createUploadUrl({
+      workspaceId,
+      fileName: file.name,
+      fileType: file.type || "application/octet-stream",
+      fileSizeBytes: file.size,
+    });
+
+    if ("url" in presign) {
+      // Direct browser → S3 POST using only the returned url + fields.
+      const form = new FormData();
+      Object.entries(presign.fields).forEach(([k, v]) => form.append(k, v));
+      form.append("file", file);
+      const ok = await postWithProgress(presign.url, form, setPercent);
+      return ok ? `${S3_PATH_PREFIX}${presign.key}` : null;
+    }
+
+    if ("error" in presign) return null;
+
+    // S3 disabled - Supabase Storage fallback.
     const supabase = createClient();
+    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+    const path = `${workspaceId}/${meId}/${id}-${safeName}`;
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false });
+    return error ? null : path;
+  }
+
+  async function handleFiles(files: FileList | File[]) {
     for (const file of Array.from(files)) {
       const id = crypto.randomUUID();
       setUploads((prev) => [
         ...prev,
-        { id, fileName: file.name, progress: "uploading" },
+        { id, fileName: file.name, progress: "uploading", percent: 0 },
       ]);
 
-      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-      const path = `${workspaceId}/${meId}/${id}-${safeName}`;
-      const { error } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, file, { contentType: file.type, upsert: false });
+      let path: string | null = null;
+      try {
+        path = await uploadOne(file, id);
+      } catch {
+        path = null;
+      }
 
       setUploads((prev) =>
         prev.map((u) =>
           u.id === id
-            ? error
+            ? path === null
               ? { ...u, progress: "error" }
               : {
                   ...u,
@@ -335,7 +441,20 @@ export function Composer({
                 {u.fileName}
               </span>
               {u.progress === "uploading" && (
-                <span className="text-muted">uploading…</span>
+                <UploadRing percent={u.percent} />
+              )}
+              {u.progress === "done" && (
+                <svg
+                  className="h-3.5 w-3.5 text-success"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
               )}
               {u.progress === "error" && (
                 <span className="text-danger">failed</span>

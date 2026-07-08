@@ -1,0 +1,82 @@
+"use server";
+
+// The only doorway between the browser and S3. All AWS SDK work happens in
+// src/lib/s3.ts (server-only); these actions validate the user + file and
+// return the minimum data the client needs.
+
+import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import {
+  presignDownload,
+  presignUpload,
+  s3Enabled,
+  validateUpload,
+} from "@/lib/s3";
+import { S3_PATH_PREFIX } from "@/lib/s3-shared";
+
+type PresignResult =
+  | { url: string; fields: Record<string, string>; key: string; expiresIn: number }
+  | { disabled: true }
+  | { error: string };
+
+// Step 1 of the upload flow: the client asks for a presigned POST. The user
+// must be signed in and a member of the workspace they claim to upload for;
+// the file type/size are validated before any AWS call.
+export async function createUploadUrl(input: {
+  workspaceId: string;
+  fileName: string;
+  fileType: string;
+  fileSizeBytes: number;
+}): Promise<PresignResult> {
+  await requireUser();
+
+  // Composer falls back to Supabase Storage when S3 isn't configured.
+  if (!s3Enabled()) return { disabled: true };
+
+  const supabase = await createClient();
+  const { data: isMember } = await supabase.rpc("is_workspace_member", {
+    p_workspace_id: input.workspaceId,
+  });
+  if (!isMember) return { error: "Not a member of this workspace." };
+
+  const invalid = validateUpload({
+    fileType: input.fileType,
+    fileSizeBytes: input.fileSizeBytes,
+  });
+  if (invalid) return { error: invalid };
+
+  try {
+    return await presignUpload({
+      fileName: input.fileName,
+      fileType: input.fileType,
+      fileSizeBytes: input.fileSizeBytes,
+    });
+  } catch {
+    return { error: "Could not prepare the upload. Try again." };
+  }
+}
+
+// Step 3 (read side): short-lived download URL for an S3-backed attachment.
+// The key is an unguessable UUID that only ever reaches workspace members via
+// message_attachments rows (RLS-gated), so possession implies access; we still
+// require a session and the uploads/ prefix.
+export async function getS3DownloadUrl(
+  storagePath: string,
+): Promise<{ url?: string; error?: string }> {
+  await requireUser();
+
+  if (!storagePath.startsWith(S3_PATH_PREFIX)) {
+    return { error: "Not an S3 attachment." };
+  }
+  const key = storagePath.slice(S3_PATH_PREFIX.length);
+  if (!/^uploads\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i.test(key)) {
+    return { error: "Invalid attachment key." };
+  }
+  if (!s3Enabled()) return { error: "S3 is not configured." };
+
+  try {
+    return { url: await presignDownload(key) };
+  } catch {
+    return { error: "Could not sign the download." };
+  }
+}

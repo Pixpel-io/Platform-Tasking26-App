@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageAttachment } from "@/lib/supabase/types";
+import { getS3DownloadUrl } from "@/app/(app)/s3-actions";
+import { isS3Path } from "@/lib/s3-shared";
 
 const BUCKET = "chat-attachments";
 
@@ -68,13 +70,21 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
 
   useEffect(() => {
     let active = true;
-    const supabase = createClient();
-    supabase.storage
-      .from(BUCKET)
-      .createSignedUrl(attachment.storage_path, 60 * 60)
-      .then(({ data }) => {
-        if (active) setUrl(data?.signedUrl ?? null);
+    // S3-backed attachments sign through the server (credentials stay there);
+    // Supabase Storage paths sign client-side as before.
+    if (isS3Path(attachment.storage_path)) {
+      void getS3DownloadUrl(attachment.storage_path).then((res) => {
+        if (active) setUrl(res.url ?? null);
       });
+    } else {
+      const supabase = createClient();
+      supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(attachment.storage_path, 60 * 60)
+        .then(({ data }) => {
+          if (active) setUrl(data?.signedUrl ?? null);
+        });
+    }
     return () => {
       active = false;
     };
