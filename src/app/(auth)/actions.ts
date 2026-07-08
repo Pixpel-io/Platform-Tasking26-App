@@ -98,3 +98,11 @@ export async function signOut() {
   await supabase.auth.signOut();
   redirect("/login");
 }
+
+// Sign out from an invite page (wrong account signed in) and come back to the
+// same invite after re-authenticating.
+export async function signOutToInvite(token: string) {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect(`/login?redirectedFrom=${encodeURIComponent(`/invite/${token}`)}`);
+}

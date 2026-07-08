@@ -1007,6 +1007,15 @@ export interface Database {
         Args: { p_token: string };
         Returns: string;
       };
+      invite_preview: {
+        Args: { p_token: string };
+        Returns: {
+          email: string;
+          status: InviteStatus;
+          expired: boolean;
+          workspace_name: string;
+        }[];
+      };
       is_workspace_member: {
         Args: { p_workspace_id: string };
         Returns: boolean;

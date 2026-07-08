@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { signOutToInvite } from "@/app/(auth)/actions";
 import { AcceptInviteButton } from "./accept-button";
 
 export default async function InvitePage({
@@ -12,24 +13,15 @@ export default async function InvitePage({
   const user = await getSessionUser();
   const supabase = await createClient();
 
-  const { data: invite } = await supabase
-    .from("invites")
-    .select("email, status, expires_at, workspace_id")
-    .eq("token", token)
-    .single();
+  // Token-keyed preview RPC: RLS on `invites` hides the row from anyone who
+  // isn't a member or the invited email, which made a wrong-account visitor
+  // (e.g. signed in with a different Microsoft account) see "invalid link"
+  // instead of the real problem.
+  const { data } = await supabase.rpc("invite_preview", { p_token: token });
+  const invite = data?.[0] ?? null;
 
-  let workspaceName = "a workspace";
-  if (invite) {
-    const { data: ws } = await supabase
-      .from("workspaces")
-      .select("name")
-      .eq("id", invite.workspace_id)
-      .single();
-    workspaceName = ws?.name ?? workspaceName;
-  }
-
-  const expired =
-    invite && new Date(invite.expires_at).getTime() < Date.now();
+  const workspaceName = invite?.workspace_name ?? "a workspace";
+  const expired = invite?.expired ?? false;
   const usable = invite && invite.status === "pending" && !expired;
 
   // Not signed in → bounce to login, then return here.
@@ -64,11 +56,25 @@ export default async function InvitePage({
         )}
 
         {usable && emailMismatch && (
-          <p className="mt-3 text-sm text-danger">
-            This invite was sent to <strong>{invite.email}</strong>, but
-            you&apos;re signed in as <strong>{user!.email}</strong>. Sign in
-            with the invited email to accept.
-          </p>
+          <>
+            <p className="mt-3 text-sm text-danger">
+              This invite was sent to <strong>{invite.email}</strong>, but
+              you&apos;re signed in as <strong>{user!.email}</strong>.
+            </p>
+            <p className="mt-2 text-sm text-muted">
+              Sign out, then sign back in with{" "}
+              <strong className="text-foreground">{invite.email}</strong> to
+              accept.
+            </p>
+            <form action={signOutToInvite.bind(null, token)} className="mt-6">
+              <button
+                type="submit"
+                className="w-full cursor-pointer rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-sm shadow-primary/30 transition-opacity hover:opacity-90"
+              >
+                Sign out &amp; switch account
+              </button>
+            </form>
+          </>
         )}
 
         {usable && !emailMismatch && (
