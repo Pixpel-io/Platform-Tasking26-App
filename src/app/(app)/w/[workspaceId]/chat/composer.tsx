@@ -285,7 +285,7 @@ export function Composer({
     });
   }
 
-  async function handleFiles(files: FileList) {
+  async function handleFiles(files: FileList | File[]) {
     const supabase = createClient();
     for (const file of Array.from(files)) {
       const id = crypto.randomUUID();
@@ -404,6 +404,27 @@ export function Composer({
             onClick={(e) => syncMention(e.currentTarget)}
             onBlur={() => setMention(null)}
             onKeyDown={handleKeyDown}
+            onPaste={(e) => {
+              // Screenshots (snipping tool etc.) arrive as clipboard files -
+              // upload them like attachments instead of dropping them.
+              const files = Array.from(e.clipboardData.items)
+                .filter((item) => item.kind === "file")
+                .map((item) => item.getAsFile())
+                .filter((f): f is File => f != null);
+              if (files.length === 0) return;
+              e.preventDefault();
+              void handleFiles(
+                files.map((f, i) =>
+                  f.name && f.name !== "image.png"
+                    ? f
+                    : new File(
+                        [f],
+                        `screenshot-${Date.now()}${i ? `-${i}` : ""}.png`,
+                        { type: f.type || "image/png" },
+                      ),
+                ),
+              );
+            }}
             className="no-focus-ring relative block max-h-48 w-full resize-none bg-transparent text-sm leading-6 text-transparent caret-foreground placeholder:text-muted"
           />
 
