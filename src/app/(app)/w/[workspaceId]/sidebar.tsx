@@ -10,6 +10,7 @@ import type { Channel, Profile } from "@/lib/supabase/types";
 import type { ProjectWithMembers } from "@/lib/projects-shared";
 import { Avatar } from "@/components/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { StatusDialog, activeStatus } from "@/components/status-dialog";
 import { usePresence } from "@/components/presence-provider";
 import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
@@ -85,6 +86,7 @@ export function Sidebar({
   const [switchingTo, setSwitchingTo] =
     useState<MembershipWithWorkspace | null>(null);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
   const [, startTransition] = useTransition();
@@ -362,7 +364,14 @@ export function Sidebar({
                       className="absolute -bottom-0.5 -right-0.5 border-2 border-surface"
                     />
                   </span>
-                  <span className="flex-1 truncate">{label}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {label}
+                    {activeStatus(member)?.emoji && (
+                      <span className="ml-1.5">
+                        {activeStatus(member)?.emoji}
+                      </span>
+                    )}
+                  </span>
                   {conversationId && (
                     <SidebarRowMeta
                       target={{ conversationId }}
@@ -457,11 +466,23 @@ export function Sidebar({
               {profile?.full_name ?? "Me"}
             </span>
             <span className="block truncate text-xs text-muted">
-              {profile?.email}
+              {(profile && activeStatus(profile)?.text) ?? profile?.email}
             </span>
           </span>
         </Link>
         <div className="flex items-center gap-1">
+          {profile && (
+            <button
+              onClick={() => setStatusDialogOpen(true)}
+              aria-label="Set a status"
+              title="Set a status"
+              className="grid h-9 w-9 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              {activeStatus(profile)?.emoji ?? (
+                <Icon d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+              )}
+            </button>
+          )}
           <ThemeToggle />
           <form action={signOut}>
             <button
@@ -482,6 +503,13 @@ export function Sidebar({
         members={members}
         meId={userId}
       />
+
+      {statusDialogOpen && profile && (
+        <StatusDialog
+          profile={profile}
+          onClose={() => setStatusDialogOpen(false)}
+        />
+      )}
 
       {switchingTo && (
         <WorkspaceSplash

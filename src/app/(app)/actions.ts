@@ -455,3 +455,34 @@ export async function updatePresence(
     .update({ presence: status, last_seen_at: new Date().toISOString() })
     .eq("id", user.id);
 }
+
+// Slack-style custom status: emoji + short text with an optional auto-expiry.
+// Pass empty text to clear.
+export async function setProfileStatus(input: {
+  emoji: string | null;
+  text: string;
+  expiresAt: string | null;
+}): Promise<FormState> {
+  const user = await requireUser();
+  const text = input.text.trim().slice(0, 100);
+  const clearing = text.length === 0;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update(
+      clearing
+        ? { status_emoji: null, status_text: null, status_expires_at: null }
+        : {
+            status_emoji: input.emoji,
+            status_text: text,
+            status_expires_at: input.expiresAt,
+          },
+    )
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/", "layout");
+  return { success: clearing ? "Status cleared." : "Status set." };
+}

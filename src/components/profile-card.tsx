@@ -10,6 +10,7 @@ import {
 } from "react";
 import { Avatar } from "@/components/avatar";
 import { usePresence } from "@/components/presence-provider";
+import { StatusDialog, activeStatus } from "@/components/status-dialog";
 import type { Profile } from "@/lib/supabase/types";
 import { openDirectMessage } from "@/app/(app)/w/[workspaceId]/chat-actions";
 
@@ -66,8 +67,10 @@ function ProfileCardModal({
 }) {
   const online = usePresence(profile.id);
   const [pending, startTransition] = useTransition();
+  const [statusOpen, setStatusOpen] = useState(false);
   const isSelf = profile.id === meId;
   const name = profile.full_name ?? profile.email;
+  const status = activeStatus(profile);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -149,6 +152,16 @@ function ProfileCardModal({
             )}
           </div>
 
+          {/* Slack-style custom status */}
+          {status && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-surface-2/50 px-3 py-2 text-sm">
+              {status.emoji && <span className="text-base">{status.emoji}</span>}
+              <span className="min-w-0 truncate text-foreground">
+                {status.text}
+              </span>
+            </div>
+          )}
+
           <div className="mt-4 flex items-center gap-1.5 text-sm">
             <span
               className={`h-2 w-2 rounded-full ${
@@ -225,8 +238,33 @@ function ProfileCardModal({
               {pending ? "Opening…" : "Message"}
             </button>
           )}
+
+          {isSelf && (
+            <button
+              onClick={() => setStatusOpen(true)}
+              className="mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-surface-2"
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" />
+              </svg>
+              {status ? "Edit status" : "Set a status"}
+            </button>
+          )}
         </div>
       </div>
+
+      {statusOpen && (
+        <StatusDialog profile={profile} onClose={() => setStatusOpen(false)} />
+      )}
     </div>
   );
 }

@@ -72,6 +72,9 @@ export interface Database {
           full_name: string | null;
           title: string | null;
           avatar_url: string | null;
+          status_emoji: string | null;
+          status_text: string | null;
+          status_expires_at: string | null;
           presence: PresenceStatus;
           last_seen_at: string | null;
           created_at: string;
@@ -84,6 +87,9 @@ export interface Database {
           full_name?: string | null;
           title?: string | null;
           avatar_url?: string | null;
+          status_emoji?: string | null;
+          status_text?: string | null;
+          status_expires_at?: string | null;
           presence?: PresenceStatus;
           last_seen_at?: string | null;
           created_at?: string;
@@ -96,6 +102,9 @@ export interface Database {
           full_name?: string | null;
           title?: string | null;
           avatar_url?: string | null;
+          status_emoji?: string | null;
+          status_text?: string | null;
+          status_expires_at?: string | null;
           presence?: PresenceStatus;
           last_seen_at?: string | null;
           updated_at?: string;
