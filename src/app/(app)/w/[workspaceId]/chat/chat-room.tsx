@@ -141,10 +141,16 @@ export function ChatRoom({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-scroll to newest only when the user is already at the bottom, so we
-  // don't yank them away while they're reading history.
+  // Auto-scroll to newest when the user is already at the bottom (so we don't
+  // yank them away while reading history) - or when the newest message is
+  // their own send, which should always land them on what they just wrote.
   useEffect(() => {
-    if (isNearBottom()) scrollToBottom();
+    const last = optimistic[optimistic.length - 1];
+    const ownSend = last?.user_id === meId && last.id.startsWith("temp-");
+    if (ownSend || isNearBottom()) {
+      scrollToBottom();
+      if (ownSend) setAtBottom(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optimistic.length]);
 
