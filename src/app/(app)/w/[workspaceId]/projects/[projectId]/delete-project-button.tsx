@@ -40,8 +40,8 @@ export function DeleteProjectButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        aria-label="Delete project"
-        title="Delete project"
+        aria-label="Delete board"
+        title="Delete board"
         className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-danger/10 hover:text-danger"
       >
         <svg
@@ -67,7 +67,7 @@ export function DeleteProjectButton({
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-foreground">
-              Delete project?
+              Delete board?
             </h2>
             <p className="mt-2 text-sm text-muted">
               <span className="font-medium text-foreground">{projectName}</span>{" "}
@@ -91,7 +91,7 @@ export function DeleteProjectButton({
                 disabled={pending}
                 className="cursor-pointer rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50"
               >
-                {pending ? "Deleting..." : "Delete project"}
+                {pending ? "Deleting..." : "Delete board"}
               </button>
             </div>
           </div>

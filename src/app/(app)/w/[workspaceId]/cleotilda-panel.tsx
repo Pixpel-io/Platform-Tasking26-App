@@ -9,7 +9,7 @@ type PanelMessage = { role: "user" | "assistant"; content: string };
 
 const SUGGESTIONS = [
   "What can you do?",
-  "List our projects",
+  "List our boards",
   "Create a task for me",
 ];
 
@@ -282,7 +282,7 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
                   Hi, I&apos;m Cleotilda
                 </p>
                 <p className="mt-1 max-w-60 text-xs text-muted">
-                  I can create tasks, send DMs, look up projects and members,
+                  I can create tasks, send DMs, look up boards and members,
                   and answer questions about your workspace.
                 </p>
                 <div className="mt-4 flex flex-col gap-1.5">

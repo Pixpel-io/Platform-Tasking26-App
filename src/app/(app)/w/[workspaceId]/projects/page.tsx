@@ -49,7 +49,7 @@ export default async function ProjectsPage({
       <header className="mb-6 flex animate-fade-in-up flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Projects
+            Task Boards
           </h1>
           <p className="mt-1 text-muted">
             Boards you&apos;re a member of in this workspace.
@@ -80,8 +80,8 @@ export default async function ProjectsPage({
               <rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
           }
-          title="No projects yet"
-          description="Create your first project to start tracking tasks on a Kanban board."
+          title="No boards yet"
+          description="Create your first board to start tracking tasks."
           action={
             <NewProjectButton
               workspaceId={workspaceId}

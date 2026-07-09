@@ -73,7 +73,7 @@ function activityText(a: ActivityLog & { profiles: Profile | null }): string {
   const meta = a.meta as { title?: string };
   switch (a.verb) {
     case "project.created":
-      return `${who} created a project`;
+      return `${who} created a board`;
     case "task.created":
       return `${who} created task “${meta.title ?? "Untitled"}”`;
     case "task.completed":
@@ -203,7 +203,7 @@ export default async function WorkspaceDashboard({
           index={0}
         />
         <StatCard
-          label="Active projects"
+          label="Active boards"
           value={activeProjects}
           href={`/w/${workspaceId}/projects`}
           icon="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
@@ -239,7 +239,7 @@ export default async function WorkspaceDashboard({
           </div>
           {activity.length === 0 ? (
             <p className="mt-3 text-sm text-muted">
-              No activity yet. Create a project to get started.
+              No activity yet. Create a board to get started.
             </p>
           ) : (
             <ul className="relative mt-4">
@@ -292,7 +292,7 @@ export default async function WorkspaceDashboard({
             {[
               {
                 href: `/w/${workspaceId}/projects`,
-                label: "View projects",
+                label: "View boards",
                 hint: "Boards, lists and calendars",
                 icon: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
               },

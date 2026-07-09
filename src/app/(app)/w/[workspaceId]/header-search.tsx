@@ -191,7 +191,7 @@ export function HeaderSearch({ workspaceId }: { workspaceId: string }) {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={onKeyDown}
-                  placeholder="Search groups, people, projects, tasks, messages…"
+                  placeholder="Search groups, people, boards, tasks, messages…"
                   style={{ outline: "none", boxShadow: "none" }}
                   className="w-full border-0 bg-transparent py-3 text-sm text-foreground placeholder:text-muted"
                 />
@@ -242,7 +242,7 @@ export function HeaderSearch({ workspaceId }: { workspaceId: string }) {
                     </svg>
                   </span>
                   <p className="text-sm text-muted">
-                    Search groups, people, projects, tasks, and messages
+                    Search groups, people, boards, tasks, and messages
                   </p>
                 </div>
               )}
@@ -312,7 +312,7 @@ function SectionedResults({
     { label: "Groups", kind: "channel" },
     { label: "Direct messages", kind: "dm" },
     { label: "People", kind: "person" },
-    { label: "Projects", kind: "project" },
+    { label: "Boards", kind: "project" },
     { label: "Tasks", kind: "task" },
     { label: "Messages", kind: "message" },
   ];

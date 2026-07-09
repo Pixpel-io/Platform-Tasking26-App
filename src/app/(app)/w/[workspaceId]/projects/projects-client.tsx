@@ -28,7 +28,7 @@ export function NewProjectButton({
         >
           <path d="M12 5v14M5 12h14" />
         </svg>
-        New project
+        New board
       </Button>
       <CreateProjectDialog
         workspaceId={workspaceId}

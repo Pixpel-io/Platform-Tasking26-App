@@ -65,10 +65,10 @@ export function CreateProjectDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold text-foreground">
-          Create a project
+          Create a board
         </h2>
         <p className="mt-1 text-sm text-muted">
-          A project gets a Kanban board and is private to its members.
+          A board is a shared task table, private to its members.
         </p>
 
         <form action={formAction} className="mt-4 space-y-4">
@@ -96,7 +96,7 @@ export function CreateProjectDialog({
             <Input
               id="description"
               name="description"
-              placeholder="What's this project about?"
+              placeholder="What's this board about?"
             />
           </div>
 
@@ -178,7 +178,7 @@ export function CreateProjectDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? "Creating…" : "Create project"}
+              {pending ? "Creating…" : "Create board"}
             </Button>
           </div>
         </form>

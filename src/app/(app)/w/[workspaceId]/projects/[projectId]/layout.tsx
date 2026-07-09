@@ -25,7 +25,7 @@ export default async function ProjectLayout({
                 href={`/w/${workspaceId}/projects`}
                 className="text-sm text-muted hover:text-foreground"
               >
-                Projects
+                Task Boards
               </Link>
               <span className="text-muted">/</span>
               <h1 className="truncate text-lg font-semibold text-foreground">

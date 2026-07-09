@@ -6,6 +6,7 @@ import { Avatar } from "@/components/avatar";
 import { EmojiPicker } from "@/components/emoji-picker";
 import { highlightComposerValue } from "@/lib/message-format";
 import type { PendingAttachment } from "../chat-actions";
+import { VoiceRecorder } from "./voice-recorder";
 import { createUploadUrl } from "@/app/(app)/s3-actions";
 import { S3_PATH_PREFIX } from "@/lib/s3-shared";
 
@@ -149,6 +150,7 @@ export function Composer({
 }) {
   const [value, setValue] = useState("");
   const [uploads, setUploads] = useState<Uploading[]>([]);
+  const [micError, setMicError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [mention, setMention] = useState<MentionState | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -391,7 +393,7 @@ export function Composer({
     return error ? null : path;
   }
 
-  async function handleFiles(files: FileList | File[]) {
+  async function handleFiles(files: FileList | File[], durationMs?: number) {
     for (const file of Array.from(files)) {
       const id = crypto.randomUUID();
       setUploads((prev) => [
@@ -420,6 +422,7 @@ export function Composer({
                     mimeType: file.type || null,
                     sizeBytes: file.size,
                     kind: attachmentKind(file.type),
+                    durationMs: durationMs ?? null,
                   },
                 }
             : u,
@@ -430,6 +433,20 @@ export function Composer({
 
   return (
     <div className="border-t border-border bg-surface p-2 sm:p-3">
+      {micError && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-2.5 py-1.5 text-xs text-danger">
+          <span className="min-w-0 flex-1">{micError}</span>
+          <button
+            onClick={() => setMicError(null)}
+            aria-label="Dismiss"
+            className="grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded hover:bg-danger/15"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
       {uploads.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {uploads.map((u) => (
@@ -618,6 +635,13 @@ export function Composer({
           <FmtBtn label="Code" onClick={() => wrapSelection("`", "`")} d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
 
           <span className="ml-auto flex items-center gap-1">
+            <VoiceRecorder
+              onFinish={(file, durationMs) => {
+                setMicError(null);
+                void handleFiles([file], durationMs);
+              }}
+              onError={(message) => setMicError(message)}
+            />
             <button
               onClick={() => fileRef.current?.click()}
               aria-label="Attach file"

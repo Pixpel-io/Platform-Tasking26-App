@@ -411,10 +411,10 @@ export function Sidebar({
         {/* Projects */}
         <div>
           <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <span className="px-2 py-0.5">Projects</span>
+            <span className="px-2 py-0.5">Task Boards</span>
             <Link
               href={`${base}/projects`}
-              aria-label="All projects"
+              aria-label="All task boards"
               className="grid h-5 w-5 place-items-center rounded-md transition-colors hover:bg-primary/15 hover:text-primary"
             >
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
@@ -422,7 +422,7 @@ export function Sidebar({
           </div>
           <div className="space-y-0.5">
             {projects.length === 0 && (
-              <p className="px-3 py-1 text-xs text-muted/60">No projects yet</p>
+              <p className="px-3 py-1 text-xs text-muted/60">No boards yet</p>
             )}
             {projects.slice(0, 8).map((p) => {
               const href = `${base}/projects/${p.id}`;

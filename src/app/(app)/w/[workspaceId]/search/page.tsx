@@ -131,7 +131,7 @@ export default async function SearchPage({
                 className="block rounded-xl border border-border bg-surface p-4 hover:bg-surface-2"
               >
                 <div className="mb-1 flex items-center gap-2 text-xs text-muted">
-                  <span>in {t.projects?.name ?? "Project"}</span>
+                  <span>in {t.projects?.name ?? "Board"}</span>
                   {t.due_date && (
                     <>
                       <span>·</span>
