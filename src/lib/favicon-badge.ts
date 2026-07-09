@@ -1,7 +1,8 @@
 "use client";
 
-// Slack-style favicon badge: draws a red dot on the app icon and swaps the
-// tab's favicon while anything is unread; restores the original when read.
+// Slack-style tab alerts: a red dot drawn onto the favicon plus an unread
+// count in the tab title ("(3) TasKing - ...") while anything is unread;
+// both restore when everything is read.
 
 let badged = false;
 let badgedUrl: string | null = null;
@@ -65,4 +66,38 @@ export async function setFaviconBadge(show: boolean) {
       if (original) l.href = original;
     });
   }
+}
+
+// -- Tab title unread prefix --------------------------------------------------
+
+const PREFIX_RE = /^\(\d+\+?\)\s/;
+
+let unreadCount = 0;
+let titleObserver: MutationObserver | null = null;
+
+function applyTitlePrefix() {
+  const bare = document.title.replace(PREFIX_RE, "");
+  const next =
+    unreadCount > 0
+      ? `(${unreadCount > 99 ? "99+" : unreadCount}) ${bare}`
+      : bare;
+  // Guard: only touch the DOM when it actually changes, or the observer loops.
+  if (document.title !== next) document.title = next;
+}
+
+// Keeps the "(N) " prefix on the tab title while there are unreads. Next.js
+// rewrites document.title on navigation, so a MutationObserver re-applies the
+// prefix whenever the title changes.
+export function setTitleUnread(count: number) {
+  if (typeof document === "undefined") return;
+  unreadCount = count;
+
+  if (!titleObserver) {
+    const el = document.querySelector("title");
+    if (el) {
+      titleObserver = new MutationObserver(applyTitlePrefix);
+      titleObserver.observe(el, { childList: true, characterData: true, subtree: true });
+    }
+  }
+  applyTitlePrefix();
 }

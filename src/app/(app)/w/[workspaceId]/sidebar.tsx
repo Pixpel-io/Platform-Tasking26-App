@@ -14,7 +14,7 @@ import { StatusDialog, activeStatus } from "@/components/status-dialog";
 import { usePresence } from "@/components/presence-provider";
 import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
-import { setFaviconBadge } from "@/lib/favicon-badge";
+import { setFaviconBadge, setTitleUnread } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
 import { signOut } from "@/app/(auth)/actions";
@@ -94,14 +94,15 @@ export function Sidebar({
   const base = `/w/${workspaceId}`;
   const current = workspaces.find((w) => w.workspace_id === workspaceId);
 
-  // Slack-style favicon badge: red dot on the tab icon while any DM or group
-  // has unreads; clears as soon as everything is read (markRead updates the
-  // live counts, which re-runs this).
+  // Slack-style tab alerts while any DM or group has unreads: red dot on the
+  // favicon + "(N)" prefix on the tab title. Both clear as soon as everything
+  // is read (markRead updates the live counts, which re-runs this).
   const totalUnread =
     Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0) +
     Object.values(channelUnreadCounts).reduce((a, b) => a + b, 0);
   useEffect(() => {
     void setFaviconBadge(totalUnread > 0);
+    setTitleUnread(totalUnread);
   }, [totalUnread]);
 
   // One row per member - yourself first (Slack-style notes-to-self), then
