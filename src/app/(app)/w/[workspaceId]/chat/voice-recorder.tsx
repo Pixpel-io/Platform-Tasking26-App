@@ -93,7 +93,9 @@ export function VoiceRecorder({
     };
     recorder.onstop = () => {
       const durationMs = Date.now() - startedAtRef.current;
-      const type = recorder.mimeType || mime || "audio/webm";
+      // MediaRecorder reports e.g. "audio/webm;codecs=opus" - strip the codec
+      // parameter: S3 validation (and Content-Type matching) want a bare type.
+      const type = (recorder.mimeType || mime || "audio/webm").split(";")[0];
       const blob = new Blob(chunksRef.current, { type });
       const discarded = cancelledRef.current || durationMs < 500;
       cleanup();
