@@ -115,9 +115,19 @@ export function NotificationToaster({
 
             playNotificationSound();
             const href = notificationHref(workspaceId, row);
-            const context = notificationContext(workspaceId, row);
+            // OS notifications appear when the tab isn't visible, so "current
+            // workspace" means nothing there - always name the workspace
+            // (and group) the message came from.
+            const desktopContext = [
+              row.workspace?.name,
+              row.channel?.name ? `#${row.channel.name}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
             showDesktopNotification({
-              title: context ? `${row.title} (${context})` : row.title,
+              title: desktopContext
+                ? `${row.title} (${desktopContext})`
+                : row.title,
               body: row.body,
               icon: row.actor?.avatar_url ?? undefined,
               tag: row.id,
