@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   NOTIFICATION_SELECT,
+  notificationContext,
   notificationHref,
   type NotificationWithActor,
 } from "@/lib/notifications-shared";
@@ -171,6 +172,16 @@ export function NotificationsList({
                   </svg>
                 </span>
                 <div className="min-w-0 flex-1">
+                  {(() => {
+                    const context = notificationContext(workspaceId, n);
+                    return (
+                      context && (
+                        <p className="mb-0.5 truncate text-[11px] font-medium uppercase tracking-wide text-primary">
+                          {context}
+                        </p>
+                      )
+                    );
+                  })()}
                   <p className="text-sm font-medium text-foreground">
                     {n.title}
                   </p>

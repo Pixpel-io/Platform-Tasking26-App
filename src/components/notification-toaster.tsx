@@ -7,6 +7,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { getRealtimeClient } from "@/lib/supabase/client";
 import {
   NOTIFICATION_SELECT,
+  notificationContext,
   notificationHref,
   type NotificationWithActor,
 } from "@/lib/notifications-shared";
@@ -114,8 +115,9 @@ export function NotificationToaster({
 
             playNotificationSound();
             const href = notificationHref(workspaceId, row);
+            const context = notificationContext(workspaceId, row);
             showDesktopNotification({
-              title: row.title,
+              title: context ? `${row.title} (${context})` : row.title,
               body: row.body,
               icon: row.actor?.avatar_url ?? undefined,
               tag: row.id,
@@ -194,6 +196,16 @@ export function NotificationToaster({
               </span>
             </span>
             <div className="min-w-0 flex-1">
+              {(() => {
+                const context = notificationContext(workspaceId, n);
+                return (
+                  context && (
+                    <p className="mb-0.5 truncate text-[11px] font-medium uppercase tracking-wide text-primary">
+                      {context}
+                    </p>
+                  )
+                );
+              })()}
               <p className="truncate text-sm font-semibold text-foreground">
                 {n.title}
               </p>
