@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageAttachment } from "@/lib/supabase/types";
@@ -223,22 +223,13 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
 
   if (attachment.kind === "voice") {
     return url ? (
-      <div className="group/att flex items-center gap-1.5">
-        <audio src={url} controls className="max-w-xs" />
-        <button
-          type="button"
-          onClick={() => void downloadAttachment(attachment)}
-          aria-label={`Download ${attachment.file_name}`}
-          title="Download"
-          className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all hover:bg-surface-2 hover:text-foreground focus-visible:opacity-100 group-hover/att:opacity-100"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-          </svg>
-        </button>
-      </div>
+      <VoicePlayer
+        url={url}
+        durationMs={attachment.duration_ms}
+        onDownload={() => void downloadAttachment(attachment)}
+      />
     ) : (
-      <div className="h-10 w-48 animate-pulse rounded-lg bg-surface-2" />
+      <div className="h-12 w-72 animate-pulse rounded-2xl bg-surface-2" />
     );
   }
 
@@ -488,5 +479,141 @@ function ImageViewer({
       </div>
     </div>,
     document.body,
+  );
+}
+
+// ── Voice message player (theme-matched, Slack-style pill) ──────────────────
+
+function fmtClock(totalSeconds: number): string {
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return "0:00";
+  const m = Math.floor(totalSeconds / 60);
+  const s = Math.floor(totalSeconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+// Deterministic pseudo-waveform bar heights (no audio decoding needed) - the
+// same clip always renders the same shape.
+const WAVE_BARS = Array.from({ length: 28 }, (_, i) => {
+  const v =
+    0.5 +
+    0.32 * Math.sin(i * 1.7 + 1.3) +
+    0.18 * Math.sin(i * 3.1 + 0.4);
+  return Math.max(0.2, Math.min(1, v));
+});
+
+function VoicePlayer({
+  url,
+  durationMs,
+  onDownload,
+}: {
+  url: string;
+  durationMs: number | null;
+  onDownload: () => void;
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(
+    durationMs ? durationMs / 1000 : 0,
+  );
+
+  const progress = duration > 0 ? Math.min(1, current / duration) : 0;
+
+  function toggle() {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.paused) void el.play();
+    else el.pause();
+  }
+
+  function seek(e: React.MouseEvent<HTMLDivElement>) {
+    const el = audioRef.current;
+    if (!el || duration <= 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    el.currentTime = ratio * duration;
+    setCurrent(ratio * duration);
+  }
+
+  return (
+    <div className="group/att flex w-fit max-w-full items-center gap-2.5 rounded-2xl border border-border bg-surface py-2 pl-2 pr-3 shadow-sm">
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setCurrent(0);
+        }}
+        onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => {
+          const d = e.currentTarget.duration;
+          if (Number.isFinite(d) && d > 0) setDuration(d);
+        }}
+      />
+
+      {/* Play / pause */}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={playing ? "Pause voice message" : "Play voice message"}
+        className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full bg-primary text-primary-foreground shadow-sm shadow-primary/30 transition-all hover:opacity-90 active:scale-95"
+      >
+        {playing ? (
+          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="5" width="4" height="14" rx="1" />
+            <rect x="14" y="5" width="4" height="14" rx="1" />
+          </svg>
+        ) : (
+          <svg className="ml-0.5 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86a1 1 0 0 0-1.5.86z" />
+          </svg>
+        )}
+      </button>
+
+      {/* Waveform seek bar */}
+      <div
+        onClick={seek}
+        role="slider"
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(duration)}
+        aria-valuenow={Math.round(current)}
+        className="flex h-8 w-36 cursor-pointer items-center gap-0.5 sm:w-44"
+      >
+        {WAVE_BARS.map((h, i) => {
+          const filled = (i + 0.5) / WAVE_BARS.length <= progress;
+          return (
+            <span
+              key={i}
+              className={`w-1 flex-1 rounded-full transition-colors duration-100 ${
+                filled ? "bg-primary" : "bg-muted/30"
+              }`}
+              style={{ height: `${Math.round(h * 26)}px` }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Time */}
+      <span className="shrink-0 text-xs font-medium tabular-nums text-muted">
+        {playing || current > 0 ? fmtClock(current) : fmtClock(duration)}
+      </span>
+
+      {/* Download (hover) */}
+      <button
+        type="button"
+        onClick={onDownload}
+        aria-label="Download voice message"
+        title="Download"
+        className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all hover:bg-surface-2 hover:text-foreground focus-visible:opacity-100 group-hover/att:opacity-100"
+      >
+        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+        </svg>
+      </button>
+    </div>
   );
 }
