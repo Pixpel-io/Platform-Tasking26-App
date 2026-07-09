@@ -335,4 +335,18 @@ export async function markRead(args: {
       last_read_message_id: args.lastMessageId ?? null,
     });
   }
+
+  // Reading the room also clears its notifications (dm/mention/group ones
+  // pointing at this conversation or channel) so the bell badge drops without
+  // a separate visit to the notifications page. The realtime UPDATE event
+  // makes every open tab recount.
+  let clear = supabase
+    .from("notifications")
+    .update({ read_at: now })
+    .eq("user_id", user.id)
+    .is("read_at", null);
+  clear = args.channelId
+    ? clear.eq("channel_id", args.channelId)
+    : clear.eq("conversation_id", args.conversationId ?? "");
+  await clear;
 }
