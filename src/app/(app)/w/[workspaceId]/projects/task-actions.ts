@@ -171,6 +171,20 @@ export async function toggleAssignee(
       .eq("task_id", taskId)
       .eq("user_id", userId);
   } else {
+    // The picker offers every workspace member; seat them into the board
+    // first so they can actually see the task they're assigned to.
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("project_id")
+      .eq("id", taskId)
+      .single();
+    if (task) {
+      const { error: seatError } = await supabase.rpc(
+        "ensure_project_member",
+        { p_project_id: task.project_id, p_user_id: userId },
+      );
+      if (seatError) return { error: seatError.message };
+    }
     const { error } = await supabase
       .from("task_assignees")
       .insert({ task_id: taskId, user_id: userId });

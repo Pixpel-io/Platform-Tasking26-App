@@ -1083,6 +1083,10 @@ export interface Database {
         };
         Returns: string;
       };
+      ensure_project_member: {
+        Args: { p_project_id: string; p_user_id: string };
+        Returns: undefined;
+      };
       add_project_members: {
         Args: { p_project_id: string; p_member_ids: string[] };
         Returns: undefined;
