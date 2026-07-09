@@ -221,10 +221,11 @@ export function MondayTable({
 
       <div className="overflow-hidden rounded-lg border border-border">
         {/* Header row */}
-        <div className="grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_120px] items-center gap-0 border-b border-border bg-surface-2/40 text-xs font-medium text-muted max-lg:grid-cols-[minmax(160px,1fr)_110px_100px]">
+        <div className="grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-center gap-0 border-b border-border bg-surface-2/40 text-xs font-medium text-muted max-lg:grid-cols-[minmax(160px,1fr)_110px_100px]">
           <span className="px-3 py-2">Task</span>
           <span className="border-l border-border/60 px-3 py-2">Status</span>
           <span className="border-l border-border/60 px-3 py-2">Priority</span>
+          <span className="border-l border-border/60 px-3 py-2 max-lg:hidden">SQA</span>
           <span className="border-l border-border/60 px-3 py-2 max-lg:hidden">Due</span>
           <span className="border-l border-border/60 px-3 py-2 max-lg:hidden">People</span>
         </div>
@@ -619,7 +620,7 @@ function TaskRow({
   }
 
   return (
-    <div className="group/row grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_120px] items-stretch border-b border-border/60 bg-surface text-sm transition-colors last:border-b-0 hover:bg-surface-2/30 max-lg:grid-cols-[minmax(160px,1fr)_110px_100px]">
+    <div className="group/row grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-stretch border-b border-border/60 bg-surface text-sm transition-colors last:border-b-0 hover:bg-surface-2/30 max-lg:grid-cols-[minmax(160px,1fr)_110px_100px]">
       {/* Title + done checkbox + delete */}
       <div className="flex min-w-0 items-center gap-2.5 px-3 py-2">
         <button
@@ -696,6 +697,9 @@ function TaskRow({
 
       {/* Priority cell */}
       <PriorityCell task={task} onPatch={onPatch} />
+
+      {/* SQA approval cell */}
+      <SqaCell task={task} onPatch={onPatch} />
 
       {/* Due cell */}
       <DueCell task={task} onPatch={onPatch} />
@@ -860,6 +864,69 @@ function PriorityCell({
               style={{ backgroundColor: PRIORITY_BG[p] }}
             >
               {PRIORITY_META[p].label}
+            </button>
+          ))}
+        </CellPopover>
+      )}
+    </div>
+  );
+}
+
+// ── Cell: SQA approval (pending / in testing / done) ────────────────────────
+
+const SQA_META: Record<
+  "pending" | "in_testing" | "done",
+  { label: string; bg: string }
+> = {
+  pending: { label: "Pending", bg: "#797e93" },
+  in_testing: { label: "In Testing", bg: "#fdab3d" },
+  done: { label: "Done", bg: "#00c875" },
+};
+const SQA_ORDER = ["pending", "in_testing", "done"] as const;
+
+function SqaCell({
+  task,
+  onPatch,
+}: {
+  task: TaskWithRelations;
+  onPatch: (taskId: string, patch: Partial<TaskWithRelations>) => void;
+}) {
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const [, startTransition] = useTransition();
+  const close = useCallback(() => setAnchor(null), []);
+  const current = SQA_META[task.sqa_status] ?? SQA_META.pending;
+
+  function pick(next: (typeof SQA_ORDER)[number]) {
+    close();
+    onPatch(task.id, { sqa_status: next });
+    startTransition(() => {
+      void updateTask(task.id, { sqaStatus: next });
+    });
+  }
+
+  return (
+    <div className="relative border-l border-border/60 max-lg:hidden">
+      <button
+        onClick={(e) => setAnchor(anchor ? null : e.currentTarget)}
+        className="h-full w-full cursor-pointer px-1 py-1"
+      >
+        <span
+          className="flex h-full min-h-7 w-full items-center justify-center rounded-sm text-xs font-medium text-white transition-opacity hover:opacity-90"
+          style={{ backgroundColor: current.bg }}
+        >
+          {current.label}
+        </span>
+      </button>
+      {anchor && (
+        <CellPopover anchor={anchor} onClose={close} width={150}>
+          {SQA_ORDER.map((k) => (
+            <button
+              key={k}
+              onClick={() => pick(k)}
+              className="mb-1 block w-full cursor-pointer rounded-sm px-2 py-1.5 text-center text-xs font-medium text-white transition-opacity last:mb-0 hover:opacity-85"
+              style={{ backgroundColor: SQA_META[k].bg }}
+            >
+              {SQA_META[k].label}
             </button>
           ))}
         </CellPopover>

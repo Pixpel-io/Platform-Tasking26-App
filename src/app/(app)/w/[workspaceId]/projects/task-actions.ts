@@ -104,6 +104,7 @@ export async function updateTask(
     startDate?: string | null;
     dueDate?: string | null;
     timeEstimateMinutes?: number | null;
+    sqaStatus?: "pending" | "in_testing" | "done";
   },
 ): Promise<Result> {
   await requireUser();
@@ -117,6 +118,7 @@ export async function updateTask(
       start_date: patch.startDate,
       due_date: patch.dueDate,
       time_estimate_minutes: patch.timeEstimateMinutes,
+      sqa_status: patch.sqaStatus,
     })
     .eq("id", taskId);
   if (error) return { error: error.message };

@@ -708,6 +708,7 @@ export interface Database {
           due_date: string | null;
           position: number;
           time_estimate_minutes: number | null;
+          sqa_status: "pending" | "in_testing" | "done";
           completed_at: string | null;
           created_by: string;
           created_at: string;
@@ -726,6 +727,7 @@ export interface Database {
           due_date?: string | null;
           position?: number;
           time_estimate_minutes?: number | null;
+          sqa_status?: "pending" | "in_testing" | "done";
           completed_at?: string | null;
           created_by: string;
           created_at?: string;
@@ -742,6 +744,7 @@ export interface Database {
           due_date?: string | null;
           position?: number;
           time_estimate_minutes?: number | null;
+          sqa_status?: "pending" | "in_testing" | "done";
           completed_at?: string | null;
           updated_at?: string;
           deleted_at?: string | null;
