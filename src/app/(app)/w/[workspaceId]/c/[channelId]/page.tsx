@@ -12,6 +12,7 @@ import { ChatHeader } from "../../chat/chat-header";
 import { ChatRoom } from "../../chat/chat-room";
 import { TypingSubtitle } from "../../chat/typing";
 import { GroupMembers } from "./group-members";
+import { RenameGroup } from "./rename-group";
 
 export default async function ChannelPage({
   params,
@@ -62,14 +63,24 @@ export default async function ChannelPage({
           </span>
         }
         actions={
-          <GroupMembers
-            workspaceId={workspaceId}
-            channelId={channelId}
-            members={channelMembers}
-            workspaceMembers={workspaceMembers}
-            canManage={canManageMembers}
-            creatorId={channel.created_by}
-          />
+          <>
+            {canManageMembers && (
+              <RenameGroup
+                workspaceId={workspaceId}
+                channelId={channelId}
+                name={channel.name}
+                description={channel.description}
+              />
+            )}
+            <GroupMembers
+              workspaceId={workspaceId}
+              channelId={channelId}
+              members={channelMembers}
+              workspaceMembers={workspaceMembers}
+              canManage={canManageMembers}
+              creatorId={channel.created_by}
+            />
+          </>
         }
       />
       <div className="min-h-0 flex-1">

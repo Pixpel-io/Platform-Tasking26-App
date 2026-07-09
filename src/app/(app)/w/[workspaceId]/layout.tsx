@@ -9,7 +9,7 @@ import {
   getWorkspaceMembersForChat,
 } from "@/lib/chat";
 import { getProjects } from "@/lib/projects";
-import { getUnreadNotificationCount } from "@/lib/notifications";
+import { getUnreadCountsByWorkspace, getUnreadNotificationCount } from "@/lib/notifications";
 import { PresenceProvider } from "@/components/presence-provider";
 import { ProfileCardProvider } from "@/components/profile-card";
 import { TypingProvider } from "./chat/typing";
@@ -50,6 +50,7 @@ export default async function WorkspaceLayout({
     members,
     projects,
     unreadNotifications,
+    workspaceUnreads,
     dmUnreads,
     channelUnreads,
   ] = await Promise.all([
@@ -60,6 +61,7 @@ export default async function WorkspaceLayout({
     getWorkspaceMembersForChat(workspaceId),
     getProjects(workspaceId),
     getUnreadNotificationCount(workspaceId),
+    getUnreadCountsByWorkspace(),
     getDmUnreadCounts(workspaceId),
     getChannelUnreadCounts(workspaceId),
   ]);
@@ -106,6 +108,7 @@ export default async function WorkspaceLayout({
               projects={projects}
               dmUnreads={dmUnreads}
               channelUnreads={channelUnreads}
+              workspaceUnreads={workspaceUnreads}
             />
           }
         >

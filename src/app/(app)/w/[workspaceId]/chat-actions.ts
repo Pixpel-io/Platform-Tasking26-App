@@ -45,6 +45,42 @@ export async function createChannel(
   redirect(`/w/${workspaceId}/c/${data}`);
 }
 
+// Rename a group (and optionally its description). RLS restricts channel
+// updates to the creator or a workspace admin, so this no-ops for others.
+export async function renameChannel(
+  workspaceId: string,
+  channelId: string,
+  name: string,
+  description?: string | null,
+): Promise<ChatResult> {
+  await requireUser();
+  const clean = name.trim().replace(/^#/, "").toLowerCase().replace(/\s+/g, "-");
+  if (clean.length < 2) {
+    return { error: "Group name must be at least 2 characters." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("channels")
+    .update({
+      name: clean,
+      ...(description !== undefined
+        ? { description: description?.trim() || null }
+        : {}),
+    })
+    .eq("id", channelId)
+    .select("id");
+
+  if (error) return { error: error.message };
+  // RLS silently filters rows the caller can't update - surface that clearly.
+  if (!data || data.length === 0) {
+    return { error: "Only the group creator or a workspace admin can rename it." };
+  }
+
+  revalidatePath(`/w/${workspaceId}`, "layout");
+  return {};
+}
+
 // Add existing workspace members to a group (creator/admin only - enforced in
 // the RPC and RLS).
 export async function addGroupMembers(

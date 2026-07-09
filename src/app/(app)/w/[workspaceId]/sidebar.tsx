@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { StatusDialog, activeStatus } from "@/components/status-dialog";
 import { usePresence } from "@/components/presence-provider";
 import { useDmUnreads } from "@/lib/use-dm-unreads";
+import { useWorkspaceUnreads } from "@/lib/use-workspace-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
 import { setFaviconBadge, setTitleUnread } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
@@ -59,6 +60,7 @@ export function Sidebar({
   projects,
   dmUnreads,
   channelUnreads,
+  workspaceUnreads,
 }: {
   workspaceId: string;
   workspaces: MembershipWithWorkspace[];
@@ -70,6 +72,7 @@ export function Sidebar({
   projects: ProjectWithMembers[];
   dmUnreads: Record<string, number>;
   channelUnreads: Record<string, number>;
+  workspaceUnreads: Record<string, number>;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -80,6 +83,7 @@ export function Sidebar({
     channelUnreads,
   );
   const members = useLiveMembers(initialMembers);
+  const workspaceUnreadCounts = useWorkspaceUnreads(userId, workspaceUnreads);
   useGroupMembership(userId);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   // When switching workspaces we show a branded full-screen splash, then push
@@ -192,6 +196,16 @@ export function Sidebar({
                     {w.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
                   </span>
                   <span className="flex-1 truncate">{w.workspaces?.name}</span>
+                  {!isCurrent && (workspaceUnreadCounts[w.workspace_id] ?? 0) > 0 && (
+                    <span
+                      className="grid h-5 min-w-5 shrink-0 animate-scale-in place-items-center rounded-full px-1.5 text-[11px] font-semibold text-white shadow-sm"
+                      style={{ backgroundColor: color }}
+                    >
+                      {(workspaceUnreadCounts[w.workspace_id] ?? 0) > 99
+                        ? "99+"
+                        : workspaceUnreadCounts[w.workspace_id]}
+                    </span>
+                  )}
                   {isCurrent && (
                     <svg
                       className="h-4 w-4 shrink-0 text-primary"

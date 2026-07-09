@@ -27,6 +27,25 @@ export const getNotifications = cache(
   },
 );
 
+// Unread notification counts for EVERY workspace the user belongs to, keyed
+// by workspace id - drives the per-workspace badges in the switcher. RLS
+// already scopes rows to the current user.
+export const getUnreadCountsByWorkspace = cache(
+  async (): Promise<Record<string, number>> => {
+    await requireUser();
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("notifications")
+      .select("workspace_id")
+      .is("read_at", null);
+    const counts: Record<string, number> = {};
+    for (const row of data ?? []) {
+      counts[row.workspace_id] = (counts[row.workspace_id] ?? 0) + 1;
+    }
+    return counts;
+  },
+);
+
 export const getUnreadNotificationCount = cache(
   async (workspaceId: string): Promise<number> => {
     await requireUser();

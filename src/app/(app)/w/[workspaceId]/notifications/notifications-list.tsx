@@ -75,6 +75,21 @@ export function NotificationsList({
           );
         },
       )
+      // Read-state changes from elsewhere (opening the DM/group marks its
+      // notifications read) should clear the unread highlight here live.
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "notifications" },
+        (payload) => {
+          const row = payload.new as { id?: string; read_at?: string | null };
+          if (!row?.id) return;
+          setItems((prev) =>
+            prev.map((n) =>
+              n.id === row.id ? { ...n, read_at: row.read_at ?? null } : n,
+            ),
+          );
+        },
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
