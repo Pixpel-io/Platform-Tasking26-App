@@ -184,16 +184,29 @@ export async function updateWorkspace(
 }
 
 export async function deleteWorkspace(workspaceId: string): Promise<FormState> {
-  await requireUser();
+  const user = await requireUser();
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("delete_workspace", {
+  const { error } = await supabase.rpc("delete_workspace", {
     p_workspace_id: workspaceId,
   });
 
   if (error) return { error: error.message };
 
+  // The RPC returns the DELETED workspace's id - never redirect there (404).
+  // Land on another workspace the user belongs to, or onboarding when this
+  // was their last one.
+  const { data: remaining } = await supabase
+    .from("workspace_members")
+    .select("workspace_id, workspaces!inner(id, deleted_at)")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .is("workspaces.deleted_at", null)
+    .neq("workspace_id", workspaceId)
+    .limit(1)
+    .maybeSingle();
+
   revalidatePath("/", "layout");
-  redirect(data ? `/w/${data}` : "/onboarding");
+  redirect(remaining ? `/w/${remaining.workspace_id}` : "/onboarding");
 }
 
 export async function inviteMember(
