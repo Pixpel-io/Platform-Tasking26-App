@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { MembershipWithWorkspace } from "@/lib/auth";
 import type { ConversationWithParticipants } from "@/lib/chat-shared";
 import { dmCounterpart } from "@/lib/chat-shared";
@@ -14,6 +14,7 @@ import { StatusDialog, activeStatus } from "@/components/status-dialog";
 import { usePresence } from "@/components/presence-provider";
 import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
+import { setFaviconBadge } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
 import { signOut } from "@/app/(auth)/actions";
@@ -92,6 +93,16 @@ export function Sidebar({
   const [, startTransition] = useTransition();
   const base = `/w/${workspaceId}`;
   const current = workspaces.find((w) => w.workspace_id === workspaceId);
+
+  // Slack-style favicon badge: red dot on the tab icon while any DM or group
+  // has unreads; clears as soon as everything is read (markRead updates the
+  // live counts, which re-runs this).
+  const totalUnread =
+    Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0) +
+    Object.values(channelUnreadCounts).reduce((a, b) => a + b, 0);
+  useEffect(() => {
+    void setFaviconBadge(totalUnread > 0);
+  }, [totalUnread]);
 
   // One row per member - yourself first (Slack-style notes-to-self), then
   // everyone else. If a conversation already exists, reuse its id so the link
