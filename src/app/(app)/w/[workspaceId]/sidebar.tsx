@@ -11,6 +11,7 @@ import type { ProjectWithMembers } from "@/lib/projects-shared";
 import { Avatar } from "@/components/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatusDialog, activeStatus } from "@/components/status-dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { usePresence } from "@/components/presence-provider";
 import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useWorkspaceUnreads } from "@/lib/use-workspace-unreads";
@@ -96,6 +97,8 @@ export function Sidebar({
     useState<MembershipWithWorkspace | null>(null);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [dmInviteOpen, setDmInviteOpen] = useState(false);
+  // Contact pending removal from the DM list (confirm before hiding).
+  const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
@@ -481,19 +484,13 @@ export function Sidebar({
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        startTransition(() => {
-                          void hideDmContact(member.id);
-                          router.refresh();
-                        });
+                        setRemoveTarget(member);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           e.stopPropagation();
-                          startTransition(() => {
-                            void hideDmContact(member.id);
-                            router.refresh();
-                          });
+                          setRemoveTarget(member);
                         }
                       }}
                       aria-label={`Remove ${label} from your DMs`}
@@ -583,6 +580,23 @@ export function Sidebar({
         open={dmInviteOpen}
         onClose={() => setDmInviteOpen(false)}
       />
+
+      {removeTarget && (
+        <ConfirmDialog
+          title={`Remove ${removeTarget.full_name ?? removeTarget.email} from your DMs?`}
+          description="This only hides them from your list - your chat history stays, they aren't notified, and they reappear if either of you messages again."
+          confirmLabel="Remove"
+          onConfirm={() => {
+            const id = removeTarget.id;
+            setRemoveTarget(null);
+            startTransition(() => {
+              void hideDmContact(id);
+              router.refresh();
+            });
+          }}
+          onCancel={() => setRemoveTarget(null)}
+        />
+      )}
 
       <CreateChannelDialog
         workspaceId={workspaceId}

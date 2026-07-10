@@ -16,6 +16,7 @@ import {
 import { Avatar } from "@/components/avatar";
 import { usePresence } from "@/components/presence-provider";
 import { StatusDialog, activeStatus } from "@/components/status-dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { Profile } from "@/lib/supabase/types";
 import { openDirectMessage } from "@/app/(app)/w/[workspaceId]/chat-actions";
 
@@ -75,6 +76,7 @@ function ProfileCardModal({
   const [statusOpen, setStatusOpen] = useState(false);
   // null = still loading; drives the Block/Unblock label.
   const [blockedByMe, setBlockedByMe] = useState<boolean | null>(null);
+  const [confirmBlock, setConfirmBlock] = useState(false);
   const isSelf = profile.id === meId;
   const name = profile.full_name ?? profile.email;
   const status = activeStatus(profile);
@@ -98,12 +100,25 @@ function ProfileCardModal({
     };
   }, [profile.id, isSelf]);
 
+  // Blocking asks for confirmation (easy to fat-finger); unblocking is
+  // harmless and applies immediately.
   function toggleBlock() {
     if (blockedByMe === null) return;
-    const next = !blockedByMe;
-    setBlockedByMe(next);
+    if (!blockedByMe) {
+      setConfirmBlock(true);
+      return;
+    }
+    setBlockedByMe(false);
     startTransition(() => {
-      void (next ? blockDmUser(profile.id) : unblockDmUser(profile.id));
+      void unblockDmUser(profile.id);
+    });
+  }
+
+  function doBlock() {
+    setConfirmBlock(false);
+    setBlockedByMe(true);
+    startTransition(() => {
+      void blockDmUser(profile.id);
     });
   }
 
@@ -317,6 +332,23 @@ function ProfileCardModal({
 
       {statusOpen && (
         <StatusDialog profile={profile} onClose={() => setStatusOpen(false)} />
+      )}
+
+      {confirmBlock && (
+        <ConfirmDialog
+          title={`Block ${name}?`}
+          description={
+            <>
+              Neither of you will be able to send new messages to each other.
+              Your chat history stays. <strong>{name}</strong> won&apos;t be
+              notified, and you can unblock any time from this profile.
+            </>
+          }
+          confirmLabel="Block"
+          pending={pending}
+          onConfirm={doBlock}
+          onCancel={() => setConfirmBlock(false)}
+        />
       )}
     </div>
   );

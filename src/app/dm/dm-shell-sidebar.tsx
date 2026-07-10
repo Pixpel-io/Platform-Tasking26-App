@@ -8,6 +8,7 @@ import { dmCounterpart } from "@/lib/chat-shared";
 import type { Profile } from "@/lib/supabase/types";
 import { Avatar } from "@/components/avatar";
 import { StatusDialog, activeStatus } from "@/components/status-dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { hideDmContact, openDirectMessageGlobal } from "@/app/(app)/w/[workspaceId]/chat-actions";
 import { DmInviteDialog } from "@/app/(app)/w/[workspaceId]/dm-invite-dialog";
 import { SidebarRowMeta } from "@/app/(app)/w/[workspaceId]/chat/typing";
@@ -47,6 +48,7 @@ export function DmShellSidebar({
   const router = useRouter();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
   const [, startTransition] = useTransition();
 
   const dmList = useMemo(() => {
@@ -136,19 +138,13 @@ export function DmShellSidebar({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    startTransition(() => {
-                      void hideDmContact(member.id);
-                      router.refresh();
-                    });
+                    setRemoveTarget(member);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       e.stopPropagation();
-                      startTransition(() => {
-                        void hideDmContact(member.id);
-                        router.refresh();
-                      });
+                      setRemoveTarget(member);
                     }
                   }}
                   aria-label={`Remove ${label} from your DMs`}
@@ -245,6 +241,23 @@ export function DmShellSidebar({
       </div>
 
       <DmInviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />
+
+      {removeTarget && (
+        <ConfirmDialog
+          title={`Remove ${removeTarget.full_name ?? removeTarget.email} from your DMs?`}
+          description="This only hides them from your list - your chat history stays, they aren't notified, and they reappear if either of you messages again."
+          confirmLabel="Remove"
+          onConfirm={() => {
+            const id = removeTarget.id;
+            setRemoveTarget(null);
+            startTransition(() => {
+              void hideDmContact(id);
+              router.refresh();
+            });
+          }}
+          onCancel={() => setRemoveTarget(null)}
+        />
+      )}
       {statusOpen && profile && (
         <StatusDialog profile={profile} onClose={() => setStatusOpen(false)} />
       )}
