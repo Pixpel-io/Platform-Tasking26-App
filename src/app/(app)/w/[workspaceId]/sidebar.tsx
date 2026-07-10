@@ -19,7 +19,7 @@ import { setFaviconBadge, setTitleUnread } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
 import { signOut } from "@/app/(auth)/actions";
-import { openDirectMessage } from "./chat-actions";
+import { hideDmContact, openDirectMessage } from "./chat-actions";
 import { SidebarRowMeta } from "./chat/typing";
 import { CreateChannelDialog } from "./create-channel-dialog";
 import { DmInviteDialog } from "./dm-invite-dialog";
@@ -435,7 +435,7 @@ export function Sidebar({
               const unreadDm = conversationId
                 ? (dmUnreadCounts[conversationId] ?? 0)
                 : 0;
-              const className = `relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5 text-left text-sm transition-all duration-150 ${
+              const className = `group/dmrow relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5 text-left text-sm transition-all duration-150 ${
                 active
                   ? "bg-primary/10 font-medium text-primary"
                   : unreadDm > 0
@@ -473,6 +473,35 @@ export function Sidebar({
                       target={{ conversationId }}
                       unread={unreadDm}
                     />
+                  )}
+                  {!isSelf && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        startTransition(() => {
+                          void hideDmContact(member.id);
+                          router.refresh();
+                        });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          startTransition(() => {
+                            void hideDmContact(member.id);
+                            router.refresh();
+                          });
+                        }
+                      }}
+                      aria-label={`Remove ${label} from your DMs`}
+                      title="Remove from your DMs (they can still message you)"
+                      className="grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-md text-muted opacity-0 transition-all hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover/dmrow:opacity-100"
+                    >
+                      <Icon d="M18 6 6 18M6 6l12 12" className="h-3 w-3" />
+                    </span>
                   )}
                 </>
               );

@@ -8,7 +8,7 @@ import { dmCounterpart } from "@/lib/chat-shared";
 import type { Profile } from "@/lib/supabase/types";
 import { Avatar } from "@/components/avatar";
 import { StatusDialog, activeStatus } from "@/components/status-dialog";
-import { openDirectMessageGlobal } from "@/app/(app)/w/[workspaceId]/chat-actions";
+import { hideDmContact, openDirectMessageGlobal } from "@/app/(app)/w/[workspaceId]/chat-actions";
 import { DmInviteDialog } from "@/app/(app)/w/[workspaceId]/dm-invite-dialog";
 import { SidebarRowMeta } from "@/app/(app)/w/[workspaceId]/chat/typing";
 import { signOut } from "@/app/(auth)/actions";
@@ -103,7 +103,7 @@ export function DmShellSidebar({
           const label = member.full_name ?? member.email;
           const href = conversationId ? `/dm/${conversationId}` : null;
           const active = href != null && pathname === href;
-          const className = `relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5 text-left text-sm transition-all duration-150 ${
+          const className = `group/dmrow relative flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-1.5 text-left text-sm transition-all duration-150 ${
             active
               ? "bg-primary/10 font-medium text-primary"
               : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
@@ -128,6 +128,35 @@ export function DmShellSidebar({
               </span>
               {conversationId && (
                 <SidebarRowMeta target={{ conversationId }} unread={0} />
+              )}
+              {!isSelf && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startTransition(() => {
+                      void hideDmContact(member.id);
+                      router.refresh();
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      startTransition(() => {
+                        void hideDmContact(member.id);
+                        router.refresh();
+                      });
+                    }
+                  }}
+                  aria-label={`Remove ${label} from your DMs`}
+                  title="Remove from your DMs (they can still message you)"
+                  className="grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-md text-muted opacity-0 transition-all hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover/dmrow:opacity-100"
+                >
+                  <Icon d="M18 6 6 18M6 6l12 12" className="h-3 w-3" />
+                </span>
               )}
             </>
           );

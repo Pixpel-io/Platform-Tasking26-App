@@ -275,6 +275,40 @@ export interface Database {
         };
         Relationships: [];
       };
+      dm_blocks: {
+        Row: {
+          user_id: string;
+          blocked_user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          blocked_user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          blocked_user_id?: string;
+        };
+        Relationships: [];
+      };
+      dm_hidden_contacts: {
+        Row: {
+          user_id: string;
+          hidden_user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          hidden_user_id: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          hidden_user_id?: string;
+        };
+        Relationships: [];
+      };
       dm_connections: {
         Row: {
           id: string;
@@ -1077,6 +1111,10 @@ export interface Database {
       accept_dm_invite: {
         Args: { p_token: string };
         Returns: string;
+      };
+      is_dm_blocked: {
+        Args: { p_a: string; p_b: string };
+        Returns: boolean;
       };
       has_dm_connection: {
         Args: { p_a: string; p_b: string };

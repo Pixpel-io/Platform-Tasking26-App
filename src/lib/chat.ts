@@ -282,6 +282,21 @@ export const getDmContacts = cache(async (): Promise<Profile[]> => {
     }
   }
 
+  // Drop people this user removed from their DM list (one-sided hide; a new
+  // message from them un-hides via trigger).
+  const { data: hidden } = await supabase
+    .from("dm_hidden_contacts")
+    .select("hidden_user_id")
+    .eq("user_id", user.id);
+  for (const h of hidden ?? []) seen.delete(h.hidden_user_id);
+
+  // And anyone this user has blocked.
+  const { data: blocked } = await supabase
+    .from("dm_blocks")
+    .select("blocked_user_id")
+    .eq("user_id", user.id);
+  for (const b of blocked ?? []) seen.delete(b.blocked_user_id);
+
   return [...seen.values()].sort((a, b) =>
     (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email),
   );

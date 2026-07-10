@@ -6,6 +6,7 @@ import {
   useMemo,
   useOptimistic,
   useRef,
+  useState,
   useTransition,
 } from "react";
 import type { MessageWithRelations } from "@/lib/chat-shared";
@@ -55,6 +56,7 @@ export function ChatRoom({
     initialMessages,
   );
   const [, startTransition] = useTransition();
+  const [sendError, setSendError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -204,13 +206,22 @@ export function ChatRoom({
     };
     startTransition(async () => {
       addOptimistic(optimisticMsg);
-      await sendMessage({
+      const result = await sendMessage({
         workspaceId: target.workspaceId,
         channelId: target.channelId,
         conversationId: target.conversationId,
         body,
         attachments,
       });
+      if (result.error) {
+        // Blocked pair (or any refusal): the optimistic echo evaporates with
+        // the transition; tell the user why instead of failing silently.
+        setSendError(
+          result.error.includes("blocked")
+            ? "You can't message this person."
+            : result.error,
+        );
+      }
     });
   }
 
@@ -375,6 +386,21 @@ export function ChatRoom({
           </svg>
           {unreadCount} new {unreadCount === 1 ? "message" : "messages"}
         </button>
+      )}
+
+      {sendError && (
+        <div className="mx-4 mb-1 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-1.5 text-xs text-danger">
+          <span className="min-w-0 flex-1">{sendError}</span>
+          <button
+            onClick={() => setSendError(null)}
+            aria-label="Dismiss"
+            className="grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded hover:bg-danger/15"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       )}
 
       <TypingIndicator users={typingUsers} />

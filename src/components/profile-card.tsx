@@ -8,6 +8,11 @@ import {
   useState,
   useTransition,
 } from "react";
+import {
+  blockDmUser,
+  getDmBlockState,
+  unblockDmUser,
+} from "@/app/(app)/w/[workspaceId]/chat-actions";
 import { Avatar } from "@/components/avatar";
 import { usePresence } from "@/components/presence-provider";
 import { StatusDialog, activeStatus } from "@/components/status-dialog";
@@ -68,6 +73,8 @@ function ProfileCardModal({
   const online = usePresence(profile.id);
   const [pending, startTransition] = useTransition();
   const [statusOpen, setStatusOpen] = useState(false);
+  // null = still loading; drives the Block/Unblock label.
+  const [blockedByMe, setBlockedByMe] = useState<boolean | null>(null);
   const isSelf = profile.id === meId;
   const name = profile.full_name ?? profile.email;
   const status = activeStatus(profile);
@@ -79,6 +86,26 @@ function ProfileCardModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  useEffect(() => {
+    if (isSelf) return;
+    let active = true;
+    void getDmBlockState(profile.id).then((res) => {
+      if (active) setBlockedByMe(res.blockedByMe);
+    });
+    return () => {
+      active = false;
+    };
+  }, [profile.id, isSelf]);
+
+  function toggleBlock() {
+    if (blockedByMe === null) return;
+    const next = !blockedByMe;
+    setBlockedByMe(next);
+    startTransition(() => {
+      void (next ? blockDmUser(profile.id) : unblockDmUser(profile.id));
+    });
+  }
 
   const lastSeen = profile.last_seen_at
     ? new Date(profile.last_seen_at).toLocaleString(undefined, {
@@ -236,6 +263,32 @@ function ProfileCardModal({
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
               {pending ? "Opening…" : "Message"}
+            </button>
+          )}
+
+          {!isSelf && blockedByMe !== null && (
+            <button
+              onClick={toggleBlock}
+              disabled={pending}
+              className={`mt-2 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60 ${
+                blockedByMe
+                  ? "border-border text-muted hover:bg-surface-2 hover:text-foreground"
+                  : "border-danger/30 text-danger hover:bg-danger/10"
+              }`}
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="m4.9 4.9 14.2 14.2" />
+              </svg>
+              {blockedByMe ? "Unblock" : "Block"}
             </button>
           )}
 

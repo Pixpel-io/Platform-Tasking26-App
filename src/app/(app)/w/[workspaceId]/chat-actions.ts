@@ -120,12 +120,85 @@ export async function removeGroupMember(
 
 // -- DMs ---------------------------------------------------------------------
 
+// Remove someone from YOUR DM list only (Slack's close-conversation). The
+// other side and the conversation history are untouched; a new message from
+// them (or you opening the DM again) restores the row.
+export async function hideDmContact(hiddenUserId: string): Promise<ChatResult> {
+  const user = await requireUser();
+  if (hiddenUserId === user.id) {
+    return { error: "You can't remove yourself." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("dm_hidden_contacts")
+    .upsert({ user_id: user.id, hidden_user_id: hiddenUserId });
+  if (error) return { error: error.message };
+  revalidatePath("/", "layout");
+  return {};
+}
+
+async function unhideDmContact(otherUserId: string) {
+  const user = await requireUser();
+  const supabase = await createClient();
+  await supabase
+    .from("dm_hidden_contacts")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("hidden_user_id", otherUserId);
+}
+
+// Block / unblock: a blocked pair can't exchange NEW dm messages in either
+// direction (DB trigger enforces it); history stays. One-sided rows - the
+// blocked person isn't notified.
+export async function blockDmUser(blockedUserId: string): Promise<ChatResult> {
+  const user = await requireUser();
+  if (blockedUserId === user.id) return { error: "You can't block yourself." };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("dm_blocks")
+    .upsert({ user_id: user.id, blocked_user_id: blockedUserId });
+  if (error) return { error: error.message };
+  revalidatePath("/", "layout");
+  return {};
+}
+
+export async function unblockDmUser(
+  blockedUserId: string,
+): Promise<ChatResult> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("dm_blocks")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("blocked_user_id", blockedUserId);
+  if (error) return { error: error.message };
+  revalidatePath("/", "layout");
+  return {};
+}
+
+// Whether I have blocked this user (for the profile card's Block/Unblock).
+export async function getDmBlockState(
+  otherUserId: string,
+): Promise<{ blockedByMe: boolean }> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("dm_blocks")
+    .select("blocked_user_id")
+    .eq("user_id", user.id)
+    .eq("blocked_user_id", otherUserId)
+    .maybeSingle();
+  return { blockedByMe: data != null };
+}
+
 // Open (or create) a DM from the global /dm shell - no workspace context.
 // get_or_create_dm's p_workspace_id is unused post-0026 but kept for the
 // signature; pass the caller's id (any uuid satisfies it).
 export async function openDirectMessageGlobal(otherUserId: string) {
   const user = await requireUser();
   const supabase = await createClient();
+  await unhideDmContact(otherUserId);
   const { data, error } = await supabase.rpc("get_or_create_dm", {
     p_workspace_id: user.id,
     p_other_user_id: otherUserId,
@@ -141,6 +214,7 @@ export async function openDirectMessage(
 ) {
   await requireUser();
   const supabase = await createClient();
+  await unhideDmContact(otherUserId);
   const { data, error } = await supabase.rpc("get_or_create_dm", {
     p_workspace_id: workspaceId,
     p_other_user_id: otherUserId,
