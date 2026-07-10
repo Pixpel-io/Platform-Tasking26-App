@@ -45,9 +45,13 @@ export async function createQrLoginUrl(): Promise<
   }
 
   const origin = await siteOrigin();
-  const url = `${origin}/auth/callback?token_hash=${encodeURIComponent(
+  // The QR points at an interstitial page, NOT the callback directly: camera
+  // apps and browsers (Brave especially) prefetch scanned URLs for previews,
+  // which would consume the single-use token before the user ever taps it.
+  // The /qr page requires a real button press to spend the token.
+  const url = `${origin}/qr?t=${encodeURIComponent(
     data.properties.hashed_token,
-  )}&type=magiclink&next=/`;
+  )}`;
 
   return { url };
 }
