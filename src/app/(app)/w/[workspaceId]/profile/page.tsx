@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth";
 import { ProfileForm } from "./profile-form";
+import { QrLoginCard } from "./qr-login";
 
 export default async function ProfilePage() {
   const profile = await getProfile();
@@ -17,6 +18,7 @@ export default async function ProfilePage() {
       <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
         <ProfileForm profile={profile} />
       </div>
+      <QrLoginCard />
     </div>
   );
 }

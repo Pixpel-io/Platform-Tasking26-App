@@ -3,6 +3,7 @@ import { getProfile, requireUser } from "@/lib/auth";
 import { getMyWorkspaces } from "@/lib/auth";
 import { getConversations, getDmContacts } from "@/lib/chat";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { PresenceProvider } from "@/components/presence-provider";
 import { TypingProvider } from "@/app/(app)/w/[workspaceId]/chat/typing";
 import { DmShellSidebar } from "./dm-shell-sidebar";
 
@@ -26,6 +27,7 @@ export default async function DmShellLayout({
   const firstWorkspaceId = workspaces[0]?.workspace_id ?? null;
 
   return (
+    <PresenceProvider userId={user.id}>
     <TypingProvider meId={user.id} meName={meName}>
       <div className="flex h-screen overflow-hidden bg-background">
         <DmShellSidebar
@@ -48,5 +50,6 @@ export default async function DmShellLayout({
         </p>
       )}
     </TypingProvider>
+    </PresenceProvider>
   );
 }

@@ -7,14 +7,15 @@ type PresenceState = Record<string, { online_at: string }[]>;
 
 const PresenceContext = createContext<Set<string>>(new Set());
 
-// Tracks who is currently online in a workspace via Supabase Realtime Presence.
-// Channel is scoped per workspace so presence is isolated.
+// Tracks who is currently online via Supabase Realtime Presence. One GLOBAL
+// channel for the whole app: DMs span workspaces, so someone active in any
+// workspace (or the /dm shell) shows online everywhere. Presence only exposes
+// user ids + a timestamp - visibility of the people themselves is still
+// governed by the roster (shared workspace / DM connection).
 export function PresenceProvider({
-  workspaceId,
   userId,
   children,
 }: {
-  workspaceId: string;
   userId: string;
   children: React.ReactNode;
 }) {
@@ -25,7 +26,7 @@ export function PresenceProvider({
     let teardown: (() => void) | null = null;
     void getRealtimeClient().then((supabase) => {
       if (cancelled) return;
-      const channel = supabase.channel(`presence:workspace:${workspaceId}`, {
+      const channel = supabase.channel("presence:global", {
         config: { presence: { key: userId } },
       });
 
@@ -46,7 +47,7 @@ export function PresenceProvider({
       cancelled = true;
       teardown?.();
     };
-  }, [workspaceId, userId]);
+  }, [userId]);
 
   return (
     <PresenceContext.Provider value={onlineIds}>

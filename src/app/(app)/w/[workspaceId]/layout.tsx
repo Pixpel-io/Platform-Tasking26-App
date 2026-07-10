@@ -74,7 +74,7 @@ export default async function WorkspaceLayout({
     "Workspace";
 
   return (
-    <PresenceProvider workspaceId={workspaceId} userId={user.id}>
+    <PresenceProvider userId={user.id}>
       <TypingProvider
         meId={user.id}
         meName={profile?.full_name ?? profile?.email ?? "Someone"}

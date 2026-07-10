@@ -8,6 +8,7 @@ import { dmCounterpart } from "@/lib/chat-shared";
 import type { Profile } from "@/lib/supabase/types";
 import { Avatar } from "@/components/avatar";
 import { StatusDialog, activeStatus } from "@/components/status-dialog";
+import { usePresence } from "@/components/presence-provider";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { hideDmContact, openDirectMessageGlobal } from "@/app/(app)/w/[workspaceId]/chat-actions";
 import { DmInviteDialog } from "@/app/(app)/w/[workspaceId]/dm-invite-dialog";
@@ -29,6 +30,15 @@ function Icon({ d, className = "h-4 w-4 shrink-0" }: { d: string; className?: st
     >
       <path d={d} />
     </svg>
+  );
+}
+
+function PresenceDot({ userId, className = "" }: { userId: string; className?: string }) {
+  const online = usePresence(userId);
+  return (
+    <span
+      className={`h-2 w-2 rounded-full ${online ? "bg-success" : "bg-muted/40"} ${className}`}
+    />
   );
 }
 
@@ -119,12 +129,18 @@ export function DmShellSidebar({
               {active && (
                 <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
               )}
-              <Avatar
-                name={member.full_name}
-                email={member.email}
-                avatarUrl={member.avatar_url}
-                size="xs"
-              />
+              <span className="relative">
+                <Avatar
+                  name={member.full_name}
+                  email={member.email}
+                  avatarUrl={member.avatar_url}
+                  size="xs"
+                />
+                <PresenceDot
+                  userId={member.id}
+                  className="absolute -bottom-0.5 -right-0.5 border-2 border-surface"
+                />
+              </span>
               <span className="min-w-0 flex-1 truncate">
                 {label}
                 {isSelf && <span className="ml-1 text-muted">(you)</span>}
