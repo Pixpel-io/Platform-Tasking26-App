@@ -116,14 +116,17 @@ export function NotificationToaster({
             playNotificationSound();
             const href = notificationHref(workspaceId, row);
             // OS notifications appear when the tab isn't visible, so "current
-            // workspace" means nothing there - always name the workspace
-            // (and group) the message came from.
-            const desktopContext = [
-              row.workspace?.name,
-              row.channel?.name ? `#${row.channel.name}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ");
+            // workspace" means nothing there - name the source workspace and
+            // #group. DMs are global (one thread everywhere), so they carry
+            // no workspace label at all.
+            const desktopContext = row.channel_id
+              ? [
+                  row.workspace?.name,
+                  row.channel?.name ? `#${row.channel.name}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : "";
             showDesktopNotification({
               title: desktopContext
                 ? `${row.title} (${desktopContext})`

@@ -43,11 +43,15 @@ export function notificationContext(
     channel?: { name: string } | null;
   },
 ): string | null {
+  // DMs are global (one thread across workspaces), so naming a workspace on
+  // a DM notification is meaningless - only group notifications carry their
+  // workspace + #group context.
+  if (!n.channel_id) return null;
   const parts: string[] = [];
   if (n.workspace_id !== currentWorkspaceId && n.workspace?.name) {
     parts.push(n.workspace.name);
   }
-  if (n.channel_id && n.channel?.name) {
+  if (n.channel?.name) {
     parts.push(`#${n.channel.name}`);
   }
   return parts.length > 0 ? parts.join(" · ") : null;
