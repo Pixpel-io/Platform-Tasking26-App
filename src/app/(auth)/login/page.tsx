@@ -2,6 +2,7 @@ import Link from "next/link";
 import { FormMessage } from "@/components/ui";
 import { GoogleButton, MicrosoftButton } from "../oauth-buttons";
 import { LoginForm } from "./login-form";
+import { QrScanButton } from "./qr-scanner";
 
 export default async function LoginPage({
   searchParams,
@@ -28,6 +29,7 @@ export default async function LoginPage({
       <div className="space-y-2.5">
         <GoogleButton redirectedFrom={redirectedFrom} />
         <MicrosoftButton redirectedFrom={redirectedFrom} />
+        <QrScanButton />
       </div>
 
       <div className="flex items-center gap-3 text-xs text-muted">
