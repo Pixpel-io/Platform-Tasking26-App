@@ -58,6 +58,7 @@ export function Sidebar({
   conversations,
   members: initialMembers,
   projects,
+  dmContacts: initialDmContacts,
   dmUnreads,
   channelUnreads,
   workspaceUnreads,
@@ -70,6 +71,7 @@ export function Sidebar({
   conversations: ConversationWithParticipants[];
   members: Profile[];
   projects: ProjectWithMembers[];
+  dmContacts: Profile[];
   dmUnreads: Record<string, number>;
   channelUnreads: Record<string, number>;
   workspaceUnreads: Record<string, number>;
@@ -83,6 +85,7 @@ export function Sidebar({
     channelUnreads,
   );
   const members = useLiveMembers(initialMembers);
+  const dmContacts = useLiveMembers(initialDmContacts, "sidebar:dm-contacts");
   const workspaceUnreadCounts = useWorkspaceUnreads(userId, workspaceUnreads);
   useGroupMembership(userId);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -109,9 +112,10 @@ export function Sidebar({
     setTitleUnread(totalUnread);
   }, [totalUnread]);
 
-  // One row per member - yourself first (Slack-style notes-to-self), then
-  // everyone else. If a conversation already exists, reuse its id so the link
-  // is direct; otherwise it's created on click.
+  // Global DM roster: yourself first (notes-to-self), then everyone who
+  // shares at least one workspace with you - NOT just this workspace's
+  // members. Existing conversation ids make rows direct links; the rest are
+  // created on click.
   const dmList = useMemo(() => {
     const convByUser = new Map<string, string>();
     for (const conv of conversations) {
@@ -120,17 +124,17 @@ export function Sidebar({
         convByUser.set(other.id, conv.id);
       }
     }
-    const me = members.find((m) => m.id === userId);
+    const me = dmContacts.find((m) => m.id === userId);
     return [
       ...(me ? [{ member: me, isSelf: true }] : []),
-      ...members
+      ...dmContacts
         .filter((m) => m.id !== userId)
         .map((member) => ({ member, isSelf: false })),
     ].map((row) => ({
       ...row,
       conversationId: convByUser.get(row.member.id) ?? null,
     }));
-  }, [members, conversations, userId]);
+  }, [dmContacts, conversations, userId]);
 
   const topNav = [
     { href: base, label: "Dashboard", icon: "M3 12l9-9 9 9M5 10v10h14V10" },
@@ -332,36 +336,86 @@ export function Sidebar({
           )}
         </div>
 
-        {/* Direct messages - every other workspace member is listed; clicking
-            one opens an existing DM or creates it on the fly. */}
+        {/* Projects */}
         <div>
           <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <button
-              onClick={() => setDmsCollapsed((v) => !v)}
-              aria-expanded={!dmsCollapsed}
-              className="flex flex-1 items-center gap-1 rounded px-2 py-0.5 hover:text-foreground"
-            >
-              <Icon
-                d="M9 18l6-6-6-6"
-                className={`h-3 w-3 shrink-0 transition-transform duration-150 ${
-                  dmsCollapsed ? "" : "rotate-90"
-                }`}
-              />
-              <span>Direct messages</span>
-            </button>
+            <span className="px-2 py-0.5">Task Boards</span>
             <Link
-              href={`${base}/settings/members`}
-              aria-label="Members"
+              href={`${base}/projects`}
+              aria-label="All task boards"
               className="grid h-5 w-5 place-items-center rounded-md transition-colors hover:bg-primary/15 hover:text-primary"
             >
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
             </Link>
           </div>
-          {!dmsCollapsed && (
+          <div className="space-y-0.5">
+            {projects.length === 0 && (
+              <p className="px-3 py-1 text-xs text-muted/60">No boards yet</p>
+            )}
+            {projects.slice(0, 8).map((p) => {
+              const href = `${base}/projects/${p.id}`;
+              const active = pathname.startsWith(href);
+              return (
+                <Link
+                  key={p.id}
+                  href={href}
+                  className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
+                    active
+                      ? "bg-primary/10 font-medium text-primary"
+                      : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
+                  }`}
+                >
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                  )}
+                  <Icon
+                    d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                    className="h-3.5 w-3.5 shrink-0"
+                  />
+                  <span className="truncate">{p.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+        {/* Direct messages - global (Slack model): everyone you share ANY
+            workspace with; the same threads no matter the workspace. Framed
+            as its own soft card so it reads as a personal space distinct
+            from the workspace sections around it. */}
+        <div className="rounded-2xl border border-primary/15 bg-linear-to-b from-primary/8 to-transparent p-1.5">
+          <div className="flex items-center justify-between pb-1 pl-1 pr-1.5 pt-0.5">
+            <button
+              onClick={() => setDmsCollapsed((v) => !v)}
+              aria-expanded={!dmsCollapsed}
+              className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-1 py-0.5 text-left"
+            >
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary">
+                <Icon
+                  d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                  className="h-3.5 w-3.5"
+                />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold uppercase tracking-wide text-foreground/90">
+                  Direct messages
+                </span>
+                <span className="block text-[10px] leading-tight text-muted/70">
+                  Across all workspaces
+                </span>
+              </span>
+              <Icon
+                d="M9 18l6-6-6-6"
+                className={`ml-auto h-3 w-3 shrink-0 text-muted transition-transform duration-150 ${
+                  dmsCollapsed ? "" : "rotate-90"
+                }`}
+              />
+            </button>
+          </div>
+        {!dmsCollapsed && (
           <div className="space-y-0.5">
             {dmList.length === 0 && (
               <p className="px-3 py-1 text-xs text-muted/60">
-                No other members yet
+                No contacts yet
               </p>
             )}
             {dmList.map(({ member, conversationId, isSelf }) => {
@@ -431,51 +485,9 @@ export function Sidebar({
               );
             })}
           </div>
-          )}
+        )}
         </div>
 
-        {/* Projects */}
-        <div>
-          <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <span className="px-2 py-0.5">Task Boards</span>
-            <Link
-              href={`${base}/projects`}
-              aria-label="All task boards"
-              className="grid h-5 w-5 place-items-center rounded-md transition-colors hover:bg-primary/15 hover:text-primary"
-            >
-              <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-          <div className="space-y-0.5">
-            {projects.length === 0 && (
-              <p className="px-3 py-1 text-xs text-muted/60">No boards yet</p>
-            )}
-            {projects.slice(0, 8).map((p) => {
-              const href = `${base}/projects/${p.id}`;
-              const active = pathname.startsWith(href);
-              return (
-                <Link
-                  key={p.id}
-                  href={href}
-                  className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
-                    active
-                      ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
-                  }`}
-                >
-                  {active && (
-                    <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
-                  )}
-                  <Icon
-                    d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-                    className="h-3.5 w-3.5 shrink-0"
-                  />
-                  <span className="truncate">{p.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
       </nav>
 
       {/* User footer */}

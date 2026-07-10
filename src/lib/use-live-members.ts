@@ -9,18 +9,24 @@ import type { Profile } from "@/lib/supabase/types";
 // so a teammate's newly uploaded avatar or renamed profile would otherwise stay
 // stale until a full reload. This subscribes to profile UPDATEs and patches the
 // matching member in place.
-export function useLiveMembers(initial: Profile[]): Profile[] {
+export function useLiveMembers(
+  initial: Profile[],
+  channelName = "sidebar:profiles",
+): Profile[] {
   const [members, setMembers] = useState<Profile[]>(initial);
 
-  // Re-seed when the server list changes (e.g. a member added/removed).
-  useEffect(() => {
+  // Re-seed when the server list changes (e.g. a member added/removed) -
+  // reset during render (React's recommended pattern), not in an effect.
+  const [lastInitial, setLastInitial] = useState(initial);
+  if (initial !== lastInitial) {
+    setLastInitial(initial);
     setMembers(initial);
-  }, [initial]);
+  }
 
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
-      .channel("sidebar:profiles")
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "profiles" },
@@ -36,7 +42,7 @@ export function useLiveMembers(initial: Profile[]): Profile[] {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [channelName]);
 
   return members;
 }

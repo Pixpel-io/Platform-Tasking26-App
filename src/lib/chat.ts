@@ -228,6 +228,27 @@ export const getChannelUnreadCounts = cache(
   },
 );
 
+// Everyone the user can DM: members of ANY active workspace they belong to,
+// deduped. RLS on workspace_members already restricts rows to workspaces the
+// caller is in, so one select over the table IS the common-workspace rule.
+export const getDmContacts = cache(async (): Promise<Profile[]> => {
+  await requireUser();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("workspace_members")
+    .select("profiles(*), workspaces!inner(deleted_at)")
+    .is("deleted_at", null)
+    .is("workspaces.deleted_at", null);
+  const rows = (data as unknown as { profiles: Profile | null }[] | null) ?? [];
+  const seen = new Map<string, Profile>();
+  for (const r of rows) {
+    if (r.profiles && !seen.has(r.profiles.id)) seen.set(r.profiles.id, r.profiles);
+  }
+  return [...seen.values()].sort((a, b) =>
+    (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email),
+  );
+});
+
 export const getWorkspaceMembersForChat = cache(
   async (workspaceId: string): Promise<Profile[]> => {
     await requireUser();

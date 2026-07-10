@@ -5,6 +5,7 @@ import {
   getChannelUnreadCounts,
   getChannels,
   getConversations,
+  getDmContacts,
   getDmUnreadCounts,
   getWorkspaceMembersForChat,
 } from "@/lib/chat";
@@ -48,6 +49,7 @@ export default async function WorkspaceLayout({
     channels,
     conversations,
     members,
+    dmContacts,
     projects,
     unreadNotifications,
     workspaceUnreads,
@@ -59,6 +61,7 @@ export default async function WorkspaceLayout({
     getChannels(workspaceId),
     getConversations(workspaceId),
     getWorkspaceMembersForChat(workspaceId),
+    getDmContacts(),
     getProjects(workspaceId),
     getUnreadNotificationCount(workspaceId),
     getUnreadCountsByWorkspace(),
@@ -105,6 +108,7 @@ export default async function WorkspaceLayout({
               conversations={conversations}
               members={members}
               projects={projects}
+              dmContacts={dmContacts}
               dmUnreads={dmUnreads}
               channelUnreads={channelUnreads}
               workspaceUnreads={workspaceUnreads}
