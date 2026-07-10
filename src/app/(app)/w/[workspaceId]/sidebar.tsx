@@ -19,6 +19,7 @@ import { useChannelUnreads } from "@/lib/use-channel-unreads";
 import { setFaviconBadge, setTitleUnread } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
+import { useHiddenContacts } from "@/lib/use-hidden-contacts";
 import { signOut } from "@/app/(auth)/actions";
 import { hideDmContact, openDirectMessage } from "./chat-actions";
 import { SidebarRowMeta } from "./chat/typing";
@@ -90,6 +91,7 @@ export function Sidebar({
   const dmContacts = useLiveMembers(initialDmContacts, "sidebar:dm-contacts");
   const workspaceUnreadCounts = useWorkspaceUnreads(userId, workspaceUnreads);
   useGroupMembership(userId);
+  useHiddenContacts(userId);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   // When switching workspaces we show a branded full-screen splash, then push
   // the route. The whole layout remounts on arrival, tearing the splash down.

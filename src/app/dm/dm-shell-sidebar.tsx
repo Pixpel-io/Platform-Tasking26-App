@@ -13,6 +13,7 @@ import { hideDmContact, openDirectMessageGlobal } from "@/app/(app)/w/[workspace
 import { DmInviteDialog } from "@/app/(app)/w/[workspaceId]/dm-invite-dialog";
 import { SidebarRowMeta } from "@/app/(app)/w/[workspaceId]/chat/typing";
 import { signOut } from "@/app/(auth)/actions";
+import { useHiddenContacts } from "@/lib/use-hidden-contacts";
 
 function Icon({ d, className = "h-4 w-4 shrink-0" }: { d: string; className?: string }) {
   return (
@@ -50,6 +51,7 @@ export function DmShellSidebar({
   const [statusOpen, setStatusOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
   const [, startTransition] = useTransition();
+  useHiddenContacts(userId);
 
   const dmList = useMemo(() => {
     const convByUser = new Map<string, string>();
