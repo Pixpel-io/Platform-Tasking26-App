@@ -22,6 +22,11 @@ export function notificationHref(
     "workspace_id" | "channel_id" | "conversation_id" | "task_id" | "project_id"
   >,
 ): string | null {
+  // DM notifications with no workspace at all (recipient belongs to none)
+  // open in the global /dm shell.
+  if (!n.workspace_id && !workspaceId && n.conversation_id) {
+    return `/dm/${n.conversation_id}`;
+  }
   const base = `/w/${n.workspace_id ?? workspaceId}`;
   if (n.channel_id) return `${base}/c/${n.channel_id}`;
   if (n.conversation_id) return `${base}/dm/${n.conversation_id}`;

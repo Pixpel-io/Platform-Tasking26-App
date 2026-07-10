@@ -34,6 +34,7 @@ export function useWorkspaceUnreads(
           .is("read_at", null);
         const next: Record<string, number> = {};
         for (const row of data ?? []) {
+          if (!row.workspace_id) continue; // global DM rows belong to no workspace
           next[row.workspace_id] = (next[row.workspace_id] ?? 0) + 1;
         }
         setCounts(next);
@@ -50,7 +51,7 @@ export function useWorkspaceUnreads(
             filter: `user_id=eq.${userId}`,
           },
           (payload) => {
-            const wid = (payload.new as { workspace_id?: string })
+            const wid = (payload.new as { workspace_id?: string | null })
               ?.workspace_id;
             if (wid) {
               setCounts((prev) => ({ ...prev, [wid]: (prev[wid] ?? 0) + 1 }));

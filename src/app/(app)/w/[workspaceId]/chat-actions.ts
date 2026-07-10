@@ -120,6 +120,21 @@ export async function removeGroupMember(
 
 // -- DMs ---------------------------------------------------------------------
 
+// Open (or create) a DM from the global /dm shell - no workspace context.
+// get_or_create_dm's p_workspace_id is unused post-0026 but kept for the
+// signature; pass the caller's id (any uuid satisfies it).
+export async function openDirectMessageGlobal(otherUserId: string) {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_or_create_dm", {
+    p_workspace_id: user.id,
+    p_other_user_id: otherUserId,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/dm", "layout");
+  redirect(`/dm/${data}`);
+}
+
 export async function openDirectMessage(
   workspaceId: string,
   otherUserId: string,
@@ -151,7 +166,8 @@ export type PendingAttachment = {
 };
 
 export async function sendMessage(args: {
-  workspaceId: string;
+  // Null for global DMs opened outside any workspace (the /dm shell).
+  workspaceId: string | null;
   channelId?: string;
   conversationId?: string;
   parentId?: string;
@@ -170,7 +186,7 @@ export async function sendMessage(args: {
   const { data: message, error } = await supabase
     .from("messages")
     .insert({
-      workspace_id: args.workspaceId,
+      workspace_id: args.workspaceId ?? null,
       channel_id: args.channelId ?? null,
       conversation_id: args.conversationId ?? null,
       parent_id: args.parentId ?? null,
@@ -203,7 +219,7 @@ export async function sendMessage(args: {
 
   // Resolve @mentions against workspace members and record them.
   const handles = [...body.matchAll(MENTION_RE)].map((m) => m[1].toLowerCase());
-  if (handles.length > 0) {
+  if (handles.length > 0 && args.workspaceId) {
     const { data: members } = await supabase
       .from("workspace_members")
       .select("user_id, profiles(email, full_name)")
@@ -241,7 +257,7 @@ export async function sendMessage(args: {
 
   // @cleotilda summons the AI assistant. Awaited so the serverless action
   // isn't frozen mid-reply, but failures never affect the user's message.
-  if (handles.includes(CLEOTILDA_HANDLE) && !args.parentId) {
+  if (handles.includes(CLEOTILDA_HANDLE) && !args.parentId && args.workspaceId) {
     const { data: me } = await supabase
       .from("profiles")
       .select("full_name, email")

@@ -482,7 +482,7 @@ export interface Database {
       messages: {
         Row: {
           id: string;
-          workspace_id: string;
+          workspace_id: string | null;
           channel_id: string | null;
           conversation_id: string | null;
           parent_id: string | null;
@@ -498,7 +498,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          workspace_id: string;
+          workspace_id?: string | null;
           channel_id?: string | null;
           conversation_id?: string | null;
           parent_id?: string | null;
@@ -991,7 +991,7 @@ export interface Database {
       notifications: {
         Row: {
           id: string;
-          workspace_id: string;
+          workspace_id: string | null;
           user_id: string;
           actor_id: string | null;
           type: string;

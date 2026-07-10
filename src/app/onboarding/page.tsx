@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { getProfile, requireUser } from "@/lib/auth";
+import { getConversations } from "@/lib/chat";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { signOut } from "@/app/(auth)/actions";
 import { CreateWorkspaceForm } from "./create-workspace-form";
@@ -6,6 +8,10 @@ import { CreateWorkspaceForm } from "./create-workspace-form";
 export default async function OnboardingPage() {
   await requireUser();
   const profile = await getProfile();
+  // DM-invited users may have conversations without any workspace - give
+  // them a way into the global DM shell from here.
+  const conversations = await getConversations("");
+  const hasDms = conversations.length > 0;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
@@ -59,6 +65,25 @@ export default async function OnboardingPage() {
           Inside your workspace you can create groups - smaller chat rooms
           where specific members discuss one topic.
         </p>
+        {hasDms && (
+          <Link
+            href="/dm"
+            className="mx-auto flex w-fit items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+          >
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Open your direct messages
+          </Link>
+        )}
       </div>
     </div>
   );

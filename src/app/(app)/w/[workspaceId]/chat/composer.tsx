@@ -141,7 +141,9 @@ export function Composer({
   onTyping,
   placeholder = "Write a message…  (use @ to mention)",
 }: {
-  workspaceId: string;
+  // Null in the global /dm shell (no-workspace users): text-only composer,
+  // attachments and voice need a workspace's storage context.
+  workspaceId: string | null;
   meId: string;
   members?: MentionMember[];
   onSend: (body: string, attachments: PendingAttachment[]) => void;
@@ -365,6 +367,7 @@ export function Composer({
         prev.map((u) => (u.id === id ? { ...u, percent } : u)),
       );
 
+    if (!workspaceId) return null;
     const presign = await createUploadUrl({
       workspaceId,
       fileName: file.name,
@@ -394,6 +397,7 @@ export function Composer({
   }
 
   async function handleFiles(files: FileList | File[], durationMs?: number) {
+    if (!workspaceId) return; // no storage context in the global DM shell
     for (const file of Array.from(files)) {
       const id = crypto.randomUUID();
       setUploads((prev) => [
@@ -635,6 +639,7 @@ export function Composer({
           <FmtBtn label="Code" onClick={() => wrapSelection("`", "`")} d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
 
           <span className="ml-auto flex items-center gap-1">
+            {workspaceId && (
             <VoiceRecorder
               onFinish={(file, durationMs) => {
                 setMicError(null);
@@ -642,6 +647,8 @@ export function Composer({
               }}
               onError={(message) => setMicError(message)}
             />
+            )}
+            {workspaceId && (
             <button
               onClick={() => fileRef.current?.click()}
               aria-label="Attach file"
@@ -660,6 +667,7 @@ export function Composer({
                 <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
               </svg>
             </button>
+            )}
             <input
               ref={fileRef}
               type="file"

@@ -40,6 +40,7 @@ export const getUnreadCountsByWorkspace = cache(
       .is("read_at", null);
     const counts: Record<string, number> = {};
     for (const row of data ?? []) {
+      if (!row.workspace_id) continue; // global DM rows belong to no workspace
       counts[row.workspace_id] = (counts[row.workspace_id] ?? 0) + 1;
     }
     return counts;

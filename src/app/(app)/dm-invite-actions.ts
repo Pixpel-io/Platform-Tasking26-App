@@ -149,6 +149,6 @@ export async function acceptDmInvite(
   if (membership) {
     redirect(`/w/${membership.workspace_id}/dm/${conversationId}`);
   }
-  // No workspace at all: onboarding will pick things up.
-  redirect("/onboarding");
+  // No workspace: the global DM shell serves the conversation directly.
+  redirect(`/dm/${conversationId}`);
 }

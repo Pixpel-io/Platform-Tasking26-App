@@ -29,7 +29,8 @@ import {
 } from "./typing";
 
 type Target = {
-  workspaceId: string;
+  // Null when the room is opened from the global /dm shell (no workspace).
+  workspaceId: string | null;
   channelId?: string;
   conversationId?: string;
 };
