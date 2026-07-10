@@ -14,6 +14,7 @@ import { DmInviteDialog } from "@/app/(app)/w/[workspaceId]/dm-invite-dialog";
 import { SidebarRowMeta } from "@/app/(app)/w/[workspaceId]/chat/typing";
 import { signOut } from "@/app/(auth)/actions";
 import { useHiddenContacts } from "@/lib/use-hidden-contacts";
+import { useDmRoster } from "@/lib/use-dm-roster";
 
 function Icon({ d, className = "h-4 w-4 shrink-0" }: { d: string; className?: string }) {
   return (
@@ -52,6 +53,7 @@ export function DmShellSidebar({
   const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
   const [, startTransition] = useTransition();
   useHiddenContacts(userId);
+  useDmRoster(userId);
 
   const dmList = useMemo(() => {
     const convByUser = new Map<string, string>();

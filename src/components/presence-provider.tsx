@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { getRealtimeClient } from "@/lib/supabase/client";
 
 type PresenceState = Record<string, { online_at: string }[]>;
 
@@ -21,24 +21,30 @@ export function PresenceProvider({
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase.channel(`presence:workspace:${workspaceId}`, {
-      config: { presence: { key: userId } },
-    });
-
-    channel
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState() as PresenceState;
-        setOnlineIds(new Set(Object.keys(state)));
-      })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({ online_at: new Date().toISOString() });
-        }
+    let cancelled = false;
+    let teardown: (() => void) | null = null;
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      const channel = supabase.channel(`presence:workspace:${workspaceId}`, {
+        config: { presence: { key: userId } },
       });
 
+      channel
+        .on("presence", { event: "sync" }, () => {
+          const state = channel.presenceState() as PresenceState;
+          setOnlineIds(new Set(Object.keys(state)));
+        })
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED") {
+            await channel.track({ online_at: new Date().toISOString() });
+          }
+        });
+      teardown = () => void supabase.removeChannel(channel);
+    });
+
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      teardown?.();
     };
   }, [workspaceId, userId]);
 

@@ -20,6 +20,7 @@ import { setFaviconBadge, setTitleUnread } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
 import { useHiddenContacts } from "@/lib/use-hidden-contacts";
+import { useDmRoster } from "@/lib/use-dm-roster";
 import { signOut } from "@/app/(auth)/actions";
 import { hideDmContact, openDirectMessage } from "./chat-actions";
 import { SidebarRowMeta } from "./chat/typing";
@@ -92,6 +93,7 @@ export function Sidebar({
   const workspaceUnreadCounts = useWorkspaceUnreads(userId, workspaceUnreads);
   useGroupMembership(userId);
   useHiddenContacts(userId);
+  useDmRoster(userId);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   // When switching workspaces we show a branded full-screen splash, then push
   // the route. The whole layout remounts on arrival, tearing the splash down.
@@ -316,6 +318,7 @@ export function Sidebar({
                 <Link
                   key={c.id}
                   href={href}
+                  prefetch={true}
                   className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
@@ -505,7 +508,12 @@ export function Sidebar({
                 </>
               );
               return href ? (
-                <Link key={member.id} href={href} className={className}>
+                <Link
+                  key={member.id}
+                  href={href}
+                  prefetch={true}
+                  className={className}
+                >
                   {inner}
                 </Link>
               ) : (

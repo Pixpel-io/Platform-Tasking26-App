@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { getRealtimeClient } from "@/lib/supabase/client";
 import type { MessageWithRelations } from "@/lib/chat-shared";
 
 // Name the sender FK explicitly - `messages` also has pinned_by → profiles,
@@ -34,9 +34,16 @@ export function useChatMessages(
 
   useEffect(() => {
     if (!targetKey) return;
-    const supabase = createClient();
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
 
-    async function refetchOne(id: string) {
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      cleanup = wire(supabase);
+    });
+
+    function wire(supabase: Awaited<ReturnType<typeof getRealtimeClient>>) {
+      async function refetchOne(id: string) {
       const { data } = await supabase
         .from("messages")
         .select(MESSAGE_SELECT)
@@ -85,10 +92,47 @@ export function useChatMessages(
           }
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        // Catch-up on (re)connect: with client-side page caching a room can
+        // re-open from a snapshot that's seconds stale, and anything sent
+        // while we weren't subscribed never arrives as an event. One cheap
+        // fetch of the latest window reconciles both cases.
+        if (status === "SUBSCRIBED") void catchUp();
+      });
+
+    async function catchUp() {
+      const { data } = await supabase
+        .from("messages")
+        .select(MESSAGE_SELECT)
+        .eq(column, targetKey)
+        .is("parent_id", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (!data) return;
+      const fresh = (data as unknown as MessageWithRelations[]).reverse();
+      setMessages((prev) => {
+        // Keep anything older than the fetched window (already loaded via
+        // pagination), replace the overlap with authoritative rows.
+        const oldestFresh = fresh[0]
+          ? new Date(fresh[0].created_at).getTime()
+          : 0;
+        const older = prev.filter(
+          (m) =>
+            new Date(m.created_at).getTime() < oldestFresh &&
+            !fresh.some((f) => f.id === m.id),
+        );
+        return [...older, ...fresh];
+      });
+    }
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      cleanup?.();
     };
   }, [targetKey, column]);
 

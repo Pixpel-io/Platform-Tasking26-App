@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { getRealtimeClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/supabase/types";
 
 // Keeps the sidebar member list's profiles (name, avatar, etc.) fresh. The
@@ -24,8 +24,11 @@ export function useLiveMembers(
   }
 
   useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
+    let cancelled = false;
+    let teardown: (() => void) | null = null;
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      const channel = supabase
       .channel(channelName)
       .on(
         "postgres_changes",
@@ -38,9 +41,12 @@ export function useLiveMembers(
         },
       )
       .subscribe();
+      teardown = () => void supabase.removeChannel(channel);
+    });
 
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      teardown?.();
     };
   }, [channelName]);
 

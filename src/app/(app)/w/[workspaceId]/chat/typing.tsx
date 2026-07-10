@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { getRealtimeClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 type Target = { channelId?: string; conversationId?: string };
@@ -49,14 +49,17 @@ export function TypingProvider({
   );
 
   useEffect(() => {
-    const supabase = createClient();
+    let cancelled = false;
+    let teardown: (() => void) | null = null;
     const timers = timersRef.current;
-    // Global channel (not per-workspace): DMs are shared across workspaces,
-    // so both sides must meet on the same broadcast channel regardless of
-    // which workspace they're browsing. Room keys are unique ids.
-    const channel = supabase.channel(`typing:global`, {
-      config: { broadcast: { self: false } },
-    });
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      // Global channel (not per-workspace): DMs are shared across workspaces,
+      // so both sides must meet on the same broadcast channel regardless of
+      // which workspace they're browsing. Room keys are unique ids.
+      const channel = supabase.channel(`typing:global`, {
+        config: { broadcast: { self: false } },
+      });
 
     channel
       .on("broadcast", { event: "typing" }, ({ payload }) => {
@@ -87,14 +90,20 @@ export function TypingProvider({
           }, 3000),
         );
       })
-      .subscribe();
+        .subscribe();
 
-    channelRef.current = channel;
+      channelRef.current = channel;
+      teardown = () => {
+        supabase.removeChannel(channel);
+        channelRef.current = null;
+      };
+    });
+
     return () => {
+      cancelled = true;
       timers.forEach((t) => clearTimeout(t));
       timers.clear();
-      supabase.removeChannel(channel);
-      channelRef.current = null;
+      teardown?.();
     };
   }, [meId]);
 
