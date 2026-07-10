@@ -106,3 +106,12 @@ export async function signOutToInvite(token: string) {
   await supabase.auth.signOut();
   redirect(`/login?redirectedFrom=${encodeURIComponent(`/invite/${token}`)}`);
 }
+
+// Same, for personal DM invitations.
+export async function signOutToDmInvite(token: string) {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect(
+    `/login?redirectedFrom=${encodeURIComponent(`/dm-invite/${token}`)}`,
+  );
+}

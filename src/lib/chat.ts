@@ -244,18 +244,44 @@ export const getDmContacts = cache(async (): Promise<Profile[]> => {
     .is("deleted_at", null)
     .is("workspaces.deleted_at", null);
   const myWorkspaceIds = (mine ?? []).map((m) => m.workspace_id);
-  if (myWorkspaceIds.length === 0) return [];
 
-  const { data } = await supabase
-    .from("workspace_members")
-    .select("profiles(*)")
-    .in("workspace_id", myWorkspaceIds)
-    .is("deleted_at", null);
-  const rows = (data as unknown as { profiles: Profile | null }[] | null) ?? [];
   const seen = new Map<string, Profile>();
-  for (const r of rows) {
-    if (r.profiles && !seen.has(r.profiles.id)) seen.set(r.profiles.id, r.profiles);
+
+  if (myWorkspaceIds.length > 0) {
+    const { data } = await supabase
+      .from("workspace_members")
+      .select("profiles(*)")
+      .in("workspace_id", myWorkspaceIds)
+      .is("deleted_at", null);
+    const rows =
+      (data as unknown as { profiles: Profile | null }[] | null) ?? [];
+    for (const r of rows) {
+      if (r.profiles && !seen.has(r.profiles.id)) {
+        seen.set(r.profiles.id, r.profiles);
+      }
+    }
   }
+
+  // Personal DM connections (accepted invites) - people you can message
+  // without sharing any workspace.
+  const { data: connections } = await supabase
+    .from("dm_connections")
+    .select("user_a, user_b")
+    .or(`user_a.eq.${user.id},user_b.eq.${user.id}`);
+  const connectedIds = (connections ?? [])
+    .map((c) => (c.user_a === user.id ? c.user_b : c.user_a))
+    .filter((id) => !seen.has(id));
+  if (connectedIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("*")
+      .in("id", connectedIds)
+      .is("deleted_at", null);
+    for (const p of (profiles as Profile[] | null) ?? []) {
+      if (!seen.has(p.id)) seen.set(p.id, p);
+    }
+  }
+
   return [...seen.values()].sort((a, b) =>
     (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email),
   );

@@ -275,6 +275,61 @@ export interface Database {
         };
         Relationships: [];
       };
+      dm_connections: {
+        Row: {
+          id: string;
+          user_a: string;
+          user_b: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_a: string;
+          user_b: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_a?: string;
+          user_b?: string;
+        };
+        Relationships: [];
+      };
+      dm_invites: {
+        Row: {
+          id: string;
+          email: string;
+          invited_by: string;
+          token: string;
+          status: InviteStatus;
+          expires_at: string;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          invited_by: string;
+          token?: string;
+          status?: InviteStatus;
+          expires_at?: string;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          email?: string;
+          invited_by?: string;
+          token?: string;
+          status?: InviteStatus;
+          expires_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
       invites: {
         Row: {
           id: string;
@@ -1009,6 +1064,23 @@ export interface Database {
       accept_invite: {
         Args: { p_token: string };
         Returns: string;
+      };
+      dm_invite_preview: {
+        Args: { p_token: string };
+        Returns: {
+          email: string;
+          status: InviteStatus;
+          expired: boolean;
+          inviter_name: string;
+        }[];
+      };
+      accept_dm_invite: {
+        Args: { p_token: string };
+        Returns: string;
+      };
+      has_dm_connection: {
+        Args: { p_a: string; p_b: string };
+        Returns: boolean;
       };
       invite_preview: {
         Args: { p_token: string };

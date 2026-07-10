@@ -22,6 +22,7 @@ import { signOut } from "@/app/(auth)/actions";
 import { openDirectMessage } from "./chat-actions";
 import { SidebarRowMeta } from "./chat/typing";
 import { CreateChannelDialog } from "./create-channel-dialog";
+import { DmInviteDialog } from "./dm-invite-dialog";
 import { WorkspaceSplash } from "./workspace-loader";
 
 function Icon({ d, className = "h-4 w-4 shrink-0" }: { d: string; className?: string }) {
@@ -94,6 +95,7 @@ export function Sidebar({
   const [switchingTo, setSwitchingTo] =
     useState<MembershipWithWorkspace | null>(null);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
+  const [dmInviteOpen, setDmInviteOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
@@ -410,6 +412,14 @@ export function Sidebar({
                 }`}
               />
             </button>
+            <button
+              onClick={() => setDmInviteOpen(true)}
+              aria-label="Invite someone to message"
+              title="Invite someone to message"
+              className="grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-colors hover:bg-primary/15 hover:text-primary"
+            >
+              <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
+            </button>
           </div>
         {!dmsCollapsed && (
           <div className="space-y-0.5">
@@ -539,6 +549,11 @@ export function Sidebar({
           </form>
         </div>
       </div>
+
+      <DmInviteDialog
+        open={dmInviteOpen}
+        onClose={() => setDmInviteOpen(false)}
+      />
 
       <CreateChannelDialog
         workspaceId={workspaceId}

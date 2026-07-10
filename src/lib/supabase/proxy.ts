@@ -10,6 +10,7 @@ const PUBLIC_PREFIXES = [
   "/reset-password",
   "/auth",
   "/invite",
+  "/dm-invite",
 ];
 
 function isPublic(pathname: string) {
@@ -61,10 +62,11 @@ export async function updateSession(request: NextRequest) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const pendingInvite = request.cookies.get("pending_invite")?.value;
 
-  if (!user && pathname.startsWith("/invite/")) {
+  if (!user && (pathname.startsWith("/invite/") || pathname.startsWith("/dm-invite/"))) {
+    const isDm = pathname.startsWith("/dm-invite/");
     const token = pathname.split("/")[2];
     if (token && UUID_RE.test(token)) {
-      response.cookies.set("pending_invite", token, {
+      response.cookies.set("pending_invite", isDm ? `dm:${token}` : token, {
         path: "/",
         maxAge: 3600,
         httpOnly: true,
@@ -73,17 +75,21 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  if (user && pendingInvite && UUID_RE.test(pendingInvite)) {
-    if (pathname.startsWith("/invite/")) {
-      // They made it to an invite page - stop remembering.
-      response.cookies.delete("pending_invite");
-    } else if (!pathname.startsWith("/auth")) {
-      const url = request.nextUrl.clone();
-      url.pathname = `/invite/${pendingInvite}`;
-      url.search = "";
-      const redirect = NextResponse.redirect(url);
-      redirect.cookies.delete("pending_invite");
-      return redirect;
+  if (user && pendingInvite) {
+    const isDm = pendingInvite.startsWith("dm:");
+    const token = isDm ? pendingInvite.slice(3) : pendingInvite;
+    if (UUID_RE.test(token)) {
+      if (pathname.startsWith("/invite/") || pathname.startsWith("/dm-invite/")) {
+        // They made it to an invite page - stop remembering.
+        response.cookies.delete("pending_invite");
+      } else if (!pathname.startsWith("/auth")) {
+        const url = request.nextUrl.clone();
+        url.pathname = isDm ? `/dm-invite/${token}` : `/invite/${token}`;
+        url.search = "";
+        const redirect = NextResponse.redirect(url);
+        redirect.cookies.delete("pending_invite");
+        return redirect;
+      }
     }
   }
 
