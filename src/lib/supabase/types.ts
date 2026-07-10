@@ -375,7 +375,7 @@ export interface Database {
       conversations: {
         Row: {
           id: string;
-          workspace_id: string;
+          workspace_id: string | null;
           is_group: boolean;
           dm_key: string | null;
           created_by: string;

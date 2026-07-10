@@ -10,10 +10,11 @@ import { getRealtimeClient } from "@/lib/supabase/client";
 // play a notification sound; messages in the room the user is currently viewing
 // (matched against the pathname) are considered read and never accrue.
 export function useDmUnreads(
-  workspaceId: string,
+  _workspaceId: string,
   userId: string,
   initial: Record<string, number>,
 ) {
+  void _workspaceId;
   const [counts, setCounts] = useState<Record<string, number>>(initial);
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
@@ -39,14 +40,16 @@ export function useDmUnreads(
     void getRealtimeClient().then((supabase) => {
       if (cancelled) return;
       channel = supabase
-        .channel(`dm-unreads:${workspaceId}:${userId}`)
+        .channel(`dm-unreads:${userId}`)
         .on(
           "postgres_changes",
           {
             event: "INSERT",
             schema: "public",
             table: "messages",
-            filter: `workspace_id=eq.${workspaceId}`,
+            // No workspace filter: DMs are global, and a message sent while
+            // the sender sits in another workspace must still count here.
+            // RLS already limits delivery to messages this user can read.
           },
           (payload) => {
             const row = payload.new as {
@@ -78,7 +81,7 @@ export function useDmUnreads(
       cancelled = true;
       if (channel) void channel.unsubscribe();
     };
-  }, [workspaceId, userId]);
+  }, [userId]);
 
   return counts;
 }

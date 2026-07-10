@@ -32,15 +32,18 @@ export const getChannels = cache(
 );
 
 // 1:1 + group DMs the current user participates in, with the other people.
+// DMs are global (one thread per pair of people, whatever the workspace) -
+// RLS already scopes rows to conversations the user participates in, so no
+// workspace filter. The parameter stays for call-site stability/caching.
 export const getConversations = cache(
-  async (workspaceId: string): Promise<ConversationWithParticipants[]> => {
+  async (_workspaceId: string): Promise<ConversationWithParticipants[]> => {
+    void _workspaceId;
     const supabase = await createClient();
     const { data } = await supabase
       .from("conversations")
       .select(
         "*, conversation_participants(user_id, profiles(*))",
       )
-      .eq("workspace_id", workspaceId)
       .is("deleted_at", null)
       .order("updated_at", { ascending: false });
     return (data as ConversationWithParticipants[] | null) ?? [];
@@ -132,14 +135,14 @@ export async function getLastReadAt(target: {
 // a workspace: messages newer than their last_read_at (and not their own).
 // Returns a map of conversation_id → unread count (omitting zeros).
 export const getDmUnreadCounts = cache(
-  async (workspaceId: string): Promise<Record<string, number>> => {
+  async (_workspaceId: string): Promise<Record<string, number>> => {
+    void _workspaceId;
     const user = await requireUser();
     const supabase = await createClient();
 
     const { data: convs } = await supabase
       .from("conversations")
       .select("id")
-      .eq("workspace_id", workspaceId)
       .is("deleted_at", null);
     const conversationIds = (convs ?? []).map((c) => c.id);
     if (conversationIds.length === 0) return {};

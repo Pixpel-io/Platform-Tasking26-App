@@ -32,12 +32,10 @@ const TypingContext = createContext<{
 // database) and shared by every consumer - the chat room, the chat header and
 // the sidebar DM list - so a single subscription powers all indicators.
 export function TypingProvider({
-  workspaceId,
   meId,
   meName,
   children,
 }: {
-  workspaceId: string;
   meId: string;
   meName: string;
   children: React.ReactNode;
@@ -53,7 +51,10 @@ export function TypingProvider({
   useEffect(() => {
     const supabase = createClient();
     const timers = timersRef.current;
-    const channel = supabase.channel(`typing:ws:${workspaceId}`, {
+    // Global channel (not per-workspace): DMs are shared across workspaces,
+    // so both sides must meet on the same broadcast channel regardless of
+    // which workspace they're browsing. Room keys are unique ids.
+    const channel = supabase.channel(`typing:global`, {
       config: { broadcast: { self: false } },
     });
 
@@ -95,7 +96,7 @@ export function TypingProvider({
       supabase.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [workspaceId, meId]);
+  }, [meId]);
 
   const broadcast = useCallback(
     (target: Target) => {
