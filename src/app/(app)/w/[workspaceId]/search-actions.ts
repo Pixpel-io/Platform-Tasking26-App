@@ -6,6 +6,7 @@ import { getProjects } from "@/lib/projects";
 import {
   getChannels,
   getConversations,
+  getDmContacts,
   getWorkspaceMembersForChat,
   dmCounterpart,
 } from "@/lib/chat";
@@ -109,12 +110,15 @@ export async function searchWorkspace(
 
   // These local collections come from cached, RLS-filtered loaders; filter
   // in-memory for partial matches on names/people (cheap, already fetched).
-  const [channels, conversations, members, projects] = await Promise.all([
-    getChannels(workspaceId),
-    getConversations(workspaceId),
-    getWorkspaceMembersForChat(workspaceId),
-    getProjects(workspaceId),
-  ]);
+  const [channels, conversations, members, projects, dmContacts] =
+    await Promise.all([
+      getChannels(workspaceId),
+      getConversations(workspaceId),
+      getWorkspaceMembersForChat(workspaceId),
+      getProjects(workspaceId),
+      getDmContacts(),
+    ]);
+  const contactIds = new Set(dmContacts.map((p) => p.id));
 
   const channelHits: SearchChannelHit[] = channels
     .filter(
@@ -141,9 +145,15 @@ export async function searchWorkspace(
         return { conv, label, subtitle: "Group message" };
       }
       const other = dmCounterpart(conv, user.id);
+      // A 1:1 thread with someone who no longer shares a workspace stays in
+      // the DB, but must not surface anywhere (same rule as the sidebar).
+      if (other && other.id !== user.id && !contactIds.has(other.id)) {
+        return null;
+      }
       const label = other?.full_name ?? other?.email ?? "Direct message";
       return { conv, label, subtitle: "Direct message" };
     })
+    .filter((hit): hit is NonNullable<typeof hit> => hit !== null)
     .filter(({ label }) => label.toLowerCase().includes(q))
     .slice(0, 8)
     .map(({ conv, label, subtitle }) => ({

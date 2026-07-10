@@ -229,16 +229,28 @@ export const getChannelUnreadCounts = cache(
 );
 
 // Everyone the user can DM: members of ANY active workspace they belong to,
-// deduped. RLS on workspace_members already restricts rows to workspaces the
-// caller is in, so one select over the table IS the common-workspace rule.
+// deduped. The common-workspace rule is enforced explicitly (own memberships
+// first, then those rosters) rather than via RLS alone - the super-admin
+// select policy on workspace_members (0014) can read EVERY roster, which
+// would otherwise put people from unshared workspaces in the DM list.
 export const getDmContacts = cache(async (): Promise<Profile[]> => {
-  await requireUser();
+  const user = await requireUser();
   const supabase = await createClient();
-  const { data } = await supabase
+
+  const { data: mine } = await supabase
     .from("workspace_members")
-    .select("profiles(*), workspaces!inner(deleted_at)")
+    .select("workspace_id, workspaces!inner(deleted_at)")
+    .eq("user_id", user.id)
     .is("deleted_at", null)
     .is("workspaces.deleted_at", null);
+  const myWorkspaceIds = (mine ?? []).map((m) => m.workspace_id);
+  if (myWorkspaceIds.length === 0) return [];
+
+  const { data } = await supabase
+    .from("workspace_members")
+    .select("profiles(*)")
+    .in("workspace_id", myWorkspaceIds)
+    .is("deleted_at", null);
   const rows = (data as unknown as { profiles: Profile | null }[] | null) ?? [];
   const seen = new Map<string, Profile>();
   for (const r of rows) {
