@@ -8,8 +8,31 @@ import { EmojiPicker } from "@/components/emoji-picker";
 import type { MessageWithRelations } from "@/lib/chat-shared";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatMessageBody } from "@/lib/message-format";
-import { isViaCleotilda, stripViaCleotilda } from "@/lib/cleotilda-shared";
+import {
+  CLEOTILDA_ID,
+  isViaCleotilda,
+  stripViaCleotilda,
+} from "@/lib/cleotilda-shared";
 import { AttachmentView } from "./attachment-view";
+
+const CLEOTILDA_LOGO = "/image/taskcycle-ios-appicon-1024.png";
+
+// Cleotilda posts via an RPC and isn't a normal profile row, so the joined
+// author can arrive null and the message shows a logo + name of its own.
+function CleotildaAvatar() {
+  return (
+    <span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-surface-2">
+      <Image
+        src={CLEOTILDA_LOGO}
+        alt="Cleotilda"
+        width={36}
+        height={36}
+        className="h-full w-full object-cover"
+        draggable={false}
+      />
+    </span>
+  );
+}
 
 // Renders body text with @mentions highlighted + Slack-style code formatting.
 function Body({ text }: { text: string }) {
@@ -129,7 +152,10 @@ export function MessageItem({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [showEmoji]);
   const isMine = message.user_id === meId;
+  const isCleotilda = message.user_id === CLEOTILDA_ID;
   const author = message.profiles;
+  const authorName =
+    author?.full_name ?? author?.email ?? (isCleotilda ? "Cleotilda" : "Unknown");
   const isOptimistic = message.id.startsWith("temp-");
 
   const time = new Date(message.created_at).toLocaleTimeString(undefined, {
@@ -187,14 +213,18 @@ export function MessageItem({
           type="button"
           onClick={() => author && openProfile(author)}
           disabled={!author}
-          aria-label={`View ${author?.full_name ?? author?.email ?? "profile"}`}
+          aria-label={`View ${authorName}`}
           className="shrink-0 cursor-pointer self-start rounded-full transition-transform hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
         >
-          <Avatar
-            name={author?.full_name ?? null}
-            email={author?.email ?? null}
-            avatarUrl={author?.avatar_url ?? null}
-          />
+          {isCleotilda && !author ? (
+            <CleotildaAvatar />
+          ) : (
+            <Avatar
+              name={author?.full_name ?? null}
+              email={author?.email ?? null}
+              avatarUrl={author?.avatar_url ?? null}
+            />
+          )}
         </button>
       )}
 
@@ -207,7 +237,7 @@ export function MessageItem({
               disabled={!author}
               className="cursor-pointer text-sm font-semibold text-foreground hover:underline disabled:cursor-default disabled:no-underline"
             >
-              {author?.full_name ?? author?.email ?? "Unknown"}
+              {authorName}
             </button>
             {isViaCleotilda(message.body) && <ViaCleotilda />}
             <span className="text-xs text-muted">{time}</span>
