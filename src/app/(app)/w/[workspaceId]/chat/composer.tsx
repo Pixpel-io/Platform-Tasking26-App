@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/avatar";
 import { EmojiPicker } from "@/components/emoji-picker";
@@ -34,14 +34,21 @@ function mentionHandle(m: MentionMember): string {
   return m.email.split("@")[0];
 }
 
-type Uploading = {
+// A file the user picked but hasn't sent yet. It stays entirely local (with an
+// object-URL preview for media) and is only uploaded to S3 when Send is
+// pressed - so files attached and then discarded never touch storage.
+type Selected = {
   id: string;
+  file: File;
   fileName: string;
-  progress: "uploading" | "done" | "error";
+  durationMs?: number;
+  // Object URL for image/video thumbnails; revoked when removed/sent.
+  previewUrl?: string;
+  // "pending" until Send; then "uploading" (real S3 progress) or "error".
+  progress: "pending" | "uploading" | "error";
   // 0..100 while uploading (S3 XHR reports real progress; Supabase fallback
   // stays indeterminate at 0).
   percent: number;
-  attachment?: PendingAttachment;
 };
 
 // POST a presigned form to S3 via XHR so we get upload progress events
@@ -151,7 +158,8 @@ export function Composer({
   placeholder?: string;
 }) {
   const [value, setValue] = useState("");
-  const [uploads, setUploads] = useState<Uploading[]>([]);
+  const [selected, setSelected] = useState<Selected[]>([]);
+  const [sending, setSending] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [mention, setMention] = useState<MentionState | null>(null);
@@ -205,18 +213,78 @@ export function Composer({
     });
   }
 
-  const ready = uploads.every((u) => u.progress !== "uploading");
   const canSend =
-    (value.trim().length > 0 || uploads.some((u) => u.attachment)) && ready;
+    (value.trim().length > 0 || selected.length > 0) && !sending;
 
-  function submit() {
+  // On Send, upload every selected file to S3 first, then hand the resulting
+  // attachments to onSend. Files that fail to upload are kept in the composer
+  // (marked "error") and the message is not sent, so nothing is lost silently.
+  async function submit() {
     if (!canSend) return;
-    const attachments = uploads
-      .map((u) => u.attachment)
-      .filter((a): a is PendingAttachment => !!a);
-    onSend(value.trim(), attachments);
+    const body = value.trim();
+
+    // Text-only: no uploads to wait on.
+    if (selected.length === 0) {
+      onSend(body, []);
+      setValue("");
+      if (taRef.current) taRef.current.style.height = "auto";
+      return;
+    }
+
+    setSending(true);
+    setSelected((prev) =>
+      prev.map((s) => ({ ...s, progress: "uploading", percent: 0 })),
+    );
+
+    const results = await Promise.all(
+      selected.map(
+        async (s): Promise<{ id: string; attachment: PendingAttachment | null }> => {
+          try {
+            const path = await uploadOne(s.file, s.id);
+            if (!path) return { id: s.id, attachment: null };
+            return {
+              id: s.id,
+              attachment: {
+                storagePath: path,
+                fileName: s.fileName,
+                mimeType: s.file.type || null,
+                sizeBytes: s.file.size,
+                kind: attachmentKind(s.file.type),
+                durationMs: s.durationMs ?? null,
+              },
+            };
+          } catch {
+            return { id: s.id, attachment: null };
+          }
+        },
+      ),
+    );
+
+    const failed = new Set(
+      results.filter((r) => r.attachment === null).map((r) => r.id),
+    );
+    if (failed.size > 0) {
+      // Keep the failed ones for retry; drop the ones that made it.
+      setSelected((prev) =>
+        prev
+          .filter((s) => failed.has(s.id))
+          .map((s) => ({ ...s, progress: "error", percent: 0 })),
+      );
+      setSending(false);
+      return;
+    }
+
+    const attachments = results
+      .map((r) => r.attachment)
+      .filter((a): a is PendingAttachment => a !== null);
+    onSend(body, attachments);
+
+    selected.forEach((s) => {
+      if (s.previewUrl) URL.revokeObjectURL(s.previewUrl);
+    });
     setValue("");
-    setUploads([]);
+    setSelected([]);
+    setSending(false);
     if (taRef.current) taRef.current.style.height = "auto";
   }
 
@@ -363,8 +431,8 @@ export function Composer({
   // configured. Returns the storage path or null on failure.
   async function uploadOne(file: File, id: string): Promise<string | null> {
     const setPercent = (percent: number) =>
-      setUploads((prev) =>
-        prev.map((u) => (u.id === id ? { ...u, percent } : u)),
+      setSelected((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, percent } : s)),
       );
 
     if (!workspaceId) return null;
@@ -396,44 +464,45 @@ export function Composer({
     return error ? null : path;
   }
 
-  async function handleFiles(files: FileList | File[], durationMs?: number) {
+  // Selecting files only stages them locally (with a preview) - nothing is
+  // uploaded until Send. Attaching and then discarding never touches S3.
+  function handleFiles(files: FileList | File[], durationMs?: number) {
     if (!workspaceId) return; // no storage context in the global DM shell
-    for (const file of Array.from(files)) {
-      const id = crypto.randomUUID();
-      setUploads((prev) => [
-        ...prev,
-        { id, fileName: file.name, progress: "uploading", percent: 0 },
-      ]);
-
-      let path: string | null = null;
-      try {
-        path = await uploadOne(file, id);
-      } catch {
-        path = null;
-      }
-
-      setUploads((prev) =>
-        prev.map((u) =>
-          u.id === id
-            ? path === null
-              ? { ...u, progress: "error" }
-              : {
-                  ...u,
-                  progress: "done",
-                  attachment: {
-                    storagePath: path,
-                    fileName: file.name,
-                    mimeType: file.type || null,
-                    sizeBytes: file.size,
-                    kind: attachmentKind(file.type),
-                    durationMs: durationMs ?? null,
-                  },
-                }
-            : u,
-        ),
-      );
-    }
+    const staged: Selected[] = Array.from(files).map((file) => {
+      const kind = attachmentKind(file.type);
+      return {
+        id: crypto.randomUUID(),
+        file,
+        fileName: file.name,
+        durationMs,
+        previewUrl:
+          kind === "image" || kind === "video"
+            ? URL.createObjectURL(file)
+            : undefined,
+        progress: "pending",
+        percent: 0,
+      };
+    });
+    setSelected((prev) => [...prev, ...staged]);
   }
+
+  function removeSelected(id: string) {
+    setSelected((prev) => {
+      const target = prev.find((s) => s.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((s) => s.id !== id);
+    });
+  }
+
+  // Revoke any outstanding object URLs when the composer unmounts.
+  useEffect(() => {
+    return () => {
+      selected.forEach((s) => {
+        if (s.previewUrl) URL.revokeObjectURL(s.previewUrl);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="border-t border-border bg-surface p-2 sm:p-3">
@@ -451,54 +520,54 @@ export function Composer({
           </button>
         </div>
       )}
-      {uploads.length > 0 && (
+      {selected.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
-          {uploads.map((u) => (
+          {selected.map((s) => (
             <div
-              key={u.id}
+              key={s.id}
               className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs"
             >
+              {s.previewUrl && attachmentKind(s.file.type) === "image" && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={s.previewUrl}
+                  alt=""
+                  className="h-8 w-8 shrink-0 rounded object-cover"
+                />
+              )}
+              {s.previewUrl && attachmentKind(s.file.type) === "video" && (
+                <video
+                  src={s.previewUrl}
+                  className="h-8 w-8 shrink-0 rounded object-cover"
+                  muted
+                />
+              )}
               <span className="max-w-40 truncate text-foreground">
-                {u.fileName}
+                {s.fileName}
               </span>
-              {u.progress === "uploading" && (
-                <UploadRing percent={u.percent} />
-              )}
-              {u.progress === "done" && (
-                <svg
-                  className="h-3.5 w-3.5 text-success"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              )}
-              {u.progress === "error" && (
+              {s.progress === "uploading" && <UploadRing percent={s.percent} />}
+              {s.progress === "error" && (
                 <span className="text-danger">failed</span>
               )}
-              <button
-                onClick={() =>
-                  setUploads((prev) => prev.filter((x) => x.id !== u.id))
-                }
-                aria-label="Remove"
-                className="grid h-4 w-4 place-items-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger"
-              >
-                <svg
-                  className="h-3 w-3"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              {s.progress !== "uploading" && (
+                <button
+                  onClick={() => removeSelected(s.id)}
+                  aria-label="Remove"
+                  className="grid h-4 w-4 place-items-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger"
                 >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
+                  <svg
+                    className="h-3 w-3"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -715,17 +784,24 @@ export function Composer({
               aria-label="Send"
               className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-linear-to-br from-primary to-primary/75 text-primary-foreground shadow-sm shadow-primary/30 transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:shadow-primary/40 active:scale-95 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
             >
-              <svg
-                className="h-4.5 w-4.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-              </svg>
+              {sending ? (
+                <svg className="h-4.5 w-4.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
+                  <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg
+                  className="h-4.5 w-4.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                </svg>
+              )}
             </button>
           </span>
         </div>
