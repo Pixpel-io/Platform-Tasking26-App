@@ -10,6 +10,7 @@ import {
   useTransition,
 } from "react";
 import type { MessageWithRelations } from "@/lib/chat-shared";
+import { CLEOTILDA_ID } from "@/lib/cleotilda-shared";
 import { useChatMessages } from "@/lib/use-chat-messages";
 import { useMessageAlerts } from "@/lib/use-message-alerts";
 import {
@@ -168,6 +169,21 @@ export function ChatRoom({
     if (cleotildaThinking && isNearBottom()) scrollToBottom();
   }, [cleotildaThinking, isNearBottom, scrollToBottom]);
 
+  // The responder is detached from the send action, so the dots clear when
+  // Cleotilda's reply arrives over realtime - with a timeout backstop in case
+  // it never does (AI failure is swallowed server-side and posts nothing).
+  const lastMsg = messages[messages.length - 1];
+  useEffect(() => {
+    if (cleotildaThinking && lastMsg?.user_id === CLEOTILDA_ID) {
+      setCleotildaThinking(false);
+    }
+  }, [cleotildaThinking, lastMsg]);
+  useEffect(() => {
+    if (!cleotildaThinking) return;
+    const t = setTimeout(() => setCleotildaThinking(false), 120_000);
+    return () => clearTimeout(t);
+  }, [cleotildaThinking]);
+
   // Mark the room read when messages change.
   useEffect(() => {
     const last = messages[messages.length - 1];
@@ -215,9 +231,9 @@ export function ChatRoom({
       message_reactions: [],
       message_attachments: [],
     };
-    // sendMessage awaits Cleotilda's reply when the message mentions her, so a
-    // summon keeps the action pending until her message is posted - show the
-    // thinking indicator for exactly that window. Set outside startTransition
+    // A summon shows the thinking indicator until Cleotilda's reply lands via
+    // realtime (sendMessage returns before the AI finishes - the responder
+    // runs in after(), detached from the action). Set outside startTransition
     // so it's an urgent update that renders immediately (a transition update
     // is low-priority and wouldn't show the dots right away).
     const summonsCleotilda =
@@ -233,7 +249,7 @@ export function ChatRoom({
         body,
         attachments,
       });
-      if (summonsCleotilda) setCleotildaThinking(false);
+      if (result.error && summonsCleotilda) setCleotildaThinking(false);
       if (result.error) {
         // Blocked pair (or any refusal): the optimistic echo evaporates with
         // the transition; tell the user why instead of failing silently.

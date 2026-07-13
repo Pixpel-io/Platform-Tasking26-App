@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { CLEOTILDA_HANDLE, respondAsCleotilda } from "@/lib/cleotilda";
@@ -329,15 +330,19 @@ export async function sendMessage(args: {
     }
   }
 
-  // @cleotilda summons the AI assistant. Awaited so the serverless action
-  // isn't frozen mid-reply, but failures never affect the user's message.
+  // @cleotilda summons the AI assistant. Server Actions run serially per
+  // client, so awaiting the (slow) AI reply here blocked every navigation
+  // and action the user attempted meanwhile - the whole app felt frozen.
+  // after() runs the responder once this action's response is flushed, and
+  // keeps the serverless runtime alive until it finishes; realtime delivers
+  // the reply. Failures still never affect the user's message.
   if (handles.includes(CLEOTILDA_HANDLE) && !args.parentId && args.workspaceId) {
     const { data: me } = await supabase
       .from("profiles")
       .select("full_name, email")
       .eq("id", user.id)
       .single();
-    await respondAsCleotilda({
+    const cleotildaArgs = {
       target: {
         workspaceId: args.workspaceId,
         channelId: args.channelId,
@@ -346,7 +351,8 @@ export async function sendMessage(args: {
       userId: user.id,
       userName: me?.full_name ?? me?.email ?? "Someone",
       prompt: body,
-    });
+    };
+    after(() => respondAsCleotilda(cleotildaArgs));
   }
 
   return { id: message.id };
