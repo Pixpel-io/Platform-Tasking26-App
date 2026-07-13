@@ -216,7 +216,7 @@ export function MessageItem({
           aria-label={`View ${authorName}`}
           className="shrink-0 cursor-pointer self-start rounded-full transition-transform hover:scale-105 disabled:cursor-default disabled:hover:scale-100"
         >
-          {isCleotilda && !author ? (
+          {isCleotilda ? (
             <CleotildaAvatar />
           ) : (
             <Avatar
