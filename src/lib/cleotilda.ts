@@ -168,6 +168,10 @@ async function runTool(
   userId: string,
   name: string,
   input: Record<string, unknown>,
+  // Index of this call within its batch. Batched tool calls run concurrently,
+  // so create_task uses it to space positions - every concurrent insert reads
+  // the same "last position" and would otherwise collide on the same slot.
+  seq = 0,
 ): Promise<string> {
   if (name === "list_projects") {
     const { data: projects } = await supabase
@@ -292,7 +296,9 @@ async function runTool(
       columnId = col?.id ?? null;
     }
 
-    let position = 1024;
+    // seq spaces concurrent batch inserts apart so "create 20 tasks" keeps
+    // their board order stable (each read sees the same last position).
+    let position = 1024 + seq * 1024;
     if (columnId) {
       const { data: last } = await supabase
         .from("tasks")
@@ -302,7 +308,7 @@ async function runTool(
         .order("position", { ascending: false })
         .limit(1)
         .maybeSingle();
-      position = (last?.position ?? 0) + 1024;
+      position = (last?.position ?? 0) + 1024 + seq * 1024;
     }
 
     const priorities = ["none", "low", "medium", "high", "urgent"] as const;
@@ -349,10 +355,14 @@ async function runTool(
   return JSON.stringify({ error: `unknown tool: ${name}` });
 }
 
-async function kimiChat(messages: ChatMessage[]): Promise<{
+async function kimiChat(
+  messages: ChatMessage[],
+  opts: { withTools?: boolean } = {},
+): Promise<{
   content: string | null;
   tool_calls?: ChatToolCall[];
 }> {
+  const { withTools = true } = opts;
   const res = await fetch(`${KIMI_URL}/chat/completions`, {
     method: "POST",
     headers: {
@@ -368,7 +378,7 @@ async function kimiChat(messages: ChatMessage[]): Promise<{
       max_tokens: 8192,
       // No temperature: kimi-k2.x models reject anything but the default.
       messages,
-      tools: TOOLS,
+      ...(withTools ? { tools: TOOLS } : {}),
     }),
   });
 
@@ -382,6 +392,34 @@ async function kimiChat(messages: ChatMessage[]): Promise<{
   };
   const msg = data.choices?.[0]?.message;
   return { content: msg?.content ?? null, tool_calls: msg?.tool_calls };
+}
+
+// Kimi models drift into Chinese despite the prompt rule below. Deterministic
+// backstop: if the reply contains CJK but the user's message didn't, run one
+// tool-less translation pass so the user always gets their own language back.
+const CJK_RE = /[぀-ヿ㐀-鿿豈-﫿]/;
+async function ensureUserLanguage(
+  reply: string,
+  userPrompt: string,
+): Promise<string> {
+  if (!CJK_RE.test(reply) || CJK_RE.test(userPrompt)) return reply;
+  try {
+    const fixed = await kimiChat(
+      [
+        {
+          role: "system",
+          content:
+            "Translate the given chat message to English. Keep names, dates and formatting as-is. Output ONLY the translation, nothing else.",
+        },
+        { role: "user", content: reply },
+      ],
+      { withTools: false },
+    );
+    const text = (fixed.content ?? "").trim();
+    return text && !CJK_RE.test(text) ? text : reply;
+  } catch {
+    return reply;
+  }
 }
 
 const RULES = (
@@ -449,39 +487,48 @@ ${RULES(today)}`;
       tool_calls: msg.tool_calls,
     });
 
-    for (const tc of msg.tool_calls) {
-      let input: Record<string, unknown> | null = null;
-      try {
-        input = JSON.parse(tc.function.arguments || "{}");
-      } catch {
-        // Malformed arguments (usually a truncated batch) - tell the model so
-        // it retries this call instead of running with empty input and
-        // surfacing a misleading "field required" error.
-      }
-      const result =
-        input === null
-          ? JSON.stringify({
-              error:
-                "your tool call arguments were malformed or truncated; retry this call by itself",
-            })
-          : await runTool(
-              supabase,
-              target,
-              args.userId,
-              tc.function.name,
-              input,
-            );
-      if (MUTATING.has(tc.function.name) && result.includes('"ok":true')) {
+    // Batched tool calls (e.g. "create 20 tasks" emits 20 create_task calls)
+    // run concurrently - serially each insert's round-trips added up and made
+    // big batches crawl.
+    const results = await Promise.all(
+      msg.tool_calls.map(async (tc, seq) => {
+        let input: Record<string, unknown> | null = null;
+        try {
+          input = JSON.parse(tc.function.arguments || "{}");
+        } catch {
+          // Malformed arguments (usually a truncated batch) - tell the model
+          // so it retries this call instead of running with empty input and
+          // surfacing a misleading "field required" error.
+        }
+        const result =
+          input === null
+            ? JSON.stringify({
+                error:
+                  "your tool call arguments were malformed or truncated; retry this call by itself",
+              })
+            : await runTool(
+                supabase,
+                target,
+                args.userId,
+                tc.function.name,
+                input,
+                seq,
+              );
+        return { id: tc.id, name: tc.function.name, result };
+      }),
+    );
+    for (const r of results) {
+      if (MUTATING.has(r.name) && r.result.includes('"ok":true')) {
         mutated = true;
       }
-      messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+      messages.push({ role: "tool", tool_call_id: r.id, content: r.result });
     }
   }
 
-  return {
-    reply: reply || "Sorry, I couldn't finish that one. Try rephrasing?",
-    mutated,
-  };
+  reply = reply || "Sorry, I couldn't finish that one. Try rephrasing?";
+  const lastUser = args.history[args.history.length - 1]?.content ?? "";
+  reply = await ensureUserLanguage(reply, lastUser);
+  return { reply, mutated };
 }
 
 // Fire-and-forget entry point. Called from sendMessage after the user's
@@ -560,33 +607,42 @@ ${RULES(today)}`;
         tool_calls: msg.tool_calls,
       });
 
-      for (const tc of msg.tool_calls) {
-        let input: Record<string, unknown> | null = null;
-        try {
-          input = JSON.parse(tc.function.arguments || "{}");
-        } catch {
-          // Malformed arguments (usually a truncated batch) - tell the model so
-          // it retries this call instead of running with empty input and
-          // surfacing a misleading "field required" error.
-        }
-        const result =
-          input === null
-            ? JSON.stringify({
-                error:
-                  "your tool call arguments were malformed or truncated; retry this call by itself",
-              })
-            : await runTool(
-                supabase,
-                args.target,
-                args.userId,
-                tc.function.name,
-                input,
-              );
-        messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+      // Batched tool calls run concurrently - see the same pattern in
+      // chatWithCleotilda; serial execution made big batches (20 tasks) crawl.
+      const results = await Promise.all(
+        msg.tool_calls.map(async (tc, seq) => {
+          let input: Record<string, unknown> | null = null;
+          try {
+            input = JSON.parse(tc.function.arguments || "{}");
+          } catch {
+            // Malformed arguments (usually a truncated batch) - tell the model
+            // so it retries this call instead of running with empty input and
+            // surfacing a misleading "field required" error.
+          }
+          const result =
+            input === null
+              ? JSON.stringify({
+                  error:
+                    "your tool call arguments were malformed or truncated; retry this call by itself",
+                })
+              : await runTool(
+                  supabase,
+                  args.target,
+                  args.userId,
+                  tc.function.name,
+                  input,
+                  seq,
+                );
+          return { id: tc.id, result };
+        }),
+      );
+      for (const r of results) {
+        messages.push({ role: "tool", tool_call_id: r.id, content: r.result });
       }
     }
 
     if (!reply) reply = "Sorry, I couldn't finish that one. Try rephrasing?";
+    reply = await ensureUserLanguage(reply, args.prompt);
 
     await supabase.rpc("cleotilda_post_message", {
       p_body: reply,
