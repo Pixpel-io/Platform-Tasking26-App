@@ -112,6 +112,126 @@ function fmtDue(d: string): string {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// ── Column sorting ──────────────────────────────────────────────────────────
+type SortKey = "task" | "status" | "priority" | "sqa" | "due" | "people";
+type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
+
+const SORT_PRIORITY_RANK: Record<string, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  none: 4,
+};
+const SORT_SQA_RANK: Record<string, number> = {
+  pending: 0,
+  in_testing: 1,
+  done: 2,
+};
+
+type Row = { task: TaskWithRelations; column: BoardColumn };
+
+function compareRows(
+  a: Row,
+  b: Row,
+  key: SortKey,
+  dir: "asc" | "desc",
+  board: BoardColumn[],
+): number {
+  const mult = dir === "asc" ? 1 : -1;
+  // Undated tasks always sink to the bottom, regardless of direction.
+  if (key === "due") {
+    const av = a.task.due_date;
+    const bv = b.task.due_date;
+    if (!av && !bv) return 0;
+    if (!av) return 1;
+    if (!bv) return -1;
+    return (new Date(av).getTime() - new Date(bv).getTime()) * mult;
+  }
+  let base = 0;
+  switch (key) {
+    case "task":
+      // numeric:true so "Task 2" sorts before "Task 10" (1→99 style).
+      base = a.task.title.localeCompare(b.task.title, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      break;
+    case "status":
+      base =
+        board.findIndex((c) => c.id === a.column.id) -
+        board.findIndex((c) => c.id === b.column.id);
+      break;
+    case "priority":
+      base =
+        (SORT_PRIORITY_RANK[a.task.priority] ?? 99) -
+        (SORT_PRIORITY_RANK[b.task.priority] ?? 99);
+      break;
+    case "sqa":
+      base =
+        (SORT_SQA_RANK[a.task.sqa_status] ?? 99) -
+        (SORT_SQA_RANK[b.task.sqa_status] ?? 99);
+      break;
+    case "people":
+      base = a.task.task_assignees.length - b.task.task_assignees.length;
+      break;
+  }
+  return base * mult;
+}
+
+// Header cell with stacked up/down arrows. Click cycles asc → desc → off.
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  className,
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+  className?: string;
+}) {
+  const dir = sort?.key === sortKey ? sort.dir : null;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      title={`Sort by ${label}`}
+      className={`group/sort flex h-full cursor-pointer items-center gap-1 py-2 text-left transition-colors hover:text-foreground ${
+        dir ? "text-foreground" : ""
+      } ${className ?? "px-3"}`}
+    >
+      <span>{label}</span>
+      <span className="flex flex-col leading-none transition-opacity group-hover/sort:opacity-100">
+        <svg
+          className={`h-2 w-2 ${dir === "asc" ? "text-primary" : "text-muted/40"}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m18 15-6-6-6 6" />
+        </svg>
+        <svg
+          className={`h-2 w-2 ${dir === "desc" ? "text-primary" : "text-muted/40"}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </span>
+    </button>
+  );
+}
+
 export function MondayTable({
   projectId,
   initialBoard,
@@ -171,6 +291,17 @@ export function MondayTable({
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
   const [hideDone, setHideDone] = useState(false);
+  const [sort, setSort] = useState<SortState>(null);
+
+  // asc → desc → off, so a third click on the same column clears the sort and
+  // restores the natural status/position order.
+  function onSort(key: SortKey) {
+    setSort((prev) => {
+      if (prev?.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null;
+    });
+  }
 
   // One flat list: every task with its status column, ordered by status then
   // position. Status lives ONLY in the Status cell - no duplicate grouping.
@@ -179,7 +310,7 @@ export function MondayTable({
   );
 
   const query = search.trim().toLowerCase();
-  const rows = allRows.filter(({ task, column }) => {
+  const filtered = allRows.filter(({ task, column }) => {
     if (query && !task.title.toLowerCase().includes(query)) return false;
     if (personFilter && !task.task_assignees.some((a) => a.user_id === personFilter)) {
       return false;
@@ -189,6 +320,9 @@ export function MondayTable({
     if (hideDone && task.completed_at != null) return false;
     return true;
   });
+  const rows = sort
+    ? [...filtered].sort((a, b) => compareRows(a, b, sort.key, sort.dir, board))
+    : filtered;
   const filtering =
     query !== "" ||
     personFilter != null ||
@@ -222,12 +356,12 @@ export function MondayTable({
       <div className="overflow-hidden rounded-lg border border-border">
         {/* Header row */}
         <div className="grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-center gap-0 border-b border-border bg-surface-2/40 text-xs font-medium text-muted max-lg:grid-cols-[minmax(160px,1fr)_110px_100px]">
-          <span className="px-3 py-2">Task</span>
-          <span className="border-l border-border/60 px-3 py-2">Status</span>
-          <span className="border-l border-border/60 px-3 py-2">Priority</span>
-          <span className="border-l border-border/60 px-3 py-2 max-lg:hidden">SQA</span>
-          <span className="border-l border-border/60 px-3 py-2 max-lg:hidden">Due</span>
-          <span className="border-l border-border/60 px-3 py-2 max-lg:hidden">People</span>
+          <SortHeader label="Task" sortKey="task" sort={sort} onSort={onSort} />
+          <SortHeader label="Status" sortKey="status" sort={sort} onSort={onSort} className="border-l border-border/60 px-3" />
+          <SortHeader label="Priority" sortKey="priority" sort={sort} onSort={onSort} className="border-l border-border/60 px-3" />
+          <SortHeader label="SQA" sortKey="sqa" sort={sort} onSort={onSort} className="border-l border-border/60 px-3 max-lg:hidden" />
+          <SortHeader label="Due" sortKey="due" sort={sort} onSort={onSort} className="border-l border-border/60 px-3 max-lg:hidden" />
+          <SortHeader label="People" sortKey="people" sort={sort} onSort={onSort} className="border-l border-border/60 px-3 max-lg:hidden" />
         </div>
 
         {rows.length === 0 && (

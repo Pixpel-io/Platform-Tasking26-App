@@ -361,7 +361,11 @@ async function kimiChat(messages: ChatMessage[]): Promise<{
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 1024,
+      // Large enough to hold a big batch of tool calls in one response (e.g.
+      // "create 20 tasks" emits 20 create_task calls at once). At 1024 the
+      // response was truncated mid-JSON, corrupting a call's arguments so the
+      // tool saw empty input and reported a bogus "project_id/title required".
+      max_tokens: 8192,
       // No temperature: kimi-k2.x models reject anything but the default.
       messages,
       tools: TOOLS,
@@ -431,7 +435,7 @@ ${RULES(today)}`;
 
   let reply = "";
   let mutated = false;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 10; i++) {
     const msg = await kimiChat(messages);
 
     if (!msg.tool_calls || msg.tool_calls.length === 0) {
@@ -446,19 +450,27 @@ ${RULES(today)}`;
     });
 
     for (const tc of msg.tool_calls) {
-      let input: Record<string, unknown> = {};
+      let input: Record<string, unknown> | null = null;
       try {
         input = JSON.parse(tc.function.arguments || "{}");
       } catch {
-        // leave input empty; the tool will report what's missing
+        // Malformed arguments (usually a truncated batch) - tell the model so
+        // it retries this call instead of running with empty input and
+        // surfacing a misleading "field required" error.
       }
-      const result = await runTool(
-        supabase,
-        target,
-        args.userId,
-        tc.function.name,
-        input,
-      );
+      const result =
+        input === null
+          ? JSON.stringify({
+              error:
+                "your tool call arguments were malformed or truncated; retry this call by itself",
+            })
+          : await runTool(
+              supabase,
+              target,
+              args.userId,
+              tc.function.name,
+              input,
+            );
       if (MUTATING.has(tc.function.name) && result.includes('"ok":true')) {
         mutated = true;
       }
@@ -534,7 +546,7 @@ ${RULES(today)}`;
 
     // Small manual tool loop, capped so a confused model can't spin.
     let reply = "";
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
       const msg = await kimiChat(messages);
 
       if (!msg.tool_calls || msg.tool_calls.length === 0) {
@@ -549,19 +561,27 @@ ${RULES(today)}`;
       });
 
       for (const tc of msg.tool_calls) {
-        let input: Record<string, unknown> = {};
+        let input: Record<string, unknown> | null = null;
         try {
           input = JSON.parse(tc.function.arguments || "{}");
         } catch {
-          // leave input empty; the tool will report what's missing
+          // Malformed arguments (usually a truncated batch) - tell the model so
+          // it retries this call instead of running with empty input and
+          // surfacing a misleading "field required" error.
         }
-        const result = await runTool(
-          supabase,
-          args.target,
-          args.userId,
-          tc.function.name,
-          input,
-        );
+        const result =
+          input === null
+            ? JSON.stringify({
+                error:
+                  "your tool call arguments were malformed or truncated; retry this call by itself",
+              })
+            : await runTool(
+                supabase,
+                args.target,
+                args.userId,
+                tc.function.name,
+                input,
+              );
         messages.push({ role: "tool", tool_call_id: tc.id, content: result });
       }
     }
