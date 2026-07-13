@@ -4,6 +4,7 @@ import { getProfile, requireUser } from "@/lib/auth";
 import {
   getChannel,
   getChannelMembers,
+  getChannelReads,
   getLastReadAt,
   getMessages,
   getWorkspaceMembersForChat,
@@ -28,6 +29,7 @@ export default async function ChannelPage({
     workspaceMembers,
     isAdmin,
     lastReadAt,
+    channelReads,
   ] = await Promise.all([
     getChannel(channelId),
     getProfile(),
@@ -38,6 +40,7 @@ export default async function ChannelPage({
       .rpc("is_workspace_admin", { p_workspace_id: workspaceId })
       .then((r) => r.data ?? false),
     getLastReadAt({ channelId }),
+    getChannelReads(channelId),
   ]);
 
   if (!channel) notFound();
@@ -91,6 +94,7 @@ export default async function ChannelPage({
           members={channelMembers}
           initialMessages={messages}
           lastReadAt={lastReadAt}
+          initialReads={channelReads}
         />
       </div>
     </div>

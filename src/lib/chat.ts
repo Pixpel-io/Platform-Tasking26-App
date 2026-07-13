@@ -4,12 +4,13 @@ import { requireUser } from "@/lib/auth";
 import type { Channel, Profile } from "@/lib/supabase/types";
 import {
   dmCounterpart,
+  type ChannelRead,
   type ConversationWithParticipants,
   type MessageWithRelations,
 } from "@/lib/chat-shared";
 
 export { dmCounterpart };
-export type { ConversationWithParticipants, MessageWithRelations };
+export type { ChannelRead, ConversationWithParticipants, MessageWithRelations };
 
 // `messages` has two FKs to profiles (user_id and pinned_by), so the embed
 // must name the sender FK explicitly - otherwise PostgREST can't disambiguate
@@ -329,5 +330,20 @@ export const getChannelMembers = cache(
       .order("created_at", { ascending: true });
     const rows = (data as { profiles: Profile | null }[] | null) ?? [];
     return rows.map((r) => r.profiles).filter((p): p is Profile => p !== null);
+  },
+);
+
+// Every member's last-read position in a group, for read receipts. RLS
+// (0034) exposes peers' read_state rows only for channels the caller belongs
+// to, so this is safe to call for any group the user can see.
+export const getChannelReads = cache(
+  async (channelId: string): Promise<ChannelRead[]> => {
+    await requireUser();
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("read_state")
+      .select("user_id, last_read_at, last_read_message_id")
+      .eq("channel_id", channelId);
+    return (data as ChannelRead[] | null) ?? [];
   },
 );

@@ -173,7 +173,7 @@ export function Sidebar({
           onClick={() => setSwitcherOpen((o) => !o)}
           className="group flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-2 text-left transition-colors hover:border-border hover:bg-surface-2"
         >
-          <span className="flex items-center gap-2.5 truncate">
+          <span className="flex min-w-0 items-center gap-2.5">
             <span className="relative shrink-0">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/30">
                 {current?.workspaces?.name?.[0]?.toUpperCase() ?? "?"}

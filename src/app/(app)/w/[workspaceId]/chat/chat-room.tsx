@@ -9,8 +9,9 @@ import {
   useState,
   useTransition,
 } from "react";
-import type { MessageWithRelations } from "@/lib/chat-shared";
+import type { ChannelRead, MessageWithRelations } from "@/lib/chat-shared";
 import { CLEOTILDA_ID } from "@/lib/cleotilda-shared";
+import { useChannelReads } from "@/lib/use-channel-reads";
 import { useChatMessages } from "@/lib/use-chat-messages";
 import { useMessageAlerts } from "@/lib/use-message-alerts";
 import {
@@ -47,6 +48,7 @@ export function ChatRoom({
   members = [],
   initialMessages,
   lastReadAt,
+  initialReads = [],
 }: {
   target: Target;
   meId: string;
@@ -54,6 +56,9 @@ export function ChatRoom({
   members?: MentionMember[];
   initialMessages: MessageWithRelations[];
   lastReadAt?: string | null;
+  // Group read receipts: every channel member's last-read position at open.
+  // Empty for DMs (receipts are group-only).
+  initialReads?: ChannelRead[];
 }) {
   const { messages, setMessages } = useChatMessages(
     { channelId: target.channelId, conversationId: target.conversationId },
@@ -119,6 +124,37 @@ export function ChatRoom({
     meId,
     firstUnreadRef.current.count,
   );
+
+  // Group read receipts: each member's live last-read position. DMs pass no
+  // channelId, so this stays inert (empty) there.
+  const channelReads = useChannelReads(target.channelId, initialReads);
+
+  // Instagram-style: show each reader's avatar once, under the newest message
+  // they've read (their high-water mark) - not on every earlier message. Only
+  // for groups; skip yourself and never tag a reader under their own message.
+  const readReceipts = useMemo(() => {
+    const out: Record<string, MentionMember[]> = {};
+    if (!target.channelId) return out;
+    const memberById = new Map(members.map((m) => [m.id, m]));
+    const visible = messages.filter((m) => !m.deleted_at);
+    for (const read of Object.values(channelReads)) {
+      if (read.user_id === meId) continue;
+      const member = memberById.get(read.user_id);
+      if (!member) continue;
+      const readTime = new Date(read.last_read_at).getTime();
+      let mark: MessageWithRelations | null = null;
+      for (let i = visible.length - 1; i >= 0; i--) {
+        if (new Date(visible[i].created_at).getTime() <= readTime) {
+          mark = visible[i];
+          break;
+        }
+      }
+      if (mark && mark.user_id !== read.user_id) {
+        (out[mark.id] ??= []).push(member);
+      }
+    }
+    return out;
+  }, [target.channelId, channelReads, members, messages, meId]);
 
   // Whether the viewport is near the bottom - controls auto-scroll and whether
   // the "new messages" pill accrues.
@@ -377,6 +413,7 @@ export function ChatRoom({
                   message={m}
                   meId={meId}
                   grouped={!!grouped}
+                  readers={readReceipts[m.id]}
                   onReact={(emoji) => handleReact(m.id, emoji)}
                   onEdit={(body) =>
                     startTransition(() => {

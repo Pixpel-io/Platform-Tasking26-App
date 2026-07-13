@@ -14,6 +14,7 @@ import {
   stripViaCleotilda,
 } from "@/lib/cleotilda-shared";
 import { AttachmentView } from "./attachment-view";
+import type { MentionMember } from "./composer";
 
 const CLEOTILDA_LOGO = "/image/taskcycle-ios-appicon-1024.png";
 
@@ -101,6 +102,7 @@ export function MessageItem({
   message,
   meId,
   grouped,
+  readers,
   onReact,
   onEdit,
   onDelete,
@@ -111,6 +113,9 @@ export function MessageItem({
   message: MessageWithRelations;
   meId: string;
   grouped: boolean;
+  // Group read receipts: members who've read up to this message (their
+  // high-water mark). Undefined in DMs and for messages no one has reached.
+  readers?: MentionMember[];
   onReact: (emoji: string) => void;
   onEdit: (body: string) => void;
   onDelete: () => void;
@@ -352,6 +357,33 @@ export function MessageItem({
               →
             </span>
           </button>
+        )}
+
+        {readers && readers.length > 0 && (
+          <div className="mt-1.5 flex items-center">
+            <span className="mr-1 text-[10px] text-muted">Seen by</span>
+            <div className="flex -space-x-1.5">
+              {readers.slice(0, 5).map((r) => (
+                <span
+                  key={r.id}
+                  title={r.full_name ?? r.email}
+                  className="rounded-full ring-2 ring-surface"
+                >
+                  <Avatar
+                    name={r.full_name}
+                    email={r.email}
+                    avatarUrl={r.avatar_url}
+                    size="xs"
+                  />
+                </span>
+              ))}
+            </div>
+            {readers.length > 5 && (
+              <span className="ml-1 text-[10px] font-medium text-muted">
+                +{readers.length - 5}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
