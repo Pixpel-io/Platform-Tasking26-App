@@ -344,14 +344,8 @@ async function runTool(
       ? (input.assignee_ids as string[]).slice(0, 10)
       : [];
     if (assigneeIds.length > 0 && task) {
-      // Seat assignees into the project first - without a project_members row
-      // RLS hides the board, so their task.assigned notification would 404.
-      for (const uid of assigneeIds) {
-        await supabase.rpc("ensure_project_member", {
-          p_project_id: projectId,
-          p_user_id: uid,
-        });
-      }
+      // The task_assignees_seat_member trigger (0035) seats each assignee
+      // into project_members so their notification opens the board, not 404.
       await supabase.from("task_assignees").insert(
         assigneeIds.map((uid) => ({ task_id: task.id, user_id: uid })),
       );
