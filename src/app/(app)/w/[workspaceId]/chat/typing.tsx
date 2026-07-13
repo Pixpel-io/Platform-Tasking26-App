@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   createContext,
   useCallback,
@@ -143,6 +144,36 @@ export function useTypingBroadcast(target: Target): () => void {
   return useCallback(
     () => broadcast({ channelId, conversationId }),
     [broadcast, channelId, conversationId],
+  );
+}
+
+// Shown as an in-list message row while Cleotilda is generating a reply to a
+// message that summoned her - her logo + name + animated three dots, matching
+// how her real message renders.
+const CLEOTILDA_LOGO = "/image/taskcycle-ios-appicon-1024.png";
+export function CleotildaThinking() {
+  return (
+    <div className="group mt-2.5 flex animate-fade-in gap-3 rounded-lg px-2 py-1">
+      <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-surface-2">
+        <Image
+          src={CLEOTILDA_LOGO}
+          alt="Cleotilda"
+          width={36}
+          height={36}
+          className="h-full w-full object-cover"
+          draggable={false}
+        />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold text-foreground">Cleotilda</span>
+        </div>
+        <span className="mt-1 inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1.5 text-[11px] font-medium text-primary">
+          <TypingDots />
+          thinking…
+        </span>
+      </div>
+    </div>
   );
 }
 

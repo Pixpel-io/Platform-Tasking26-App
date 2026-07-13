@@ -24,10 +24,13 @@ import {
 import { MessageItem } from "./message-item";
 import { Composer, type MentionMember } from "./composer";
 import {
+  CleotildaThinking,
   TypingIndicator,
   useTypingBroadcast,
   useTypingIn,
 } from "./typing";
+
+const CLEOTILDA_HANDLE = "cleotilda";
 
 type Target = {
   // Null when the room is opened from the global /dm shell (no workspace).
@@ -57,6 +60,9 @@ export function ChatRoom({
   );
   const [, startTransition] = useTransition();
   const [sendError, setSendError] = useState<string | null>(null);
+  // True while a message that summoned @cleotilda is awaiting its AI reply, so
+  // the room can show a "Cleotilda is thinking…" three-dot indicator.
+  const [cleotildaThinking, setCleotildaThinking] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -157,6 +163,11 @@ export function ChatRoom({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optimistic.length]);
 
+  // Keep the "Cleotilda is thinking…" indicator in view when it appears.
+  useEffect(() => {
+    if (cleotildaThinking && isNearBottom()) scrollToBottom();
+  }, [cleotildaThinking, isNearBottom, scrollToBottom]);
+
   // Mark the room read when messages change.
   useEffect(() => {
     const last = messages[messages.length - 1];
@@ -204,8 +215,15 @@ export function ChatRoom({
       message_reactions: [],
       message_attachments: [],
     };
+    // sendMessage awaits Cleotilda's reply when the message mentions her, so a
+    // summon keeps the action pending until her message is posted - show the
+    // thinking indicator for exactly that window.
+    const summonsCleotilda =
+      target.workspaceId != null &&
+      new RegExp(`@${CLEOTILDA_HANDLE}\\b`, "i").test(body);
     startTransition(async () => {
       addOptimistic(optimisticMsg);
+      if (summonsCleotilda) setCleotildaThinking(true);
       const result = await sendMessage({
         workspaceId: target.workspaceId,
         channelId: target.channelId,
@@ -213,6 +231,7 @@ export function ChatRoom({
         body,
         attachments,
       });
+      if (summonsCleotilda) setCleotildaThinking(false);
       if (result.error) {
         // Blocked pair (or any refusal): the optimistic echo evaporates with
         // the transition; tell the user why instead of failing silently.
@@ -362,6 +381,7 @@ export function ChatRoom({
             })}
           </div>
         ))}
+        {cleotildaThinking && <CleotildaThinking />}
         <div ref={bottomRef} />
       </div>
 
