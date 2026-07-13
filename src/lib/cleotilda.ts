@@ -394,7 +394,7 @@ const RULES = (
 - If the request is ambiguous (e.g. multiple matching projects or people), ask one short clarifying question instead of guessing.
 - If something is truly outside your tools (deleting things, editing settings), say so briefly.
 - Today's date is ${today}. Resolve relative dates like "tomorrow" or "Friday" to YYYY-MM-DD yourself.
-- Write in the language the user wrote in.`;
+- LANGUAGE: Always reply in English by default. Only switch to another language if the user's latest message is clearly written in that language (e.g. Roman Urdu → reply in Roman Urdu). Never reply in Chinese, Japanese, or any language the user did not use.`;
 
 // Direct 1:1 chat with Cleotilda (the assistant panel). The caller supplies
 // the running conversation; nothing is posted to any room - the reply is

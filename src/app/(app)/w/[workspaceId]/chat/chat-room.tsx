@@ -217,13 +217,15 @@ export function ChatRoom({
     };
     // sendMessage awaits Cleotilda's reply when the message mentions her, so a
     // summon keeps the action pending until her message is posted - show the
-    // thinking indicator for exactly that window.
+    // thinking indicator for exactly that window. Set outside startTransition
+    // so it's an urgent update that renders immediately (a transition update
+    // is low-priority and wouldn't show the dots right away).
     const summonsCleotilda =
       target.workspaceId != null &&
       new RegExp(`@${CLEOTILDA_HANDLE}\\b`, "i").test(body);
+    if (summonsCleotilda) setCleotildaThinking(true);
     startTransition(async () => {
       addOptimistic(optimisticMsg);
-      if (summonsCleotilda) setCleotildaThinking(true);
       const result = await sendMessage({
         workspaceId: target.workspaceId,
         channelId: target.channelId,
