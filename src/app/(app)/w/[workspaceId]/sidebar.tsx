@@ -110,6 +110,17 @@ export function Sidebar({
   const base = `/w/${workspaceId}`;
   const current = workspaces.find((w) => w.workspace_id === workspaceId);
 
+  // Unread notifications waiting in workspaces OTHER than the one being viewed.
+  // Surfaced on the switcher button so multi-workspace users notice activity
+  // elsewhere without opening the dropdown.
+  const otherWorkspaceUnread = workspaces.reduce(
+    (sum, w) =>
+      w.workspace_id === workspaceId
+        ? sum
+        : sum + (workspaceUnreadCounts[w.workspace_id] ?? 0),
+    0,
+  );
+
   // Slack-style tab alerts while any DM or group has unreads: red dot on the
   // favicon + "(N)" prefix on the tab title. Both clear as soon as everything
   // is read (markRead updates the live counts, which re-runs this).
@@ -163,8 +174,18 @@ export function Sidebar({
           className="group flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-2 text-left transition-colors hover:border-border hover:bg-surface-2"
         >
           <span className="flex items-center gap-2.5 truncate">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/30">
-              {current?.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
+            <span className="relative shrink-0">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/30">
+                {current?.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
+              </span>
+              {otherWorkspaceUnread > 0 && (
+                <span
+                  aria-label={`${otherWorkspaceUnread} unread in other workspaces`}
+                  className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 animate-scale-in place-items-center rounded-full bg-danger px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-surface"
+                >
+                  {otherWorkspaceUnread > 99 ? "99+" : otherWorkspaceUnread}
+                </span>
+              )}
             </span>
             <span className="truncate text-sm font-semibold text-foreground">
               {current?.workspaces?.name ?? "Workspace"}
