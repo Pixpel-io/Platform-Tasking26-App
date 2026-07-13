@@ -159,6 +159,7 @@ export function Composer({
 }) {
   const [value, setValue] = useState("");
   const [selected, setSelected] = useState<Selected[]>([]);
+  const [preview, setPreview] = useState<Selected | null>(null);
   const [sending, setSending] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -284,6 +285,7 @@ export function Composer({
     });
     setValue("");
     setSelected([]);
+    setPreview(null);
     setSending(false);
     if (taRef.current) taRef.current.style.height = "auto";
   }
@@ -483,6 +485,7 @@ export function Composer({
   }
 
   function removeSelected(id: string) {
+    setPreview((p) => (p?.id === id ? null : p));
     setSelected((prev) => {
       const target = prev.find((s) => s.id === id);
       if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
@@ -502,6 +505,12 @@ export function Composer({
 
   return (
     <div className="border-t border-border bg-surface p-2 sm:p-3">
+      {preview && (
+        <AttachmentPreviewModal
+          item={preview}
+          onClose={() => setPreview(null)}
+        />
+      )}
       {micError && (
         <div className="mb-2 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-2.5 py-1.5 text-xs text-danger">
           <span className="min-w-0 flex-1">{micError}</span>
@@ -520,9 +529,7 @@ export function Composer({
         <div className="mb-2 flex flex-wrap gap-2">
           {selected.map((s) => {
             const kind = attachmentKind(s.file.type);
-            const openPreview = () => {
-              if (s.previewUrl) window.open(s.previewUrl, "_blank", "noopener");
-            };
+            const openPreview = () => setPreview(s);
             return (
             <div
               key={s.id}
@@ -827,6 +834,109 @@ export function Composer({
         <kbd className="rounded border border-border bg-surface-2 px-1 py-0.5 font-sans text-[10px] text-muted">Shift+Enter</kbd>{" "}
         for a new line
       </p>
+    </div>
+  );
+}
+
+// In-app preview of a staged (not-yet-sent) attachment. Images and video
+// render inline; PDFs use an iframe; everything else falls back to a name +
+// download link. Closes on backdrop click or Escape.
+function AttachmentPreviewModal({
+  item,
+  onClose,
+}: {
+  item: Selected;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const kind = attachmentKind(item.file.type);
+  const isPdf = item.file.type === "application/pdf";
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-black/70 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[90vh] w-full max-w-3xl animate-scale-in flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl"
+      >
+        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+            {item.fileName}
+          </span>
+          <a
+            href={item.previewUrl}
+            download={item.fileName}
+            className="grid h-8 w-8 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            aria-label="Download"
+            title="Download"
+          >
+            <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+          </a>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            title="Close"
+            className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+          >
+            <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="grid min-h-0 flex-1 place-items-center overflow-auto bg-background p-2">
+          {kind === "image" ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={item.previewUrl}
+              alt={item.fileName}
+              className="max-h-[75vh] max-w-full object-contain"
+            />
+          ) : kind === "video" ? (
+            <video
+              src={item.previewUrl}
+              controls
+              autoPlay
+              className="max-h-[75vh] max-w-full"
+            />
+          ) : kind === "voice" ? (
+            <audio src={item.previewUrl} controls className="w-full" />
+          ) : isPdf ? (
+            <iframe
+              src={item.previewUrl}
+              title={item.fileName}
+              className="h-[75vh] w-full rounded-lg bg-white"
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-3 p-10 text-center">
+              <svg className="h-12 w-12 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+              </svg>
+              <p className="text-sm text-muted">
+                No inline preview for this file type.
+              </p>
+              <a
+                href={item.previewUrl}
+                download={item.fileName}
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+              >
+                Download {item.fileName}
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
