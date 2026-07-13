@@ -54,6 +54,15 @@ export async function createTask(args: {
   if (error) return { error: error.message };
 
   if (args.assigneeIds && args.assigneeIds.length > 0) {
+    // Seat each assignee into the project first - without a project_members
+    // row RLS hides the board from them, so the task.assigned notification
+    // would open a 404. Mirrors toggleAssignee's ensure_project_member step.
+    for (const uid of args.assigneeIds) {
+      await supabase.rpc("ensure_project_member", {
+        p_project_id: args.projectId,
+        p_user_id: uid,
+      });
+    }
     await supabase.from("task_assignees").insert(
       args.assigneeIds.map((uid) => ({ task_id: task.id, user_id: uid })),
     );
