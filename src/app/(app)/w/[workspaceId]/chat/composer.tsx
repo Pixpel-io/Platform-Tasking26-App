@@ -468,21 +468,17 @@ export function Composer({
   // uploaded until Send. Attaching and then discarding never touches S3.
   function handleFiles(files: FileList | File[], durationMs?: number) {
     if (!workspaceId) return; // no storage context in the global DM shell
-    const staged: Selected[] = Array.from(files).map((file) => {
-      const kind = attachmentKind(file.type);
-      return {
-        id: crypto.randomUUID(),
-        file,
-        fileName: file.name,
-        durationMs,
-        previewUrl:
-          kind === "image" || kind === "video"
-            ? URL.createObjectURL(file)
-            : undefined,
-        progress: "pending",
-        percent: 0,
-      };
-    });
+    const staged: Selected[] = Array.from(files).map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      fileName: file.name,
+      durationMs,
+      // Object URL for every file so the staged preview is clickable (image /
+      // video render inline; docs and other types open in a new tab).
+      previewUrl: URL.createObjectURL(file),
+      progress: "pending",
+      percent: 0,
+    }));
     setSelected((prev) => [...prev, ...staged]);
   }
 
@@ -522,29 +518,47 @@ export function Composer({
       )}
       {selected.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
-          {selected.map((s) => (
+          {selected.map((s) => {
+            const kind = attachmentKind(s.file.type);
+            const openPreview = () => {
+              if (s.previewUrl) window.open(s.previewUrl, "_blank", "noopener");
+            };
+            return (
             <div
               key={s.id}
               className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs"
             >
-              {s.previewUrl && attachmentKind(s.file.type) === "image" && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={s.previewUrl}
-                  alt=""
-                  className="h-8 w-8 shrink-0 rounded object-cover"
-                />
-              )}
-              {s.previewUrl && attachmentKind(s.file.type) === "video" && (
-                <video
-                  src={s.previewUrl}
-                  className="h-8 w-8 shrink-0 rounded object-cover"
-                  muted
-                />
-              )}
-              <span className="max-w-40 truncate text-foreground">
-                {s.fileName}
-              </span>
+              <button
+                type="button"
+                onClick={openPreview}
+                title={`Preview ${s.fileName}`}
+                className="flex min-w-0 cursor-pointer items-center gap-2 text-left"
+              >
+                {kind === "image" ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={s.previewUrl}
+                    alt=""
+                    className="h-8 w-8 shrink-0 rounded object-cover"
+                  />
+                ) : kind === "video" ? (
+                  <video
+                    src={s.previewUrl}
+                    className="h-8 w-8 shrink-0 rounded object-cover"
+                    muted
+                  />
+                ) : (
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded bg-surface-2 text-muted">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <path d="M14 2v6h6" />
+                    </svg>
+                  </span>
+                )}
+                <span className="max-w-40 truncate text-foreground hover:underline">
+                  {s.fileName}
+                </span>
+              </button>
               {s.progress === "uploading" && <UploadRing percent={s.percent} />}
               {s.progress === "error" && (
                 <span className="text-danger">failed</span>
@@ -569,7 +583,8 @@ export function Composer({
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
