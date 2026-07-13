@@ -142,11 +142,18 @@ export async function setTaskCompleted(
 export async function deleteTask(taskId: string): Promise<Result> {
   await requireUser();
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("tasks")
     .update({ deleted_at: new Date().toISOString() })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .select("id");
   if (error) return { error: error.message };
+  // RLS silently filters rows the caller can't update - without this check a
+  // denied delete would look like a success and the task would reappear on
+  // refresh.
+  if (!data || data.length === 0) {
+    return { error: "You don't have permission to delete this task." };
+  }
   return {};
 }
 

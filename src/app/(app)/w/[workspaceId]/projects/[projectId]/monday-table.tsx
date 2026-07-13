@@ -731,6 +731,8 @@ function TaskRow({
   groupColorOf: (name: string, index: number) => string;
 }) {
   const [, startTransition] = useTransition();
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const done = task.completed_at != null;
   const assignees = task.task_assignees
     .map((a) => a.profiles)
@@ -746,15 +748,29 @@ function TaskRow({
   }
 
   function removeTask() {
-    // Optimistic: pull the row out immediately; realtime confirms.
-    onRemove(task.id);
-    startTransition(() => {
-      void deleteTask(task.id);
+    // Confirm-then-remove: the row dims while the delete is in flight and only
+    // leaves the board once the server confirms. Removing optimistically hid
+    // failures - rapid deletes that never committed reappeared on refresh.
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    startTransition(async () => {
+      const res = await deleteTask(task.id);
+      if (res.error) {
+        setDeleting(false);
+        setDeleteError(res.error);
+      } else {
+        onRemove(task.id);
+      }
     });
   }
 
   return (
-    <div className="group/row grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-stretch border-b border-border/60 bg-surface text-sm transition-colors last:border-b-0 hover:bg-surface-2/30 max-lg:grid-cols-[minmax(160px,1fr)_110px_100px]">
+    <div
+      className={`group/row grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-stretch border-b border-border/60 bg-surface text-sm transition-colors last:border-b-0 hover:bg-surface-2/30 max-lg:grid-cols-[minmax(160px,1fr)_110px_100px] ${
+        deleting ? "pointer-events-none opacity-40" : ""
+      }`}
+    >
       {/* Title + done checkbox + delete */}
       <div className="flex min-w-0 items-center gap-2.5 px-3 py-2">
         <button
@@ -807,15 +823,32 @@ function TaskRow({
             </button>
           );
         })()}
+        {deleteError && (
+          <span
+            className="shrink-0 rounded bg-danger/10 px-1.5 py-0.5 text-[10px] font-medium text-danger"
+            title={deleteError}
+          >
+            Delete failed
+          </span>
+        )}
         <button
           onClick={removeTask}
+          disabled={deleting}
           aria-label={`Delete ${task.title}`}
           title="Delete task"
-          className="grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md text-muted opacity-0 transition-all hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover/row:opacity-100"
+          className={`grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-all hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover/row:opacity-100 ${
+            deleting ? "opacity-100" : "opacity-0"
+          }`}
         >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
+          {deleting ? (
+            <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+          ) : (
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+          )}
         </button>
       </div>
 
