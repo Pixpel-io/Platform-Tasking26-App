@@ -42,6 +42,10 @@ type Selected = {
   file: File;
   fileName: string;
   durationMs?: number;
+  // Intrinsic pixel size of image/video, measured locally at staging time so
+  // the message list can reserve the exact box and avoid layout shift on load.
+  width?: number;
+  height?: number;
   // Object URL for image/video thumbnails; revoked when removed/sent.
   previewUrl?: string;
   // "pending" until Send; then "uploading" (real S3 progress) or "error".
@@ -50,6 +54,34 @@ type Selected = {
   // stays indeterminate at 0).
   percent: number;
 };
+
+// Measure an image/video's intrinsic dimensions from its object URL. Resolves
+// with undefined dimensions for other types or on failure - never rejects.
+function measureDimensions(
+  file: File,
+  objectUrl: string,
+): Promise<{ width?: number; height?: number }> {
+  const kind = attachmentKind(file.type);
+  if (kind === "image") {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      img.onload = () =>
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => resolve({});
+      img.src = objectUrl;
+    });
+  }
+  if (kind === "video") {
+    return new Promise((resolve) => {
+      const v = document.createElement("video");
+      v.onloadedmetadata = () =>
+        resolve({ width: v.videoWidth, height: v.videoHeight });
+      v.onerror = () => resolve({});
+      v.src = objectUrl;
+    });
+  }
+  return Promise.resolve({});
+}
 
 // POST a presigned form to S3 via XHR so we get upload progress events
 // (fetch has no upload progress API).
@@ -252,6 +284,8 @@ export function Composer({
                 sizeBytes: s.file.size,
                 kind: attachmentKind(s.file.type),
                 durationMs: s.durationMs ?? null,
+                width: s.width ?? null,
+                height: s.height ?? null,
               },
             };
           } catch {
@@ -482,6 +516,20 @@ export function Composer({
       percent: 0,
     }));
     setSelected((prev) => [...prev, ...staged]);
+
+    // Measure image/video dimensions in the background and patch them in, so
+    // the sent message carries width/height and the list reserves exact space.
+    staged.forEach((s) => {
+      if (!s.previewUrl) return;
+      void measureDimensions(s.file, s.previewUrl).then((dim) => {
+        if (dim.width == null || dim.height == null) return;
+        setSelected((prev) =>
+          prev.map((x) =>
+            x.id === s.id ? { ...x, width: dim.width, height: dim.height } : x,
+          ),
+        );
+      });
+    });
   }
 
   function removeSelected(id: string) {

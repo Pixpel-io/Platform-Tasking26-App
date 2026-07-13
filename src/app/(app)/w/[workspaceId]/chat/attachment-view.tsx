@@ -76,11 +76,31 @@ async function copyImage(url: string) {
   }
 }
 
+// Display box for image/video, scaled from intrinsic dimensions to fit the
+// bubble's max size (max-w-sm = 384px, max-h-80 = 320px) while preserving
+// aspect ratio. Returned so the container reserves the exact space before the
+// media loads - the placeholder and the loaded media occupy identical boxes,
+// so nothing shifts (and the chat never jumps) when the file finishes loading.
+const MEDIA_MAX_W = 384;
+const MEDIA_MAX_H = 320;
+function mediaBox(
+  width: number | null,
+  height: number | null,
+): { width: number; height: number } | null {
+  if (!width || !height || width <= 0 || height <= 0) return null;
+  const scale = Math.min(MEDIA_MAX_W / width, MEDIA_MAX_H / height, 1);
+  return {
+    width: Math.round(width * scale),
+    height: Math.round(height * scale),
+  };
+}
+
 export function AttachmentView({ attachment }: { attachment: MessageAttachment }) {
   const [url, setUrl] = useState<string | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const box = mediaBox(attachment.width, attachment.height);
 
   useEffect(() => {
     let active = true;
@@ -141,16 +161,25 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
             }}
             className="block cursor-zoom-in text-left"
             aria-label={`View ${attachment.file_name}`}
+            style={box ? { width: box.width, height: box.height } : undefined}
           >
             {url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={url}
                 alt={attachment.file_name}
-                className="max-h-80 max-w-sm rounded-lg border border-border object-cover transition-opacity hover:opacity-95"
+                width={box?.width}
+                height={box?.height}
+                className={`rounded-lg border border-border object-cover transition-opacity hover:opacity-95 ${
+                  box ? "h-full w-full" : "max-h-80 max-w-sm"
+                }`}
               />
             ) : (
-              <div className="h-40 w-64 animate-pulse rounded-lg bg-surface-2" />
+              <div
+                className={`animate-pulse rounded-lg bg-surface-2 ${
+                  box ? "h-full w-full" : "h-40 w-64"
+                }`}
+              />
             )}
           </button>
           {downloadBtn}
@@ -208,16 +237,26 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
 
   if (attachment.kind === "video") {
     return url ? (
-      <div className="group/att relative inline-block">
+      <div
+        className="group/att relative inline-block"
+        style={box ? { width: box.width, height: box.height } : undefined}
+      >
         <video
           src={url}
           controls
-          className="max-h-80 max-w-sm rounded-lg border border-border"
+          className={`rounded-lg border border-border ${
+            box ? "h-full w-full" : "max-h-80 max-w-sm"
+          }`}
         />
         {downloadBtn}
       </div>
     ) : (
-      <div className="h-40 w-64 animate-pulse rounded-lg bg-surface-2" />
+      <div
+        className={`animate-pulse rounded-lg bg-surface-2 ${
+          box ? "" : "h-40 w-64"
+        }`}
+        style={box ? { width: box.width, height: box.height } : undefined}
+      />
     );
   }
 
