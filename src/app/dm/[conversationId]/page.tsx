@@ -56,6 +56,7 @@ export default async function GlobalDmPage({
           target={{ workspaceId: null, conversationId }}
           meId={user.id}
           meName={meName}
+          meAvatarUrl={profile?.avatar_url ?? null}
           members={other ? [other] : []}
           initialMessages={messages}
           lastReadAt={lastReadAt}

@@ -54,6 +54,7 @@ export default async function DMPage({
           target={{ workspaceId, conversationId }}
           meId={user.id}
           meName={meName}
+          meAvatarUrl={profile?.avatar_url ?? null}
           members={other ? [other] : []}
           initialMessages={messages}
           lastReadAt={lastReadAt}

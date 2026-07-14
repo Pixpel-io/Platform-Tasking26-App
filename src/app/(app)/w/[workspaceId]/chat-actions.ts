@@ -330,29 +330,47 @@ export async function sendMessage(args: {
     }
   }
 
-  // @cleotilda summons the AI assistant. Server Actions run serially per
-  // client, so awaiting the (slow) AI reply here blocked every navigation
-  // and action the user attempted meanwhile - the whole app felt frozen.
-  // after() runs the responder once this action's response is flushed, and
-  // keeps the serverless runtime alive until it finishes; realtime delivers
-  // the reply. Failures still never affect the user's message.
-  if (handles.includes(CLEOTILDA_HANDLE) && !args.parentId && args.workspaceId) {
-    const { data: me } = await supabase
-      .from("profiles")
-      .select("full_name, email")
-      .eq("id", user.id)
-      .single();
-    const cleotildaArgs = {
-      target: {
-        workspaceId: args.workspaceId,
-        channelId: args.channelId,
-        conversationId: args.conversationId,
-      },
-      userId: user.id,
-      userName: me?.full_name ?? me?.email ?? "Someone",
-      prompt: body,
-    };
-    after(() => respondAsCleotilda(cleotildaArgs));
+  // @cleotilda summons the AI assistant - in groups AND direct messages
+  // (personal notes-to-self or a DM with another user). Server Actions run
+  // serially per client, so awaiting the (slow) AI reply here blocked every
+  // navigation and action the user attempted meanwhile - the whole app felt
+  // frozen. after() runs the responder once this action's response is
+  // flushed, and keeps the serverless runtime alive until it finishes;
+  // realtime delivers the reply. Failures still never affect the message.
+  if (handles.includes(CLEOTILDA_HANDLE) && !args.parentId) {
+    // Global DMs carry no workspace, but Cleotilda's tools (projects,
+    // members, tasks) are workspace-scoped - fall back to the sender's
+    // most recent workspace so she can still act from a DM.
+    let cleotildaWorkspaceId = args.workspaceId;
+    if (!cleotildaWorkspaceId) {
+      const { data: membership } = await supabase
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", user.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      cleotildaWorkspaceId = membership?.workspace_id ?? null;
+    }
+    if (cleotildaWorkspaceId) {
+      const { data: me } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .single();
+      const cleotildaArgs = {
+        target: {
+          workspaceId: cleotildaWorkspaceId,
+          channelId: args.channelId,
+          conversationId: args.conversationId,
+        },
+        userId: user.id,
+        userName: me?.full_name ?? me?.email ?? "Someone",
+        prompt: body,
+      };
+      after(() => respondAsCleotilda(cleotildaArgs));
+    }
   }
 
   return { id: message.id };

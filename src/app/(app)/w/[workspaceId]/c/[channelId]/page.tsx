@@ -91,6 +91,7 @@ export default async function ChannelPage({
           target={{ workspaceId, channelId }}
           meId={user.id}
           meName={meName}
+          meAvatarUrl={profile?.avatar_url ?? null}
           members={channelMembers}
           initialMessages={messages}
           lastReadAt={lastReadAt}

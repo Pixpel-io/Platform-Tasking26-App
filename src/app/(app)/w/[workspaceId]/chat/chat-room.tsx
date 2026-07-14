@@ -45,6 +45,7 @@ export function ChatRoom({
   target,
   meId,
   meName,
+  meAvatarUrl = null,
   members = [],
   initialMessages,
   lastReadAt,
@@ -53,6 +54,9 @@ export function ChatRoom({
   target: Target;
   meId: string;
   meName: string;
+  // Own avatar for the optimistic echo - without it the sender's DP blinks
+  // to the letter fallback for a moment on every send.
+  meAvatarUrl?: string | null;
   members?: MentionMember[];
   initialMessages: MessageWithRelations[];
   lastReadAt?: string | null;
@@ -254,7 +258,7 @@ export function ChatRoom({
         email: meName,
         full_name: meName,
         title: null,
-        avatar_url: null,
+        avatar_url: meAvatarUrl,
         status_emoji: null,
         status_text: null,
         status_expires_at: null,
@@ -272,9 +276,9 @@ export function ChatRoom({
     // runs in after(), detached from the action). Set outside startTransition
     // so it's an urgent update that renders immediately (a transition update
     // is low-priority and wouldn't show the dots right away).
-    const summonsCleotilda =
-      target.workspaceId != null &&
-      new RegExp(`@${CLEOTILDA_HANDLE}\\b`, "i").test(body);
+    const summonsCleotilda = new RegExp(`@${CLEOTILDA_HANDLE}\\b`, "i").test(
+      body,
+    );
     if (summonsCleotilda) setCleotildaThinking(true);
     startTransition(async () => {
       addOptimistic(optimisticMsg);
