@@ -13,6 +13,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { StatusDialog, activeStatus } from "@/components/status-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { usePresence } from "@/components/presence-provider";
+import { useDmActivity } from "@/lib/use-dm-activity";
 import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useWorkspaceUnreads } from "@/lib/use-workspace-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
@@ -135,7 +136,9 @@ export function Sidebar({
   // Global DM roster: yourself first (notes-to-self), then everyone who
   // shares at least one workspace with you - NOT just this workspace's
   // members. Existing conversation ids make rows direct links; the rest are
-  // created on click.
+  // created on click. Contacts with conversations sort by latest message
+  // (WhatsApp-style, live via useDmActivity); the rest keep roster order.
+  const dmActivity = useDmActivity(userId, conversations);
   const dmList = useMemo(() => {
     const convByUser = new Map<string, string>();
     for (const conv of conversations) {
@@ -145,16 +148,31 @@ export function Sidebar({
       }
     }
     const me = dmContacts.find((m) => m.id === userId);
+    const rows = dmContacts
+      .filter((m) => m.id !== userId)
+      .map((member) => ({
+        member,
+        isSelf: false,
+        conversationId: convByUser.get(member.id) ?? null,
+      }))
+      .sort(
+        (a, b) =>
+          (b.conversationId ? (dmActivity[b.conversationId] ?? 0) : 0) -
+          (a.conversationId ? (dmActivity[a.conversationId] ?? 0) : 0),
+      );
     return [
-      ...(me ? [{ member: me, isSelf: true }] : []),
-      ...dmContacts
-        .filter((m) => m.id !== userId)
-        .map((member) => ({ member, isSelf: false })),
-    ].map((row) => ({
-      ...row,
-      conversationId: convByUser.get(row.member.id) ?? null,
-    }));
-  }, [dmContacts, conversations, userId]);
+      ...(me
+        ? [
+            {
+              member: me,
+              isSelf: true,
+              conversationId: convByUser.get(me.id) ?? null,
+            },
+          ]
+        : []),
+      ...rows,
+    ];
+  }, [dmContacts, conversations, userId, dmActivity]);
 
   const topNav = [
     { href: base, label: "Dashboard", icon: "M3 12l9-9 9 9M5 10v10h14V10" },

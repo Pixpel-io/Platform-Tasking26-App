@@ -14,6 +14,7 @@ import { hideDmContact, openDirectMessageGlobal } from "@/app/(app)/w/[workspace
 import { DmInviteDialog } from "@/app/(app)/w/[workspaceId]/dm-invite-dialog";
 import { SidebarRowMeta } from "@/app/(app)/w/[workspaceId]/chat/typing";
 import { signOut } from "@/app/(auth)/actions";
+import { useDmActivity } from "@/lib/use-dm-activity";
 import { useHiddenContacts } from "@/lib/use-hidden-contacts";
 import { useDmRoster } from "@/lib/use-dm-roster";
 
@@ -65,6 +66,10 @@ export function DmShellSidebar({
   useHiddenContacts(userId);
   useDmRoster(userId);
 
+  // Latest-message-first (WhatsApp-style), live via useDmActivity; contacts
+  // with no conversation yet keep roster order at the bottom. Self stays
+  // pinned on top.
+  const dmActivity = useDmActivity(userId, conversations);
   const dmList = useMemo(() => {
     const convByUser = new Map<string, string>();
     for (const conv of conversations) {
@@ -74,16 +79,31 @@ export function DmShellSidebar({
       }
     }
     const me = contacts.find((m) => m.id === userId);
+    const rows = contacts
+      .filter((m) => m.id !== userId)
+      .map((member) => ({
+        member,
+        isSelf: false,
+        conversationId: convByUser.get(member.id) ?? null,
+      }))
+      .sort(
+        (a, b) =>
+          (b.conversationId ? (dmActivity[b.conversationId] ?? 0) : 0) -
+          (a.conversationId ? (dmActivity[a.conversationId] ?? 0) : 0),
+      );
     return [
-      ...(me ? [{ member: me, isSelf: true }] : []),
-      ...contacts
-        .filter((m) => m.id !== userId)
-        .map((member) => ({ member, isSelf: false })),
-    ].map((row) => ({
-      ...row,
-      conversationId: convByUser.get(row.member.id) ?? null,
-    }));
-  }, [contacts, conversations, userId]);
+      ...(me
+        ? [
+            {
+              member: me,
+              isSelf: true,
+              conversationId: convByUser.get(me.id) ?? null,
+            },
+          ]
+        : []),
+      ...rows,
+    ];
+  }, [contacts, conversations, userId, dmActivity]);
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-border bg-linear-to-b from-surface to-background/60">
