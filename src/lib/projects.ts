@@ -137,6 +137,59 @@ export const getProjectMembers = cache(
   },
 );
 
+export type CrossWorkspaceTask = {
+  id: string;
+  title: string;
+  due_date: string | null;
+  project_id: string;
+  project_name: string;
+  workspace_id: string;
+};
+
+// Every open task assigned to the current user, across ALL workspaces they
+// belong to - powers the combined dashboard overview. Assignees are seated as
+// project members (0035), so RLS on tasks exposes exactly these rows. Soonest
+// due first, then most recently created.
+export const getMyOpenTasksAcrossWorkspaces = cache(
+  async (): Promise<CrossWorkspaceTask[]> => {
+    const user = await requireUser();
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("tasks")
+      .select(
+        "id, title, due_date, created_at, project_id, projects!inner(name, workspace_id), task_assignees!inner(user_id)",
+      )
+      .eq("task_assignees.user_id", user.id)
+      .is("parent_id", null)
+      .is("deleted_at", null)
+      .is("completed_at", null)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+
+    const rows =
+      (data as
+        | {
+            id: string;
+            title: string;
+            due_date: string | null;
+            project_id: string;
+            projects: { name: string; workspace_id: string } | null;
+          }[]
+        | null) ?? [];
+
+    return rows
+      .filter((r) => r.projects != null)
+      .map((r) => ({
+        id: r.id,
+        title: r.title,
+        due_date: r.due_date,
+        project_id: r.project_id,
+        project_name: r.projects!.name,
+        workspace_id: r.projects!.workspace_id,
+      }));
+  },
+);
+
 export async function getProjectActivity(
   projectId: string,
   limit = 30,
