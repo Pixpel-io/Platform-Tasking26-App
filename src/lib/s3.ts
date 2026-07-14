@@ -123,6 +123,11 @@ export async function presignDownload(
     new GetObjectCommand({
       Bucket: config.AWS.BUCKET,
       Key: key,
+      // S3 sends no Cache-Control by default, so browsers re-validated (or
+      // re-fetched) media on every room switch. Uploads are immutable
+      // (UUID-keyed), so let the browser cache them for the signed URL's
+      // lifetime.
+      ResponseCacheControl: "private, max-age=3600, immutable",
       ...(opts?.downloadAs
         ? {
             ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(opts.downloadAs)}`,

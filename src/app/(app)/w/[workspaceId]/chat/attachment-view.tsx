@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageAttachment } from "@/lib/supabase/types";
 import { getS3AttachmentData, getS3DownloadUrl } from "@/app/(app)/s3-actions";
+import { getAttachmentUrl } from "@/lib/attachment-url-cache";
 import { isS3Path } from "@/lib/s3-shared";
 
 const BUCKET = "chat-attachments";
@@ -117,21 +118,12 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
 
   useEffect(() => {
     let active = true;
-    // S3-backed attachments sign through the server (credentials stay there);
-    // Supabase Storage paths sign client-side as before.
-    if (isS3Path(attachment.storage_path)) {
-      void getS3DownloadUrl(attachment.storage_path).then((res) => {
-        if (active) setUrl(res.url ?? null);
-      });
-    } else {
-      const supabase = createClient();
-      supabase.storage
-        .from(BUCKET)
-        .createSignedUrl(attachment.storage_path, 60 * 60)
-        .then(({ data }) => {
-          if (active) setUrl(data?.signedUrl ?? null);
-        });
-    }
+    // Signed URLs come from a module-level cache that reuses each URL for its
+    // whole lifetime - a fresh signature per mount defeated the browser's HTTP
+    // cache, so switching rooms re-downloaded every image.
+    void getAttachmentUrl(attachment.storage_path).then((u) => {
+      if (active) setUrl(u);
+    });
     return () => {
       active = false;
     };
