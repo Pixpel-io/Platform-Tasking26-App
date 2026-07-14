@@ -81,3 +81,32 @@ export async function getS3DownloadUrl(
     return { error: "Could not sign the download." };
   }
 }
+
+// Copy-image support: the S3 bucket sends no CORS headers, so the browser
+// can't fetch attachment bytes itself (clipboard needs the raw bytes, unlike
+// <img> which renders fine). Proxy the fetch through the server, where CORS
+// doesn't apply, and hand back base64. Capped so a huge file can't balloon
+// the response.
+const PROXY_MAX_BYTES = 20 * 1024 * 1024;
+
+export async function getS3AttachmentData(
+  storagePath: string,
+): Promise<{ base64?: string; mimeType?: string; error?: string }> {
+  const signed = await getS3DownloadUrl(storagePath);
+  if (!signed.url) return { error: signed.error ?? "Could not sign the download." };
+
+  try {
+    const res = await fetch(signed.url);
+    if (!res.ok) return { error: "Could not fetch the file." };
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength > PROXY_MAX_BYTES) {
+      return { error: "File is too large to copy." };
+    }
+    return {
+      base64: Buffer.from(buf).toString("base64"),
+      mimeType: res.headers.get("content-type") ?? "application/octet-stream",
+    };
+  } catch {
+    return { error: "Could not fetch the file." };
+  }
+}

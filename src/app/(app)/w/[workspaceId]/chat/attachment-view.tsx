@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { MessageAttachment } from "@/lib/supabase/types";
-import { getS3DownloadUrl } from "@/app/(app)/s3-actions";
+import { getS3AttachmentData, getS3DownloadUrl } from "@/app/(app)/s3-actions";
 import { isS3Path } from "@/lib/s3-shared";
 
 const BUCKET = "chat-attachments";
@@ -52,28 +52,41 @@ async function downloadAttachment(attachment: MessageAttachment) {
 }
 
 // Copy image bytes to the clipboard (PNG - the only type ClipboardItem
-// reliably supports across browsers).
-async function copyImage(url: string) {
-  const res = await fetch(url);
-  const blob = await res.blob();
-  if (blob.type === "image/png" && navigator.clipboard?.write) {
-    await navigator.clipboard.write([
-      new ClipboardItem({ [blob.type]: blob }),
-    ]);
-    return;
-  }
-  // Re-encode to PNG through a canvas.
-  const bitmap = await createImageBitmap(blob);
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
-  const png = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/png"),
-  );
-  if (png) {
-    await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
-  }
+// reliably supports across browsers). S3 attachments can't be fetch()ed from
+// the browser (the bucket sends no CORS headers - <img> renders fine, but JS
+// reads of the bytes are blocked), so those bytes come through a server-action
+// proxy instead. Safari also requires clipboard.write() to be called with a
+// promise created synchronously in the user gesture, hence the thenable
+// ClipboardItem shape.
+async function copyImage(url: string, storagePath: string) {
+  const blobPromise = (async () => {
+    let blob: Blob;
+    if (isS3Path(storagePath)) {
+      const res = await getS3AttachmentData(storagePath);
+      if (!res.base64) throw new Error(res.error ?? "fetch failed");
+      const bytes = Uint8Array.from(atob(res.base64), (c) => c.charCodeAt(0));
+      blob = new Blob([bytes], { type: res.mimeType });
+    } else {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("fetch failed");
+      blob = await res.blob();
+    }
+    if (blob.type === "image/png") return blob;
+    // Re-encode to PNG through a canvas.
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+    const png = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/png"),
+    );
+    if (!png) throw new Error("encode failed");
+    return png;
+  })();
+  await navigator.clipboard.write([
+    new ClipboardItem({ "image/png": blobPromise }),
+  ]);
 }
 
 // Display box for image/video, scaled from intrinsic dimensions to fit the
@@ -192,7 +205,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
             onClose={() => setMenu(null)}
             onCopyImage={() => {
               setMenu(null);
-              void copyImage(url)
+              void copyImage(url, attachment.storage_path)
                 .then(() => flash("Image copied"))
                 .catch(() => flash("Couldn't copy image"));
             }}
@@ -216,7 +229,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
             fileName={attachment.file_name}
             onClose={() => setViewerOpen(false)}
             onCopyImage={() =>
-              void copyImage(url)
+              void copyImage(url, attachment.storage_path)
                 .then(() => flash("Image copied"))
                 .catch(() => flash("Couldn't copy image"))
             }
