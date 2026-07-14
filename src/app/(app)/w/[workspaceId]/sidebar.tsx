@@ -283,6 +283,7 @@ export function Sidebar({
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={`group/nav relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 ${
                   active
                     ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
@@ -390,6 +391,7 @@ export function Sidebar({
                 <Link
                   key={p.id}
                   href={href}
+                  prefetch={true}
                   className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"

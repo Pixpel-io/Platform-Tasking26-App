@@ -173,16 +173,34 @@ function TaskBody({
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => {
-              if (title.trim() && title !== task.title) {
-                act(() => updateTask(task.id, { title: title.trim() }));
-              }
-            }}
-            className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-foreground focus:outline-none"
-          />
+          {/* Grid-stack auto-grow: the hidden replica sets the height, so the
+              textarea wraps long titles fully instead of clipping like the
+              old single-line input. */}
+          <div className="grid min-w-0 flex-1">
+            <span
+              aria-hidden
+              className="invisible col-start-1 row-start-1 whitespace-pre-wrap wrap-break-word text-xl font-semibold"
+            >
+              {title || " "}
+            </span>
+            <textarea
+              value={title}
+              rows={1}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              onBlur={() => {
+                if (title.trim() && title !== task.title) {
+                  act(() => updateTask(task.id, { title: title.trim() }));
+                }
+              }}
+              className="col-start-1 row-start-1 h-full resize-none overflow-hidden wrap-break-word bg-transparent text-xl font-semibold text-foreground focus:outline-none"
+            />
+          </div>
           <button
             onClick={() => act(() => setTaskCompleted(task.id, !done))}
             className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${

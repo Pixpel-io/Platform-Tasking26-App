@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 // The single, shared workspace loading animation. Used both on a hard page
@@ -102,9 +102,13 @@ export function WorkspaceSplash({
   return portal ? createPortal(splash, document.body) : splash;
 }
 
-// Branded splash shown on a hard page load inside a workspace. The workspace
-// layout persists across client-side navigation, so this only mounts on a real
-// browser refresh - then it fades itself out once the page is ready.
+// Branded splash shown when the app is first opened in a tab. Once per
+// browser session only (sessionStorage-gated): in-app navigation, reloads,
+// and layout remounts while the tab stays open must never replay it - a
+// full-screen animation on every move around the app is hostile, not
+// polished. Workspace switching keeps its own splash (sidebar).
+const SPLASH_SEEN_KEY = "tasking:splash-seen";
+
 export function WorkspaceLoader({
   name,
   accent,
@@ -114,7 +118,19 @@ export function WorkspaceLoader({
 }) {
   const [phase, setPhase] = useState<"in" | "out" | "gone">("in");
 
-  useEffect(() => {
+  // Layout effect so a replayed mount hides the splash BEFORE the browser
+  // paints - useEffect would flash it for a frame on every navigation.
+  useLayoutEffect(() => {
+    // Already played this session → drop the splash immediately.
+    try {
+      if (sessionStorage.getItem(SPLASH_SEEN_KEY)) {
+        setPhase("gone");
+        return;
+      }
+      sessionStorage.setItem(SPLASH_SEEN_KEY, "1");
+    } catch {
+      // Storage unavailable (private mode etc.) - play it like before.
+    }
     // Hold briefly for the reveal animation, then fade out and unmount.
     const fade = setTimeout(() => setPhase("out"), 900);
     const done = setTimeout(() => setPhase("gone"), 1400);
