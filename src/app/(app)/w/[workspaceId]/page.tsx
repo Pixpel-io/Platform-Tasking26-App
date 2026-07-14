@@ -10,67 +10,52 @@ import { getUnreadCountsByWorkspace } from "@/lib/notifications";
 import { normalizeColor } from "@/lib/workspace-theme";
 import type { ActivityLog, Profile } from "@/lib/supabase/types";
 
-function StatCard({
+// One quiet cell in the workspace stat strip - the combined "My work" section
+// above carries the visual weight, so these stay compact.
+function StatCell({
   label,
   value,
-  hint,
   href,
   icon,
-  index = 0,
 }: {
   label: string;
   value: string | number;
-  hint?: string;
   href?: string;
   icon: string;
-  index?: number;
 }) {
-  const body = (
-    <div
-      style={{ animationDelay: `${index * 60}ms` }}
-      className={`group relative h-full animate-fade-in-up overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 ${
-        href
-          ? "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
-          : ""
-      }`}
-    >
-      {href && (
-        <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary/60 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-      )}
-      {/* Faint accent bloom in the corner, brighter on hover. */}
-      <span className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-primary/10 blur-2xl transition-opacity duration-300 group-hover:opacity-100 opacity-0" />
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-muted">{label}</p>
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-linear-to-br from-primary/15 to-primary/5 text-primary ring-1 ring-inset ring-primary/10 transition-transform duration-200 group-hover:scale-110">
-          <svg
-            className="h-4.5 w-4.5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d={icon} />
-          </svg>
+  const inner = (
+    <>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-linear-to-br from-primary/15 to-primary/5 text-primary ring-1 ring-inset ring-primary/10">
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d={icon} />
+        </svg>
+      </span>
+      <span className="min-w-0">
+        <span className="block text-xl font-semibold tracking-tight text-foreground">
+          {value}
         </span>
-      </div>
-      <p
-        className={`mt-1 text-3xl font-semibold tracking-tight text-foreground transition-colors ${
-          href ? "group-hover:text-primary" : ""
-        }`}
-      >
-        {value}
-      </p>
-      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
-    </div>
+        <span className="block truncate text-xs text-muted">{label}</span>
+      </span>
+    </>
   );
   return href ? (
-    <Link href={href} className="block">
-      {body}
+    <Link
+      href={href}
+      prefetch={true}
+      className="flex items-center gap-3 bg-surface px-4 py-3.5 transition-colors hover:bg-primary/5"
+    >
+      {inner}
     </Link>
   ) : (
-    body
+    <div className="flex items-center gap-3 bg-surface px-4 py-3.5">{inner}</div>
   );
 }
 
@@ -202,7 +187,7 @@ export default async function WorkspaceDashboard({
       .not("due_date", "is", null)
       .lte("due_date", inSevenDays),
     getProjects(workspaceId),
-    getWorkspaceActivity(workspaceId),
+    getWorkspaceActivity(workspaceId, 10),
     getMyWorkspaces(),
     getUnreadCountsByWorkspace(),
     getMyOpenTasksAcrossWorkspaces(),
@@ -467,34 +452,30 @@ export default async function WorkspaceDashboard({
         </section>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
+      {/* Compact stat strip - one glanceable row, links where it makes sense. */}
+      <div className="grid animate-fade-in-up grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border/50 shadow-sm lg:grid-cols-4">
+        <StatCell
           label="Members"
           value={memberCount ?? 0}
           href={`/w/${workspaceId}/settings/members`}
           icon="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m14 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
-          index={0}
         />
-        <StatCard
+        <StatCell
           label="Active boards"
           value={activeProjects}
           href={`/w/${workspaceId}/projects`}
           icon="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-          index={1}
         />
-        <StatCard
+        <StatCell
           label="Due this week"
           value={dueSoon}
-          hint="Tasks due in 7 days"
           href={`/w/${workspaceId}/projects`}
           icon="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"
-          index={2}
         />
-        <StatCard
+        <StatCell
           label="Groups"
           value={channelCount ?? 0}
           icon="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-          index={3}
         />
       </div>
 
@@ -560,36 +541,56 @@ export default async function WorkspaceDashboard({
         </section>
 
         <section className="rounded-2xl border border-border bg-surface shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-foreground">Quick links</h2>
-          <div className="mt-4 flex flex-col gap-2">
-            {[
-              {
-                href: `/w/${workspaceId}/projects`,
-                label: "View boards",
-                hint: "Boards, lists and calendars",
-                icon: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
-              },
-              {
-                href: `/w/${workspaceId}/settings/members`,
-                label: "Invite your team",
-                hint: "Add people to this workspace",
-                icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 .01M19 8v6M22 11h-6",
-              },
-              {
-                href: `/w/${workspaceId}/profile`,
-                label: "Edit your profile",
-                hint: "Name, photo and status",
-                icon: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
-              },
-            ].map((link) => (
-              <Link
-                key={link.href + link.label}
-                href={link.href}
-                className="group flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2.5 transition-all duration-150 hover:-translate-y-px hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm active:scale-[0.99]"
-              >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-linear-to-br from-primary/15 to-primary/5 text-primary ring-1 ring-inset ring-primary/10 transition-transform duration-150 group-hover:scale-110">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">Boards</h2>
+            <Link
+              href={`/w/${workspaceId}/projects`}
+              prefetch={true}
+              className="text-xs font-medium text-muted transition-colors hover:text-primary"
+            >
+              View all
+            </Link>
+          </div>
+          {projects.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">
+              No boards yet. Create one to start planning work.
+            </p>
+          ) : (
+            <div className="mt-4 flex flex-col gap-2">
+              {projects.slice(0, 5).map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/w/${workspaceId}/projects/${p.id}`}
+                  prefetch={true}
+                  className="group flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2.5 transition-all duration-150 hover:-translate-y-px hover:border-primary/40 hover:bg-primary/5"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-linear-to-br from-primary/15 to-primary/5 text-primary ring-1 ring-inset ring-primary/10">
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">
+                      {p.name}
+                    </span>
+                    <span className="block truncate text-xs capitalize text-muted">
+                      {p.status.replace("_", " ")}
+                      {p.project_members.length > 0 &&
+                        ` · ${p.project_members.length} member${
+                          p.project_members.length === 1 ? "" : "s"
+                        }`}
+                    </span>
+                  </span>
                   <svg
-                    className="h-4 w-4"
+                    className="h-4 w-4 shrink-0 text-muted opacity-0 transition-all duration-150 group-hover:translate-x-0.5 group-hover:opacity-100 group-hover:text-primary"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -597,33 +598,17 @@ export default async function WorkspaceDashboard({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d={link.icon} />
+                    <path d="M9 18l6-6-6-6" />
                   </svg>
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-foreground">
-                    {link.label}
-                  </span>
-                  <span className="block truncate text-xs text-muted">
-                    {link.hint}
-                  </span>
-                </span>
-                <svg
-                  className="h-4 w-4 shrink-0 text-muted transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-primary"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
           {(pendingInvites ?? 0) > 0 && (
-            <p className="mt-4 flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+            <Link
+              href={`/w/${workspaceId}/settings/members`}
+              className="mt-4 flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+            >
               <svg
                 className="h-3.5 w-3.5 shrink-0"
                 viewBox="0 0 24 24"
@@ -637,7 +622,7 @@ export default async function WorkspaceDashboard({
               </svg>
               {pendingInvites} pending invite
               {pendingInvites === 1 ? "" : "s"}
-            </p>
+            </Link>
           )}
         </section>
       </div>
