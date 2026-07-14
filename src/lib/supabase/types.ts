@@ -582,6 +582,7 @@ export interface Database {
           id: string;
           message_id: string;
           storage_path: string;
+          thumb_path: string | null;
           file_name: string;
           mime_type: string | null;
           size_bytes: number | null;
@@ -595,6 +596,7 @@ export interface Database {
           id?: string;
           message_id: string;
           storage_path: string;
+          thumb_path?: string | null;
           file_name: string;
           mime_type?: string | null;
           size_bytes?: number | null;

@@ -111,6 +111,7 @@ function mediaBox(
 
 export function AttachmentView({ attachment }: { attachment: MessageAttachment }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -124,10 +125,15 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
     void getAttachmentUrl(attachment.storage_path).then((u) => {
       if (active) setUrl(u);
     });
+    if (attachment.thumb_path) {
+      void getAttachmentUrl(attachment.thumb_path).then((u) => {
+        if (active) setThumbUrl(u);
+      });
+    }
     return () => {
       active = false;
     };
-  }, [attachment.storage_path]);
+  }, [attachment.storage_path, attachment.thumb_path]);
 
   const flash = useCallback((msg: string) => {
     setToast(msg);
@@ -153,6 +159,10 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
   );
 
   if (attachment.kind === "image") {
+    // Bubble renders the small WebP thumb when one exists; the HD original
+    // only downloads when the viewer opens. Old attachments (no thumb) keep
+    // using the original.
+    const bubbleSrc = thumbUrl ?? url;
     return (
       <>
         <div className="group/att relative inline-block">
@@ -168,13 +178,17 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
             aria-label={`View ${attachment.file_name}`}
             style={box ? { width: box.width, height: box.height } : undefined}
           >
-            {url ? (
+            {bubbleSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={url}
+                src={bubbleSrc}
                 alt={attachment.file_name}
                 width={box?.width}
                 height={box?.height}
+                // Off-screen media waits until scrolled near - opening a long
+                // room doesn't fetch its entire image history at once.
+                loading="lazy"
+                decoding="async"
                 className={`rounded-lg border border-border object-cover transition-opacity hover:opacity-95 ${
                   box ? "h-full w-full" : "max-h-80 max-w-sm"
                 }`}
@@ -249,6 +263,9 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
         <video
           src={url}
           controls
+          // Metadata only (first frame + duration) until the user hits play -
+          // otherwise every video in the room streams its full file on open.
+          preload="metadata"
           className={`rounded-lg border border-border ${
             box ? "h-full w-full" : "max-h-80 max-w-sm"
           }`}

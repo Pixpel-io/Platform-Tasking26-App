@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/avatar";
 import { EmojiPicker } from "@/components/emoji-picker";
 import { highlightComposerValue } from "@/lib/message-format";
+import { makeThumbnail } from "@/lib/make-thumbnail";
 import type { PendingAttachment } from "../chat-actions";
 import { VoiceRecorder } from "./voice-recorder";
 import { createUploadUrl } from "@/app/(app)/s3-actions";
@@ -273,16 +274,27 @@ export function Composer({
       selected.map(
         async (s): Promise<{ id: string; attachment: PendingAttachment | null }> => {
           try {
-            const path = await uploadOne(s.file, s.id);
+            const setPercent = (percent: number) =>
+              setSelected((prev) =>
+                prev.map((x) => (x.id === s.id ? { ...x, percent } : x)),
+              );
+            const kind = attachmentKind(s.file.type);
+            // Image bubbles render a small WebP thumb; the HD original only
+            // loads in the viewer. Uploaded together with the original.
+            const [path, thumbPath] = await Promise.all([
+              uploadOne(s.file, s.id, setPercent),
+              kind === "image" ? uploadThumb(s.file, s.id) : null,
+            ]);
             if (!path) return { id: s.id, attachment: null };
             return {
               id: s.id,
               attachment: {
                 storagePath: path,
+                thumbPath,
                 fileName: s.fileName,
                 mimeType: s.file.type || null,
                 sizeBytes: s.file.size,
-                kind: attachmentKind(s.file.type),
+                kind,
                 durationMs: s.durationMs ?? null,
                 width: s.width ?? null,
                 height: s.height ?? null,
@@ -465,12 +477,11 @@ export function Composer({
   // Upload one file. S3 first (via a server-issued presigned POST - the
   // browser never sees AWS credentials); Supabase Storage when S3 isn't
   // configured. Returns the storage path or null on failure.
-  async function uploadOne(file: File, id: string): Promise<string | null> {
-    const setPercent = (percent: number) =>
-      setSelected((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, percent } : s)),
-      );
-
+  async function uploadOne(
+    file: File,
+    id: string,
+    onPercent?: (percent: number) => void,
+  ): Promise<string | null> {
     if (!workspaceId) return null;
     const presign = await createUploadUrl({
       workspaceId,
@@ -484,7 +495,7 @@ export function Composer({
       const form = new FormData();
       Object.entries(presign.fields).forEach(([k, v]) => form.append(k, v));
       form.append("file", file);
-      const ok = await postWithProgress(presign.url, form, setPercent);
+      const ok = await postWithProgress(presign.url, form, onPercent ?? (() => {}));
       return ok ? `${S3_PATH_PREFIX}${presign.key}` : null;
     }
 
@@ -498,6 +509,21 @@ export function Composer({
       .from(BUCKET)
       .upload(path, file, { contentType: file.type, upsert: false });
     return error ? null : path;
+  }
+
+  // Best-effort thumbnail upload for an image - a failed thumb never blocks
+  // the message; the bubble just falls back to the original.
+  async function uploadThumb(file: File, id: string): Promise<string | null> {
+    try {
+      const blob = await makeThumbnail(file);
+      if (!blob) return null;
+      const thumbFile = new File([blob], `thumb-${id}.webp`, {
+        type: "image/webp",
+      });
+      return await uploadOne(thumbFile, `${id}-thumb`);
+    } catch {
+      return null;
+    }
   }
 
   // Selecting files only stages them locally (with a preview) - nothing is

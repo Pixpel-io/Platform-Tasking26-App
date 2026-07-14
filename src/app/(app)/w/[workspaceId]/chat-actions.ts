@@ -231,6 +231,8 @@ const MENTION_RE = /@([a-zA-Z0-9._-]+)/g;
 
 export type PendingAttachment = {
   storagePath: string;
+  // Small WebP preview for image bubbles; the HD original loads on demand.
+  thumbPath?: string | null;
   fileName: string;
   mimeType: string | null;
   sizeBytes: number | null;
@@ -280,6 +282,7 @@ export async function sendMessage(args: {
         attachments.map((a) => ({
           message_id: message.id,
           storage_path: a.storagePath,
+          thumb_path: a.thumbPath ?? null,
           file_name: a.fileName,
           mime_type: a.mimeType,
           size_bytes: a.sizeBytes,
