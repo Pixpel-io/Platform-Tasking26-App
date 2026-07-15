@@ -312,35 +312,6 @@ body,
     opacity: 1;
   }
 }
-/* Workspace splash: a conic accent arc sweeping around the logo tile. */
-@keyframes conic-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-/* Workspace splash: the logo tile gently breathing. */
-@keyframes breathe {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.06);
-  }
-}
-/* Workspace splash: three dots rising in sequence. */
-@keyframes dot-wave {
-  0%,
-  70%,
-  100% {
-    opacity: 0.25;
-    transform: translateY(0);
-  }
-  35% {
-    opacity: 1;
-    transform: translateY(-5px);
-  }
-}
 /* Workspace splash: a light sheen sweeping across the logo tile. */
 @keyframes splash-sheen {
   0% {
@@ -391,15 +362,6 @@ body,
 }
 .animate-page-load {
   animation: page-load 0.55s var(--ease-out-soft) both;
-}
-.animate-conic-spin {
-  animation: conic-spin 1.2s linear infinite;
-}
-.animate-breathe {
-  animation: breathe 2.6s var(--ease-in-out-soft) infinite;
-}
-.animate-dot-wave {
-  animation: dot-wave 1.3s var(--ease-in-out-soft) infinite;
 }
 .animate-splash-sheen {
   animation: splash-sheen 2.4s var(--ease-in-out-soft) infinite;
