@@ -82,6 +82,37 @@ export async function getS3DownloadUrl(
   }
 }
 
+// Batch variant of getS3DownloadUrl. The chat renders one <AttachmentView>
+// per image, and each used to fire its own getS3DownloadUrl server action -
+// but Next.js runs server actions SERIALLY, so a room with N images meant N
+// sequential round trips (each re-running requireUser()'s network getUser()),
+// leaving later bubbles blank for seconds. Signing is pure local crypto, so
+// this signs every requested key in ONE action: one auth check, one round
+// trip, all URLs back together. Returns a path->url map; bad keys are omitted.
+export async function getS3DownloadUrls(
+  storagePaths: string[],
+): Promise<{ urls: Record<string, string>; error?: string }> {
+  await requireUser();
+
+  if (!s3Enabled()) return { urls: {}, error: "S3 is not configured." };
+
+  const urls: Record<string, string> = {};
+  await Promise.all(
+    // De-dupe so the same file signed twice in one batch costs one signature.
+    [...new Set(storagePaths)].map(async (storagePath) => {
+      if (!storagePath.startsWith(S3_PATH_PREFIX)) return;
+      const key = storagePath.slice(S3_PATH_PREFIX.length);
+      if (!/^uploads\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i.test(key)) return;
+      try {
+        urls[storagePath] = await presignDownload(key);
+      } catch {
+        // Skip this one; the client falls back to a per-file retry.
+      }
+    }),
+  );
+  return { urls };
+}
+
 // Copy-image support: the S3 bucket sends no CORS headers, so the browser
 // can't fetch attachment bytes itself (clipboard needs the raw bytes, unlike
 // <img> which renders fine). Proxy the fetch through the server, where CORS
