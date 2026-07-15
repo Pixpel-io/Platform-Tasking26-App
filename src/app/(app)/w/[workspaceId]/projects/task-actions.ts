@@ -134,11 +134,27 @@ export async function setTaskCompleted(
 ): Promise<Result> {
   await requireUser();
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("tasks")
     .update({ completed_at: completed ? new Date().toISOString() : null })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .select("id, project_id, projects(workspace_id)");
   if (error) return { error: error.message };
+  // Same cache story as deleteTask: the board reconciles live via realtime, but
+  // the dashboard's "My work" list is a server render with no subscription and
+  // filters out completed tasks. Without invalidation it kept serving the
+  // pre-toggle segment, so a task marked done on the board still showed up on
+  // the dashboard until a manual reload. "My work" aggregates across every
+  // workspace, so invalidate the dashboard page pattern for all of them.
+  const row = data?.[0] as unknown as
+    | { project_id: string; projects: { workspace_id: string } | null }
+    | undefined;
+  if (row?.projects?.workspace_id) {
+    revalidatePath(
+      `/w/${row.projects.workspace_id}/projects/${row.project_id}`,
+    );
+  }
+  revalidatePath("/w/[workspaceId]", "page");
   return {};
 }
 
