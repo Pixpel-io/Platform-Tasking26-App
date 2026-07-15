@@ -16,3 +16,8 @@ alter table public.messages
 
 create index if not exists messages_reply_to_id_idx
   on public.messages (reply_to_id);
+
+-- PostgREST caches the schema (incl. FK relationships used for embeds). The new
+-- self-join FK powers the `reply_to:messages!messages_reply_to_id_fkey(...)`
+-- embed, so nudge PostgREST to reload or that embed 404s until the next reload.
+notify pgrst, 'reload schema';
