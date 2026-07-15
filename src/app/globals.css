@@ -341,6 +341,25 @@ body,
     transform: translateY(-5px);
   }
 }
+/* Workspace splash: a light sheen sweeping across the logo tile. */
+@keyframes splash-sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  60%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+/* Workspace splash: an indeterminate progress sliver crossing the bar. */
+@keyframes splash-progress {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
 
 /* ---------- Animation utilities ---------- */
 .animate-fade-in {
@@ -381,6 +400,12 @@ body,
 }
 .animate-dot-wave {
   animation: dot-wave 1.3s var(--ease-in-out-soft) infinite;
+}
+.animate-splash-sheen {
+  animation: splash-sheen 2.4s var(--ease-in-out-soft) infinite;
+}
+.animate-splash-progress {
+  animation: splash-progress 1.3s var(--ease-in-out-soft) infinite;
 }
 
 /* Jump-to-original highlight: briefly wash the target message body when a

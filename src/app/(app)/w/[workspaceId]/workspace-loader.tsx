@@ -31,68 +31,78 @@ export function WorkspaceSplash({
       }`}
       style={{ "--accent": accent } as React.CSSProperties}
     >
-      {/* Soft accent glow behind the mark */}
+      {/* Ambient accent glow behind the mark */}
       <span
-        className="absolute h-72 w-72 rounded-full blur-3xl"
+        className="absolute h-80 w-80 rounded-full blur-3xl"
         style={{
-          backgroundColor: "color-mix(in srgb, var(--accent) 20%, transparent)",
+          background:
+            "radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%)",
         }}
       />
 
-      <div className="relative flex flex-col items-center gap-8">
-        {/* Logo tile inside a spinning conic accent arc */}
-        <div className="relative grid h-24 w-24 place-items-center">
-          {/* Static faint track ring */}
+      <div className="relative flex flex-col items-center gap-10">
+        {/* Logo tile with a thin sweeping progress ring */}
+        <div className="relative grid h-28 w-28 place-items-center">
+          {/* Circular spinner (SVG stroke) - draws + rotates for a smooth,
+              indeterminate progress feel. */}
+          <svg
+            className="absolute inset-0 h-full w-full -rotate-90 animate-spin"
+            style={{ animationDuration: "1.4s" }}
+            viewBox="0 0 100 100"
+            fill="none"
+          >
+            <circle
+              cx="50"
+              cy="50"
+              r="46"
+              stroke="color-mix(in srgb, var(--accent) 12%, transparent)"
+              strokeWidth="2"
+            />
+            <circle
+              cx="50"
+              cy="50"
+              r="46"
+              stroke="var(--accent)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeDasharray="70 220"
+            />
+          </svg>
+
+          {/* Logo tile with a soft float + inner sheen */}
           <span
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: "color-mix(in srgb, var(--accent) 12%, transparent)",
-              WebkitMask:
-                "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
-              mask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
-            }}
-          />
-          {/* Rotating conic ring (masked to a thin arc) */}
-          <span
-            className="absolute inset-0 animate-conic-spin rounded-full"
-            style={{
-              background:
-                "conic-gradient(from 0deg, transparent 0deg, transparent 250deg, var(--accent) 340deg, transparent 360deg)",
-              WebkitMask:
-                "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
-              mask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
-            }}
-          />
-          {/* Breathing logo tile */}
-          <span
-            className="relative grid h-16 w-16 animate-breathe place-items-center rounded-2xl text-2xl font-bold text-white"
+            className="relative grid h-[4.5rem] w-[4.5rem] animate-float-slow place-items-center overflow-hidden rounded-[1.25rem] text-2xl font-bold text-white"
             style={{
               backgroundImage:
-                "linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000))",
+                "linear-gradient(140deg, color-mix(in srgb, var(--accent) 92%, #fff), color-mix(in srgb, var(--accent) 55%, #000))",
               boxShadow:
-                "0 10px 30px color-mix(in srgb, var(--accent) 45%, transparent)",
+                "0 12px 36px color-mix(in srgb, var(--accent) 42%, transparent), inset 0 1px 1px rgba(255,255,255,0.35)",
             }}
           >
-            {initial}
+            <span
+              className="pointer-events-none absolute inset-0 animate-splash-sheen"
+              style={{
+                background:
+                  "linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.45) 50%, transparent 70%)",
+              }}
+            />
+            <span className="relative">{initial}</span>
           </span>
         </div>
 
-        {/* Name + rising wave dots */}
-        <div className="flex flex-col items-center gap-3.5">
-          <p className="animate-fade-in-up text-sm font-semibold tracking-wide text-foreground">
+        {/* Name + slim indeterminate progress bar */}
+        <div className="flex w-44 flex-col items-center gap-4">
+          <p className="animate-fade-in-up text-sm font-semibold tracking-[0.02em] text-foreground">
             {name}
           </p>
-          <span className="flex items-center gap-1.5">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="h-1.5 w-1.5 animate-dot-wave rounded-full"
-                style={{
-                  backgroundColor: "var(--accent)",
-                  animationDelay: `${i * 0.16}s`,
-                }}
-              />
-            ))}
+          <span className="relative h-[3px] w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,transparent)]">
+            <span
+              className="absolute inset-y-0 w-2/5 animate-splash-progress rounded-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent, var(--accent), transparent)",
+              }}
+            />
           </span>
         </div>
       </div>
