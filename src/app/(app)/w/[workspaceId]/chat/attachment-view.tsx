@@ -112,6 +112,7 @@ function mediaBox(
 export function AttachmentView({ attachment }: { attachment: MessageAttachment }) {
   const [url, setUrl] = useState<string | null>(null);
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -178,28 +179,39 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
             aria-label={`View ${attachment.file_name}`}
             style={box ? { width: box.width, height: box.height } : undefined}
           >
-            {bubbleSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={bubbleSrc}
-                alt={attachment.file_name}
-                width={box?.width}
-                height={box?.height}
-                // Off-screen media waits until scrolled near - opening a long
-                // room doesn't fetch its entire image history at once.
-                loading="lazy"
-                decoding="async"
-                className={`rounded-lg border border-border object-cover transition-opacity hover:opacity-95 ${
-                  box ? "h-full w-full" : "max-h-80 max-w-sm"
-                }`}
-              />
-            ) : (
-              <div
-                className={`animate-pulse rounded-lg bg-surface-2 ${
-                  box ? "h-full w-full" : "h-40 w-64"
-                }`}
-              />
-            )}
+            {/* Slack-style blur-up: a soft placeholder holds the exact box so
+                nothing shifts, then the image cross-fades from blurred to sharp
+                the moment it decodes - no spinner, no pop-in. */}
+            <div
+              className={`relative overflow-hidden rounded-lg border border-border bg-surface-2 ${
+                box ? "h-full w-full" : "h-40 w-64"
+              }`}
+            >
+              {bubbleSrc && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={bubbleSrc}
+                  alt={attachment.file_name}
+                  width={box?.width}
+                  height={box?.height}
+                  // Off-screen media waits until scrolled near - opening a long
+                  // room doesn't fetch its entire image history at once.
+                  loading="lazy"
+                  decoding="async"
+                  // A cache-hot image can finish decoding before React attaches
+                  // onLoad; catch that via the ref so it never stays blurred.
+                  ref={(el) => {
+                    if (el?.complete) setImgLoaded(true);
+                  }}
+                  onLoad={() => setImgLoaded(true)}
+                  className={`h-full w-full object-cover transition-all duration-500 ease-out hover:opacity-95 ${
+                    imgLoaded
+                      ? "scale-100 blur-0 opacity-100"
+                      : "scale-105 blur-xl opacity-0"
+                  }`}
+                />
+              )}
+            </div>
           </button>
           {downloadBtn}
         </div>
@@ -274,7 +286,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
       </div>
     ) : (
       <div
-        className={`animate-pulse rounded-lg bg-surface-2 ${
+        className={`rounded-lg border border-border bg-surface-2 ${
           box ? "" : "h-40 w-64"
         }`}
         style={box ? { width: box.width, height: box.height } : undefined}
@@ -290,7 +302,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
         onDownload={() => void downloadAttachment(attachment)}
       />
     ) : (
-      <div className="h-12 w-72 animate-pulse rounded-2xl bg-surface-2" />
+      <div className="h-12 w-72 rounded-2xl border border-border bg-surface-2" />
     );
   }
 
