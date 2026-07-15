@@ -1208,6 +1208,10 @@ export interface Database {
         Args: { p_project_id: string; p_member_ids: string[] };
         Returns: undefined;
       };
+      remove_project_member: {
+        Args: { p_project_id: string; p_user_id: string };
+        Returns: undefined;
+      };
       is_project_member: {
         Args: { p_project_id: string };
         Returns: boolean;

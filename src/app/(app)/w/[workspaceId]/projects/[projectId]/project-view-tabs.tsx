@@ -8,11 +8,20 @@ const TABS = [
   { segment: "/calendar", label: "Calendar" },
 ];
 
-export function ProjectViewTabs({ base }: { base: string }) {
+export function ProjectViewTabs({
+  base,
+  canManage = false,
+}: {
+  base: string;
+  canManage?: boolean;
+}) {
   const pathname = usePathname();
+  const tabs = canManage
+    ? [...TABS, { segment: "/settings", label: "Settings" }]
+    : TABS;
   return (
     <nav className="-mb-px mt-3 flex gap-1">
-      {TABS.map((tab) => {
+      {tabs.map((tab) => {
         const href = `${base}${tab.segment}`;
         const active = tab.segment === "" ? pathname === base : pathname === href;
         return (

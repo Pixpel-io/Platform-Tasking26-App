@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 import { getProject, PRIORITY_META } from "@/lib/projects";
 import { ProjectViewTabs } from "./project-view-tabs";
 import { DeleteProjectButton } from "./delete-project-button";
@@ -9,11 +11,26 @@ export default async function ProjectLayout({
   params,
 }: LayoutProps<"/w/[workspaceId]/projects/[projectId]">) {
   const { workspaceId, projectId } = await params;
-  const project = await getProject(projectId);
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const [project, { data: me }] = await Promise.all([
+    getProject(projectId),
+    supabase
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", user.id)
+      .single(),
+  ]);
   if (!project) notFound();
 
   const priority = PRIORITY_META[project.priority];
   const base = `/w/${workspaceId}/projects/${projectId}`;
+  const canManage =
+    project.owner_id === user.id ||
+    me?.role === "owner" ||
+    me?.role === "admin";
 
   return (
     <div className="flex h-full flex-col">
@@ -53,7 +70,7 @@ export default async function ProjectLayout({
             />
           </div>
         </div>
-        <ProjectViewTabs base={base} />
+        <ProjectViewTabs base={base} canManage={canManage} />
       </header>
       <div className="min-h-0 flex-1">{children}</div>
     </div>

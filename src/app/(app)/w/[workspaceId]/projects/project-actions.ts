@@ -109,7 +109,28 @@ export async function addProjectMembers(
     p_member_ids: memberIds,
   });
   if (error) return { error: error.message };
-  revalidatePath(`/w/${workspaceId}/projects/${projectId}`);
+  // "layout" so the header, board, and dashboard all pick up the roster change;
+  // a newly added member gains access to every nested route at once.
+  revalidatePath(`/w/${workspaceId}/projects/${projectId}`, "layout");
+  return {};
+}
+
+// Remove a member from a board. The RPC enforces owner/admin permission and
+// refuses to remove the owner; a removed member immediately loses access via
+// the can_access_project RLS check.
+export async function removeProjectMember(
+  workspaceId: string,
+  projectId: string,
+  userId: string,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("remove_project_member", {
+    p_project_id: projectId,
+    p_user_id: userId,
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/w/${workspaceId}/projects/${projectId}`, "layout");
   return {};
 }
 
