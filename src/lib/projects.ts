@@ -41,6 +41,7 @@ export const getProjects = cache(
       .select("*, project_members(user_id, profiles(*))")
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null)
+      .is("project_members.deleted_at", null)
       .order("created_at", { ascending: false });
     return (data as ProjectWithMembers[] | null) ?? [];
   },
@@ -55,6 +56,7 @@ export async function getProject(
     .select("*, project_members(user_id, profiles(*))")
     .eq("id", projectId)
     .is("deleted_at", null)
+    .is("project_members.deleted_at", null)
     .single();
   return (data as ProjectWithMembers | null) ?? null;
 }
