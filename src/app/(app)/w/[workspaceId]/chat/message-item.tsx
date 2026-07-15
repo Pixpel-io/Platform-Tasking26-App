@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar";
 import { useProfileCard } from "@/components/profile-card";
 import { EmojiPicker } from "@/components/emoji-picker";
-import type { MessageWithRelations } from "@/lib/chat-shared";
+import { buildReplySnippet, type MessageWithRelations } from "@/lib/chat-shared";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatMessageBody } from "@/lib/message-format";
 import {
@@ -108,6 +108,8 @@ export function MessageItem({
   onDelete,
   onPin,
   onOpenThread,
+  onReply,
+  onJumpToMessage,
   replyCount,
 }: {
   message: MessageWithRelations;
@@ -121,6 +123,10 @@ export function MessageItem({
   onDelete: () => void;
   onPin: () => void;
   onOpenThread?: () => void;
+  // Inline quoted reply: start replying to this message.
+  onReply?: () => void;
+  // Jump to (and flash) the original message a quote points at.
+  onJumpToMessage?: (messageId: string) => void;
   replyCount?: number;
 }) {
   const openProfile = useProfileCard();
@@ -265,6 +271,32 @@ export function MessageItem({
           </div>
         )}
 
+        {message.reply_to && (
+          <button
+            type="button"
+            onClick={() => onJumpToMessage?.(message.reply_to!.id)}
+            className="mb-1 flex max-w-[72ch] cursor-pointer items-center gap-1.5 rounded-r border-l-2 border-l-border bg-surface-2/50 py-0.5 pl-2 pr-2 text-left text-xs text-muted transition-colors duration-150 hover:border-l-primary hover:bg-surface-2 hover:text-foreground"
+          >
+            <svg
+              className="h-3 w-3 shrink-0 -scale-x-100"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M9 17l-5-5 5-5M4 12h11a5 5 0 0 1 5 5v2" />
+            </svg>
+            <span className="shrink-0 font-medium text-foreground/80">
+              {message.reply_to.profiles?.full_name ??
+                message.reply_to.profiles?.email ??
+                "Unknown"}
+            </span>
+            <span className="truncate">{buildReplySnippet(message.reply_to)}</span>
+          </button>
+        )}
+
         {editing ? (
           <div className="mt-1">
             <textarea
@@ -306,7 +338,10 @@ export function MessageItem({
             </div>
           </div>
         ) : (
-          <div className="max-w-[72ch] text-[15px] leading-relaxed text-foreground">
+          <div
+            data-message-body
+            className="max-w-[72ch] rounded text-[15px] leading-relaxed text-foreground"
+          >
             {/* Grouped rows have no name line, so the via-badge rides inline. */}
             {grouped && isViaCleotilda(message.body) && (
               <span className="mr-1.5 inline-block align-middle">
@@ -456,6 +491,13 @@ export function MessageItem({
               </div>
             )}
           </div>
+          {onReply && (
+            <ActionBtn
+              label="Reply"
+              onClick={onReply}
+              d="M9 17l-5-5 5-5M4 12h11a5 5 0 0 1 5 5v2"
+            />
+          )}
           {onOpenThread && (
             <ActionBtn
               label="Reply in thread"

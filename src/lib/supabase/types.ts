@@ -520,6 +520,7 @@ export interface Database {
           channel_id: string | null;
           conversation_id: string | null;
           parent_id: string | null;
+          reply_to_id: string | null;
           user_id: string;
           kind: MessageKind;
           body: string;
@@ -536,6 +537,7 @@ export interface Database {
           channel_id?: string | null;
           conversation_id?: string | null;
           parent_id?: string | null;
+          reply_to_id?: string | null;
           user_id: string;
           kind?: MessageKind;
           body?: string;

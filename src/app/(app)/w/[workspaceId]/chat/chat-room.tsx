@@ -24,7 +24,8 @@ import {
   type PendingAttachment,
 } from "../chat-actions";
 import { MessageItem } from "./message-item";
-import { Composer, type MentionMember } from "./composer";
+import { buildReplySnippet } from "@/lib/chat-shared";
+import { Composer, type MentionMember, type ReplyTarget } from "./composer";
 import {
   CleotildaThinking,
   TypingIndicator,
@@ -70,6 +71,8 @@ export function ChatRoom({
   );
   const [, startTransition] = useTransition();
   const [sendError, setSendError] = useState<string | null>(null);
+  // The message the composer is currently replying to (inline quoted reply).
+  const [replyTo, setReplyTo] = useState<MessageWithRelations | null>(null);
   // True while a message that summoned @cleotilda is awaiting its AI reply, so
   // the room can show a "Cleotilda is thinking…" three-dot indicator.
   const [cleotildaThinking, setCleotildaThinking] = useState(false);
@@ -172,6 +175,18 @@ export function ChatRoom({
     bottomRef.current?.scrollIntoView({ behavior });
   }, []);
 
+  // Jump to a quoted original when its reply's quote strip is clicked, and
+  // flash it so the eye lands on the right row (Slack/WhatsApp behaviour).
+  const scrollToMessage = useCallback((messageId: string) => {
+    const el = scrollRef.current;
+    const row = el?.querySelector(`[data-message-id="${messageId}"]`);
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    const target = row.querySelector("[data-message-body]") ?? row;
+    target.classList.add("reply-flash");
+    setTimeout(() => target.classList.remove("reply-flash"), 1600);
+  }, []);
+
   // Initial position: land on the first unread message (with the "New"
   // divider just above the viewport top) so reading resumes where the user
   // left off; with nothing unread, open at the newest message.
@@ -236,12 +251,34 @@ export function ChatRoom({
 
   function handleSend(body: string, attachments: PendingAttachment[]) {
     const tempId = `temp-${crypto.randomUUID()}`;
+    // Snapshot the reply target now; the banner is cleared right after so the
+    // optimistic echo (and the persisted row) still carry the quote.
+    const replyingTo = replyTo;
     const optimisticMsg: MessageWithRelations = {
       id: tempId,
       workspace_id: target.workspaceId,
       channel_id: target.channelId ?? null,
       conversation_id: target.conversationId ?? null,
       parent_id: null,
+      reply_to_id: replyingTo?.id ?? null,
+      reply_to: replyingTo
+        ? {
+            id: replyingTo.id,
+            body: replyingTo.body,
+            user_id: replyingTo.user_id,
+            deleted_at: replyingTo.deleted_at,
+            profiles: replyingTo.profiles
+              ? {
+                  id: replyingTo.profiles.id,
+                  full_name: replyingTo.profiles.full_name,
+                  email: replyingTo.profiles.email,
+                }
+              : null,
+            message_attachments: replyingTo.message_attachments.map((a) => ({
+              kind: a.kind,
+            })),
+          }
+        : null,
       user_id: meId,
       kind: "user",
       body,
@@ -280,12 +317,15 @@ export function ChatRoom({
       body,
     );
     if (summonsCleotilda) setCleotildaThinking(true);
+    // Clear the banner immediately - the snapshot above keeps this send's quote.
+    setReplyTo(null);
     startTransition(async () => {
       addOptimistic(optimisticMsg);
       const result = await sendMessage({
         workspaceId: target.workspaceId,
         channelId: target.channelId,
         conversationId: target.conversationId,
+        replyToId: replyingTo?.id,
         body,
         attachments,
       });
@@ -418,6 +458,8 @@ export function ChatRoom({
                   meId={meId}
                   grouped={!!grouped}
                   readers={readReceipts[m.id]}
+                  onReply={() => setReplyTo(m)}
+                  onJumpToMessage={scrollToMessage}
                   onReact={(emoji) => handleReact(m.id, emoji)}
                   onEdit={(body) =>
                     startTransition(() => {
@@ -490,6 +532,21 @@ export function ChatRoom({
         members={members}
         onSend={handleSend}
         onTyping={broadcastTyping}
+        replyTo={
+          replyTo
+            ? {
+                id: replyTo.id,
+                authorName:
+                  replyTo.user_id === meId
+                    ? "yourself"
+                    : replyTo.profiles?.full_name ??
+                      replyTo.profiles?.email ??
+                      "Unknown",
+                snippet: buildReplySnippet(replyTo),
+              }
+            : null
+        }
+        onCancelReply={() => setReplyTo(null)}
       />
     </div>
   );

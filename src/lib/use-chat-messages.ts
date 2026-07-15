@@ -7,7 +7,7 @@ import type { MessageWithRelations } from "@/lib/chat-shared";
 // Name the sender FK explicitly - `messages` also has pinned_by → profiles,
 // so a bare profiles(*) embed is ambiguous and resolves to null.
 const MESSAGE_SELECT =
-  "*, profiles:profiles!messages_user_id_fkey(*), message_reactions(*), message_attachments(*)";
+  "*, profiles:profiles!messages_user_id_fkey(*), message_reactions(*), message_attachments(*), reply_to:messages!messages_reply_to_id_fkey(id, body, user_id, deleted_at, profiles:profiles!messages_user_id_fkey(id, full_name, email), message_attachments(kind))";
 
 type Target = { channelId?: string; conversationId?: string };
 

@@ -383,6 +383,23 @@ body,
   animation: dot-wave 1.3s var(--ease-in-out-soft) infinite;
 }
 
+/* Jump-to-original highlight: briefly wash the target message body when a
+   reply quote is clicked, so the eye lands on the right row. */
+@keyframes reply-flash {
+  0%,
+  60% {
+    background-color: color-mix(in oklab, var(--primary) 16%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+.reply-flash {
+  animation: reply-flash 1.6s var(--ease-out-soft) both;
+}
+
 /* Top navigation progress bar - render fixed at the top while a route
    transition is pending. A determinate-feel fill grows from the left and eases
    toward completion, led by a glowing comet head. */

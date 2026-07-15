@@ -248,6 +248,9 @@ export async function sendMessage(args: {
   channelId?: string;
   conversationId?: string;
   parentId?: string;
+  // Inline quoted reply: the message this one replies to (stays in the main
+  // flow, unlike parentId which pulls a message into a side-panel thread).
+  replyToId?: string;
   body: string;
   attachments?: PendingAttachment[];
 }): Promise<ChatResult & { id?: string }> {
@@ -267,6 +270,7 @@ export async function sendMessage(args: {
       channel_id: args.channelId ?? null,
       conversation_id: args.conversationId ?? null,
       parent_id: args.parentId ?? null,
+      reply_to_id: args.replyToId ?? null,
       user_id: user.id,
       body,
     })

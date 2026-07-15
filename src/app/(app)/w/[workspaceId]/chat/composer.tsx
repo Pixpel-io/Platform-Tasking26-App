@@ -173,12 +173,22 @@ function detectMention(value: string, caret: number): { query: string; start: nu
   return { query: match[1], start: caret - match[1].length - 1 };
 }
 
+// The message being replied to, shown as a banner above the input. Kept small
+// so the composer doesn't depend on the full message shape.
+export type ReplyTarget = {
+  id: string;
+  authorName: string;
+  snippet: string;
+};
+
 export function Composer({
   workspaceId,
   meId,
   members = [],
   onSend,
   onTyping,
+  replyTo = null,
+  onCancelReply,
   placeholder = "Write a message…  (use @ to mention)",
 }: {
   // Null in the global /dm shell (no-workspace users): text-only composer,
@@ -188,6 +198,10 @@ export function Composer({
   members?: MentionMember[];
   onSend: (body: string, attachments: PendingAttachment[]) => void;
   onTyping?: () => void;
+  // When set, the composer shows a "Replying to …" banner; sending clears it
+  // via the parent's onCancelReply.
+  replyTo?: ReplyTarget | null;
+  onCancelReply?: () => void;
   placeholder?: string;
 }) {
   const [value, setValue] = useState("");
@@ -363,6 +377,13 @@ export function Composer({
         setMention(null);
         return;
       }
+    }
+    // Escape (with no @mention popup and an empty draft) cancels an active
+    // reply, matching Slack.
+    if (e.key === "Escape" && replyTo && !value) {
+      e.preventDefault();
+      onCancelReply?.();
+      return;
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -577,6 +598,12 @@ export function Composer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Focus the input the moment a reply is started, so the user can type right
+  // away without a second click (Slack behaviour).
+  useEffect(() => {
+    if (replyTo) taRef.current?.focus();
+  }, [replyTo]);
+
   return (
     <div className="border-t border-border bg-surface p-2 sm:p-3">
       {preview && (
@@ -592,6 +619,38 @@ export function Composer({
             onClick={() => setMicError(null)}
             aria-label="Dismiss"
             className="grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded hover:bg-danger/15"
+          >
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+      {replyTo && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-border border-l-2 border-l-primary bg-surface-2/60 px-3 py-1.5 text-xs animate-fade-in">
+          <svg
+            className="h-3.5 w-3.5 shrink-0 text-primary"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M9 17l-5-5 5-5M4 12h11a5 5 0 0 1 5 5v1" />
+          </svg>
+          <span className="min-w-0 flex-1 truncate">
+            <span className="text-muted">Replying to </span>
+            <span className="font-medium text-foreground">
+              {replyTo.authorName}
+            </span>
+            <span className="text-muted"> · {replyTo.snippet}</span>
+          </span>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            aria-label="Cancel reply"
+            className="grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger"
           >
             <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M18 6 6 18M6 6l12 12" />

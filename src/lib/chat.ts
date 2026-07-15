@@ -15,8 +15,11 @@ export type { ChannelRead, ConversationWithParticipants, MessageWithRelations };
 // `messages` has two FKs to profiles (user_id and pinned_by), so the embed
 // must name the sender FK explicitly - otherwise PostgREST can't disambiguate
 // and the join resolves to null ("Unknown" sender).
+// reply_to self-joins messages on reply_to_id (named FK to disambiguate from
+// the user_id/pinned_by/parent_id FKs) - just the sender + snippet the quote
+// strip needs.
 const MESSAGE_SELECT =
-  "*, profiles:profiles!messages_user_id_fkey(*), message_reactions(*), message_attachments(*)";
+  "*, profiles:profiles!messages_user_id_fkey(*), message_reactions(*), message_attachments(*), reply_to:messages!messages_reply_to_id_fkey(id, body, user_id, deleted_at, profiles:profiles!messages_user_id_fkey(id, full_name, email), message_attachments(kind))";
 
 // Channels the current user can see in a workspace (public + private they're in).
 export const getChannels = cache(
