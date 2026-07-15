@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
+import { getWorkspaceMembersForChat } from "@/lib/chat";
 import { getProject, PRIORITY_META } from "@/lib/projects";
 import { ProjectViewTabs } from "./project-view-tabs";
 import { DeleteProjectButton } from "./delete-project-button";
+import { BoardMembersButton } from "./board-members-button";
 
 export default async function ProjectLayout({
   children,
@@ -14,8 +16,9 @@ export default async function ProjectLayout({
   const user = await requireUser();
   const supabase = await createClient();
 
-  const [project, { data: me }] = await Promise.all([
+  const [project, workspaceMembers, { data: me }] = await Promise.all([
     getProject(projectId),
+    getWorkspaceMembersForChat(workspaceId),
     supabase
       .from("workspace_members")
       .select("role")
@@ -31,6 +34,14 @@ export default async function ProjectLayout({
     project.owner_id === user.id ||
     me?.role === "owner" ||
     me?.role === "admin";
+
+  const boardMembers = project.project_members
+    .map((m) => m.profiles)
+    .filter((p): p is NonNullable<typeof p> => p != null);
+  const boardMemberIds = new Set(boardMembers.map((m) => m.id));
+  const addableMembers = workspaceMembers.filter(
+    (m) => !boardMemberIds.has(m.id),
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -63,6 +74,15 @@ export default async function ProjectLayout({
               <span className={`h-2 w-2 rounded-full ${priority.dot}`} />
               {priority.label}
             </span>
+            {canManage && (
+              <BoardMembersButton
+                workspaceId={workspaceId}
+                projectId={projectId}
+                ownerId={project.owner_id}
+                members={boardMembers}
+                addable={addableMembers}
+              />
+            )}
             <DeleteProjectButton
               workspaceId={workspaceId}
               projectId={projectId}
@@ -70,7 +90,7 @@ export default async function ProjectLayout({
             />
           </div>
         </div>
-        <ProjectViewTabs base={base} canManage={canManage} />
+        <ProjectViewTabs base={base} />
       </header>
       <div className="min-h-0 flex-1">{children}</div>
     </div>

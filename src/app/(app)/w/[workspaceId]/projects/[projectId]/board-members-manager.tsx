@@ -4,10 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Profile } from "@/lib/supabase/types";
 import { Avatar } from "@/components/avatar";
-import {
-  addProjectMembers,
-  removeProjectMember,
-} from "../../project-actions";
+import { addProjectMembers, removeProjectMember } from "../project-actions";
 
 function Icon({ d, className = "h-4 w-4" }: { d: string; className?: string }) {
   return (
@@ -100,7 +97,7 @@ export function BoardMembersManager({
   }
 
   return (
-    <div className="animate-fade-in-up space-y-6">
+    <div className="space-y-4">
       {error && (
         <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
@@ -124,14 +121,11 @@ export function BoardMembersManager({
           )}
         </div>
 
-        <ul className="divide-y divide-border">
+        <ul className="max-h-72 divide-y divide-border overflow-y-auto">
           {members.map((m) => {
             const isOwner = m.id === ownerId;
             return (
-              <li
-                key={m.id}
-                className="flex items-center gap-3 px-5 py-3"
-              >
+              <li key={m.id} className="flex items-center gap-3 px-5 py-3">
                 <Avatar
                   name={m.full_name}
                   email={m.email}
@@ -251,7 +245,7 @@ export function BoardMembersManager({
       {/* Remove confirmation */}
       {removing && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setRemoving(null)}
         >
           <div
