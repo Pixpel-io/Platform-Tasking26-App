@@ -275,7 +275,7 @@ export function MessageItem({
           <button
             type="button"
             onClick={() => onJumpToMessage?.(message.reply_to!.id)}
-            className="mb-1 flex max-w-[72ch] cursor-pointer items-center gap-1.5 rounded-r border-l-2 border-l-border bg-surface-2/50 py-0.5 pl-2 pr-2 text-left text-xs text-muted transition-colors duration-150 hover:border-l-primary hover:bg-surface-2 hover:text-foreground"
+            className="mb-1 flex max-w-[72ch] cursor-pointer items-center gap-1.5 rounded-r border-l-2 border-l-primary bg-surface-2/50 py-0.5 pl-2 pr-2 text-left text-xs text-muted transition-colors duration-150 hover:bg-surface-2 hover:text-foreground"
           >
             <svg
               className="h-3 w-3 shrink-0 -scale-x-100"
