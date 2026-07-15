@@ -149,7 +149,7 @@ export async function deleteTask(taskId: string): Promise<Result> {
     .from("tasks")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", taskId)
-    .select("id");
+    .select("id, project_id, projects(workspace_id)");
   if (error) return { error: error.message };
   // RLS silently filters rows the caller can't update - without this check a
   // denied delete would look like a success and the task would reappear on
@@ -157,6 +157,22 @@ export async function deleteTask(taskId: string): Promise<Result> {
   if (!data || data.length === 0) {
     return { error: "You don't have permission to delete this task." };
   }
+  // Drop the cached board + dashboard payloads so the deleted task doesn't
+  // linger in Next's router cache: the board reconciles live via realtime, but
+  // the dashboard's "My work" list is a server render with no subscription, so
+  // it kept serving the stale (pre-delete) segment on navigation/reload until
+  // its path was invalidated. "My work" aggregates across every workspace, so
+  // invalidate the dashboard page pattern for all of them.
+  const row = data[0] as unknown as {
+    project_id: string;
+    projects: { workspace_id: string } | null;
+  };
+  if (row.projects?.workspace_id) {
+    revalidatePath(
+      `/w/${row.projects.workspace_id}/projects/${row.project_id}`,
+    );
+  }
+  revalidatePath("/w/[workspaceId]", "page");
   return {};
 }
 
