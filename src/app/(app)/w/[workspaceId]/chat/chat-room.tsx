@@ -168,6 +168,38 @@ export function ChatRoom({
     return out;
   }, [target.channelId, channelReads, members, messages, meId]);
 
+  // Resolve any reactor's user_id to a display profile for the "who reacted"
+  // popover. Sourced from channel members (empty in DMs), the current user, and
+  // every loaded message's author - which together cover anyone who can react.
+  const reactorById = useMemo(() => {
+    const map = new Map<
+      string,
+      { full_name: string | null; email: string | null; avatar_url: string | null }
+    >();
+    for (const m of members) {
+      map.set(m.id, {
+        full_name: m.full_name,
+        email: m.email,
+        avatar_url: m.avatar_url,
+      });
+    }
+    for (const msg of messages) {
+      if (msg.profiles && !map.has(msg.user_id)) {
+        map.set(msg.user_id, {
+          full_name: msg.profiles.full_name,
+          email: msg.profiles.email,
+          avatar_url: msg.profiles.avatar_url,
+        });
+      }
+    }
+    map.set(meId, {
+      full_name: meName,
+      email: map.get(meId)?.email ?? null,
+      avatar_url: meAvatarUrl,
+    });
+    return map;
+  }, [members, messages, meId, meName, meAvatarUrl]);
+
   // Whether the viewport is near the bottom - controls auto-scroll and whether
   // the "new messages" pill accrues.
   const isNearBottom = useCallback(() => {
@@ -463,6 +495,7 @@ export function ChatRoom({
                   meId={meId}
                   grouped={!!grouped}
                   readers={readReceipts[m.id]}
+                  reactorById={reactorById}
                   onReply={() => setReplyTo(m)}
                   onForward={() => setForwarding(m)}
                   onJumpToMessage={scrollToMessage}

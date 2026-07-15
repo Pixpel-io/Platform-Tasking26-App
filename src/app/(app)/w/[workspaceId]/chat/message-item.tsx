@@ -61,38 +61,154 @@ function ViaCleotilda() {
   );
 }
 
+export type Reactor = {
+  full_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+};
+
+// A single reaction pill with a click-to-open popover listing who reacted.
+// Toggling the viewer's own reaction is done from inside the popover, so a
+// stray click on the pill never adds/removes a reaction by accident.
+function ReactionPill({
+  emoji,
+  userIds,
+  meId,
+  reactorById,
+  onReact,
+}: {
+  emoji: string;
+  userIds: string[];
+  meId: string;
+  reactorById: Map<string, Reactor>;
+  onReact: (emoji: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [dir, setDir] = useState<"up" | "down">("up");
+  const ref = useRef<HTMLDivElement>(null);
+  const mine = userIds.includes(meId);
+  const count = userIds.length;
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggleOpen() {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) setDir(rect.top < 280 ? "down" : "up");
+    setOpen((o) => !o);
+  }
+
+  function nameFor(id: string): string {
+    if (id === meId) return "You";
+    const r = reactorById.get(id);
+    return r?.full_name ?? r?.email ?? "Someone";
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={toggleOpen}
+        aria-label={`${count} reacted with ${emoji}`}
+        className={`flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium tabular-nums transition-colors duration-150 ${
+          mine
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-border bg-surface text-muted hover:border-primary/30 hover:text-foreground"
+        }`}
+      >
+        <span className="text-sm leading-none">{emoji}</span>
+        <span>{count}</span>
+      </button>
+      {open && (
+        <div
+          className={`absolute left-0 z-30 w-56 animate-scale-in overflow-hidden rounded-xl border border-border bg-surface shadow-xl ${
+            dir === "up" ? "bottom-8" : "top-8"
+          }`}
+        >
+          <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <span className="text-lg leading-none">{emoji}</span>
+            <span className="text-xs font-medium text-muted">
+              {count} {count === 1 ? "person" : "people"}
+            </span>
+          </div>
+          <ul className="max-h-56 overflow-y-auto py-1">
+            {userIds.map((id) => {
+              const r = reactorById.get(id);
+              return (
+                <li
+                  key={id}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm"
+                >
+                  <Avatar
+                    name={r?.full_name ?? null}
+                    email={r?.email ?? null}
+                    avatarUrl={r?.avatar_url ?? null}
+                    size="xs"
+                  />
+                  <span className="truncate text-foreground">{nameFor(id)}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <button
+            onClick={() => {
+              onReact(emoji);
+              setOpen(false);
+            }}
+            className="flex w-full cursor-pointer items-center gap-2 border-t border-border px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/5"
+          >
+            <span className="text-sm leading-none">{emoji}</span>
+            {mine ? "Remove your reaction" : "React with this"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReactionPills({
   reactions,
   meId,
+  reactorById,
   onReact,
 }: {
   reactions: MessageWithRelations["message_reactions"];
   meId: string;
+  reactorById: Map<string, Reactor>;
   onReact: (emoji: string) => void;
 }) {
   if (reactions.length === 0) return null;
-  const byEmoji = new Map<string, { count: number; mine: boolean }>();
+  // Preserve first-reaction order per emoji, and collect reactor ids for the
+  // "who reacted" popover.
+  const byEmoji = new Map<string, string[]>();
   for (const r of reactions) {
-    const cur = byEmoji.get(r.emoji) ?? { count: 0, mine: false };
-    cur.count += 1;
-    if (r.user_id === meId) cur.mine = true;
-    byEmoji.set(r.emoji, cur);
+    const ids = byEmoji.get(r.emoji);
+    if (ids) ids.push(r.user_id);
+    else byEmoji.set(r.emoji, [r.user_id]);
   }
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">
-      {[...byEmoji.entries()].map(([emoji, { count, mine }]) => (
-        <button
+      {[...byEmoji.entries()].map(([emoji, userIds]) => (
+        <ReactionPill
           key={emoji}
-          onClick={() => onReact(emoji)}
-          className={`flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium tabular-nums transition-colors duration-150 ${
-            mine
-              ? "border-primary/30 bg-primary/10 text-primary"
-              : "border-border bg-surface text-muted hover:border-primary/30 hover:text-foreground"
-          }`}
-        >
-          <span className="text-sm leading-none">{emoji}</span>
-          <span>{count}</span>
-        </button>
+          emoji={emoji}
+          userIds={userIds}
+          meId={meId}
+          reactorById={reactorById}
+          onReact={onReact}
+        />
       ))}
     </div>
   );
@@ -103,6 +219,7 @@ export function MessageItem({
   meId,
   grouped,
   readers,
+  reactorById,
   onReact,
   onEdit,
   onDelete,
@@ -119,6 +236,8 @@ export function MessageItem({
   // Group read receipts: members who've read up to this message (their
   // high-water mark). Undefined in DMs and for messages no one has reached.
   readers?: MentionMember[];
+  // Resolves any reactor's user_id to a display profile for the reaction popover.
+  reactorById: Map<string, Reactor>;
   onReact: (emoji: string) => void;
   onEdit: (body: string) => void;
   onDelete: () => void;
@@ -371,6 +490,7 @@ export function MessageItem({
         <ReactionPills
           reactions={message.message_reactions}
           meId={meId}
+          reactorById={reactorById}
           onReact={onReact}
         />
 
