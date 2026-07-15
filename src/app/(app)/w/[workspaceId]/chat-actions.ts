@@ -383,6 +383,161 @@ export async function sendMessage(args: {
   return { id: message.id };
 }
 
+// The channels + DMs a user can forward a message into. Channels are scoped to
+// the workspace the forward was triggered from (null → none, e.g. the global
+// /dm shell); DMs are global (RLS already limits rows to the user's own).
+export type ForwardTarget =
+  | { kind: "channel"; id: string; name: string }
+  | { kind: "conversation"; id: string; name: string; self: boolean };
+
+export async function listForwardTargets(
+  workspaceId: string | null,
+): Promise<{ channels: ForwardTarget[]; conversations: ForwardTarget[] }> {
+  const user = await requireUser();
+  const supabase = await createClient();
+
+  const channelsP = workspaceId
+    ? supabase
+        .from("channels")
+        .select("id, name")
+        .eq("workspace_id", workspaceId)
+        .is("deleted_at", null)
+        .order("name", { ascending: true })
+    : Promise.resolve({ data: [] as { id: string; name: string }[] });
+
+  const conversationsP = supabase
+    .from("conversations")
+    .select("id, conversation_participants(user_id, profiles(full_name, email))")
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false });
+
+  const [{ data: channelRows }, { data: convRows }] = await Promise.all([
+    channelsP,
+    conversationsP,
+  ]);
+
+  const channels: ForwardTarget[] = (channelRows ?? []).map((c) => ({
+    kind: "channel",
+    id: c.id,
+    name: c.name,
+  }));
+
+  type ConvRow = {
+    id: string;
+    conversation_participants: {
+      user_id: string;
+      profiles: { full_name: string | null; email: string } | null;
+    }[];
+  };
+  const conversations: ForwardTarget[] = ((convRows as ConvRow[] | null) ?? []).map(
+    (c) => {
+      const others = c.conversation_participants.filter(
+        (p) => p.user_id !== user.id,
+      );
+      const self = others.length === 0;
+      const other = others[0]?.profiles ?? c.conversation_participants[0]?.profiles;
+      return {
+        kind: "conversation",
+        id: c.id,
+        name: self
+          ? "You (notes)"
+          : (other?.full_name ?? other?.email ?? "Direct message"),
+        self,
+      };
+    },
+  );
+
+  return { channels, conversations };
+}
+
+// Forward an existing message's text + attachments into another channel or DM.
+// Re-reads the source under the caller's RLS (so you can only forward what you
+// can see) and re-inserts it as a new message; attachments reference the same
+// storage objects, so nothing is re-uploaded.
+export async function forwardMessage(args: {
+  messageId: string;
+  toChannelId?: string;
+  toConversationId?: string;
+}): Promise<ChatResult> {
+  const user = await requireUser();
+  if (!args.toChannelId && !args.toConversationId) {
+    return { error: "Pick where to forward this message." };
+  }
+  const supabase = await createClient();
+
+  type SourceAttachment = {
+    storage_path: string;
+    thumb_path: string | null;
+    file_name: string;
+    mime_type: string | null;
+    size_bytes: number | null;
+    kind: "file" | "image" | "video" | "voice";
+    width: number | null;
+    height: number | null;
+    duration_ms: number | null;
+  };
+  const { data: sourceData, error: srcErr } = await supabase
+    .from("messages")
+    .select("body, deleted_at, message_attachments(*)")
+    .eq("id", args.messageId)
+    .single();
+  if (srcErr || !sourceData) return { error: "Original message not found." };
+  const source = sourceData as unknown as {
+    body: string;
+    deleted_at: string | null;
+    message_attachments: SourceAttachment[];
+  };
+  if (source.deleted_at) return { error: "Can't forward a deleted message." };
+
+  // A forwarded channel message carries the destination channel's workspace;
+  // DMs are global (workspace_id null), matching how they're normally stored.
+  let workspaceId: string | null = null;
+  if (args.toChannelId) {
+    const { data: channel } = await supabase
+      .from("channels")
+      .select("workspace_id")
+      .eq("id", args.toChannelId)
+      .single();
+    workspaceId = channel?.workspace_id ?? null;
+  }
+
+  const { data: message, error } = await supabase
+    .from("messages")
+    .insert({
+      workspace_id: workspaceId,
+      channel_id: args.toChannelId ?? null,
+      conversation_id: args.toConversationId ?? null,
+      user_id: user.id,
+      body: source.body,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+
+  const attachments = source.message_attachments ?? [];
+  if (attachments.length > 0) {
+    const { error: attachErr } = await supabase
+      .from("message_attachments")
+      .insert(
+        attachments.map((a) => ({
+          message_id: message.id,
+          storage_path: a.storage_path,
+          thumb_path: a.thumb_path,
+          file_name: a.file_name,
+          mime_type: a.mime_type,
+          size_bytes: a.size_bytes,
+          kind: a.kind,
+          width: a.width,
+          height: a.height,
+          duration_ms: a.duration_ms,
+        })),
+      );
+    if (attachErr) return { error: attachErr.message };
+  }
+
+  return {};
+}
+
 export async function editMessage(
   messageId: string,
   body: string,

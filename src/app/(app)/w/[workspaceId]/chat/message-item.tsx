@@ -109,6 +109,7 @@ export function MessageItem({
   onPin,
   onOpenThread,
   onReply,
+  onForward,
   onJumpToMessage,
   replyCount,
 }: {
@@ -125,6 +126,8 @@ export function MessageItem({
   onOpenThread?: () => void;
   // Inline quoted reply: start replying to this message.
   onReply?: () => void;
+  // Forward this message (text + attachments) to another channel or DM.
+  onForward?: () => void;
   // Jump to (and flash) the original message a quote points at.
   onJumpToMessage?: (messageId: string) => void;
   replyCount?: number;
@@ -496,6 +499,13 @@ export function MessageItem({
               label="Reply"
               onClick={onReply}
               d="M9 17l-5-5 5-5M4 12h11a5 5 0 0 1 5 5v2"
+            />
+          )}
+          {onForward && (
+            <ActionBtn
+              label="Forward"
+              onClick={onForward}
+              d="M15 17l5-5-5-5M20 12H9a5 5 0 0 0-5 5v2"
             />
           )}
           {onOpenThread && (

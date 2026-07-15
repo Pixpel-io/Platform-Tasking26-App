@@ -24,6 +24,7 @@ import {
   type PendingAttachment,
 } from "../chat-actions";
 import { MessageItem } from "./message-item";
+import { ForwardDialog } from "./forward-dialog";
 import { buildReplySnippet } from "@/lib/chat-shared";
 import { Composer, type MentionMember, type ReplyTarget } from "./composer";
 import {
@@ -73,6 +74,10 @@ export function ChatRoom({
   const [sendError, setSendError] = useState<string | null>(null);
   // The message the composer is currently replying to (inline quoted reply).
   const [replyTo, setReplyTo] = useState<MessageWithRelations | null>(null);
+  // The message being forwarded (opens the destination picker dialog).
+  const [forwarding, setForwarding] = useState<MessageWithRelations | null>(
+    null,
+  );
   // True while a message that summoned @cleotilda is awaiting its AI reply, so
   // the room can show a "Cleotilda is thinking…" three-dot indicator.
   const [cleotildaThinking, setCleotildaThinking] = useState(false);
@@ -459,6 +464,7 @@ export function ChatRoom({
                   grouped={!!grouped}
                   readers={readReceipts[m.id]}
                   onReply={() => setReplyTo(m)}
+                  onForward={() => setForwarding(m)}
                   onJumpToMessage={scrollToMessage}
                   onReact={(emoji) => handleReact(m.id, emoji)}
                   onEdit={(body) =>
@@ -548,6 +554,14 @@ export function ChatRoom({
         }
         onCancelReply={() => setReplyTo(null)}
       />
+
+      {forwarding && (
+        <ForwardDialog
+          message={forwarding}
+          workspaceId={target.workspaceId}
+          onClose={() => setForwarding(null)}
+        />
+      )}
     </div>
   );
 }
