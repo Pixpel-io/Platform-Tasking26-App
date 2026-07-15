@@ -91,7 +91,11 @@ export function DmShellSidebar({
           (b.conversationId ? (dmActivity[b.conversationId] ?? 0) : 0) -
           (a.conversationId ? (dmActivity[a.conversationId] ?? 0) : 0),
       );
+    // The personal/notes-to-self DM always sits at the very bottom - it's a
+    // fixed personal space, so bumping it above active conversations reads as
+    // inconsistent ordering.
     return [
+      ...rows,
       ...(me
         ? [
             {
@@ -101,7 +105,6 @@ export function DmShellSidebar({
             },
           ]
         : []),
-      ...rows,
     ];
   }, [contacts, conversations, userId, dmActivity]);
 
