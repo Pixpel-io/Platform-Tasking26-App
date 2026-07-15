@@ -48,9 +48,27 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: getUser() (not getSession) - it revalidates the token with
   // Supabase Auth and must run between client creation and any other logic.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  //
+  // This call hits Supabase Auth over the network. After the tab has been
+  // idle (laptop asleep, tab backgrounded), the first navigation fires this
+  // while the connection is cold - a transient DNS/socket failure here would
+  // throw out of the proxy and hand the browser a dead response ("This page
+  // couldn't load"). Swallow the network error and let the request proceed
+  // with whatever cookies it already has; the page's own requireUser() guard
+  // still redirects to /login if the session is genuinely gone. We only act
+  // on `user` when the lookup actually succeeded.
+  let user: Awaited<
+    ReturnType<typeof supabase.auth.getUser>
+  >["data"]["user"] = null;
+  let authResolved = false;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+    authResolved = !result.error;
+  } catch {
+    // Network hiccup on a cold connection - don't crash the proxy.
+    return response;
+  }
 
   const { pathname } = request.nextUrl;
 
@@ -94,7 +112,10 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  if (!user && !isPublic(pathname)) {
+  // Only bounce to /login when the auth lookup actually resolved and returned
+  // no user. If getUser() errored (transient), let the request through rather
+  // than kicking a still-signed-in user to the login screen mid-session.
+  if (authResolved && !user && !isPublic(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirectedFrom", pathname);
