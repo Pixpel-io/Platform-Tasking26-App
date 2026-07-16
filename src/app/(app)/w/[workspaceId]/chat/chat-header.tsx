@@ -26,7 +26,7 @@ export function ChatHeader({
         )}
       </div>
       {actions && (
-        <div className="ml-auto flex items-center gap-2 lg:pr-24">
+        <div className="relative z-40 ml-auto flex items-center gap-2 lg:pr-24">
           {actions}
         </div>
       )}
