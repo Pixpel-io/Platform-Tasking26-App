@@ -73,12 +73,16 @@ export function WorkspaceGroupCard({
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
-        <span
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm font-semibold text-white shadow-sm"
+        <Link
+          href={`/w/${g.id}`}
+          prefetch={true}
+          aria-label={`Open ${g.name}`}
+          title={`Open ${g.name}`}
+          className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg text-sm font-semibold text-white shadow-sm transition-transform duration-150 hover:-translate-y-0.5 hover:shadow-md"
           style={{ backgroundColor: g.accent }}
         >
           {g.name.charAt(0).toUpperCase()}
-        </span>
+        </Link>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-sm font-semibold text-foreground">
@@ -116,14 +120,6 @@ export function WorkspaceGroupCard({
               <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
             {g.unread > 99 ? "99+" : g.unread} unread
-          </Link>
-        )}
-        {!isCurrent && (
-          <Link
-            href={`/w/${g.id}`}
-            className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-primary/40 hover:text-primary"
-          >
-            Open
           </Link>
         )}
       </div>
