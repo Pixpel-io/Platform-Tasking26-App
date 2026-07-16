@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useOptimistic,
   useRef,
   useState,
   useTransition,
@@ -18,15 +17,20 @@ import {
   deleteMessage,
   editMessage,
   markRead,
-  sendMessage,
   togglePin,
   toggleReaction,
-  type PendingAttachment,
 } from "../chat-actions";
 import { MessageItem } from "./message-item";
 import { ForwardDialog } from "./forward-dialog";
 import { buildReplySnippet } from "@/lib/chat-shared";
-import { Composer, type MentionMember, type ReplyTarget } from "./composer";
+import { Composer, type MentionMember, type Selected } from "./composer";
+import {
+  enqueuePendingSend,
+  pendingTargetKey,
+  reconcilePendingSend,
+  usePendingSends,
+} from "./pending-store";
+import { PendingMessageRow } from "./pending-message-row";
 import {
   CleotildaThinking,
   TypingIndicator,
@@ -71,7 +75,6 @@ export function ChatRoom({
     initialMessages,
   );
   const [, startTransition] = useTransition();
-  const [sendError, setSendError] = useState<string | null>(null);
   // The message the composer is currently replying to (inline quoted reply).
   const [replyTo, setReplyTo] = useState<MessageWithRelations | null>(null);
   // The message being forwarded (opens the destination picker dialog).
@@ -108,26 +111,27 @@ export function ChatRoom({
   }
   const firstUnreadId = firstUnreadRef.current.id;
 
-  // Optimistic outgoing messages (instant echo before the server row arrives).
-  // Realtime can deliver the real row before the send transition ends; once it
-  // has (same author + body, sent moments ago), drop the temp echo so the
-  // message isn't shown twice mid-send.
-  const [optimistic, addOptimistic] = useOptimistic(
-    messages,
-    (state, pending: MessageWithRelations) => {
-      const arrived = state.some(
-        (m) =>
-          !m.id.startsWith("temp-") &&
-          m.user_id === pending.user_id &&
-          m.body === pending.body &&
-          Math.abs(
-            new Date(m.created_at).getTime() -
-              new Date(pending.created_at).getTime(),
-          ) < 15000,
-      );
-      return arrived ? state : [...state, pending];
-    },
-  );
+  // In-flight sends (upload + insert not yet confirmed) live in a module-level
+  // store that survives chat navigation - see pending-store.ts. Ghost rows for
+  // them get appended to the message list below.
+  const pendingSends = usePendingSends(target);
+
+  // When a real message arrives that matches one of our pending sends, drop
+  // the ghost so the row isn't shown twice. Matching is body + author + close
+  // timestamp - the send action doesn't echo the client id, so we can't match
+  // by id.
+  useEffect(() => {
+    const tk = pendingTargetKey(target);
+    for (const m of messages) {
+      if (m.user_id !== meId) continue;
+      reconcilePendingSend({
+        targetKey: tk,
+        userId: meId,
+        body: m.body,
+        createdAt: m.created_at,
+      });
+    }
+  }, [messages, target, meId]);
 
   const typingUsers = useTypingIn(target);
   const broadcastTyping = useTypingBroadcast(target);
@@ -244,17 +248,15 @@ export function ChatRoom({
   }, []);
 
   // Auto-scroll to newest when the user is already at the bottom (so we don't
-  // yank them away while reading history) - or when the newest message is
-  // their own send, which should always land them on what they just wrote.
+  // yank them away while reading history) - or when a new pending send lands,
+  // which should always show the user what they just posted.
   useEffect(() => {
-    const last = optimistic[optimistic.length - 1];
-    const ownSend = last?.user_id === meId && last.id.startsWith("temp-");
-    if (ownSend || isNearBottom()) {
+    if (pendingSends.length > 0 || isNearBottom()) {
       scrollToBottom();
-      if (ownSend) setAtBottom(true);
+      if (pendingSends.length > 0) setAtBottom(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [optimistic.length]);
+  }, [messages.length, pendingSends.length]);
 
   // Keep the "Cleotilda is thinking…" indicator in view when it appears.
   useEffect(() => {
@@ -286,96 +288,28 @@ export function ChatRoom({
     });
   }, [messages, target.channelId, target.conversationId]);
 
-  function handleSend(body: string, attachments: PendingAttachment[]) {
-    const tempId = `temp-${crypto.randomUUID()}`;
+  function handleSend(body: string, files: Selected[]) {
     // Snapshot the reply target now; the banner is cleared right after so the
-    // optimistic echo (and the persisted row) still carry the quote.
+    // pending send (and the persisted row) still carry the quote.
     const replyingTo = replyTo;
-    const optimisticMsg: MessageWithRelations = {
-      id: tempId,
-      workspace_id: target.workspaceId,
-      channel_id: target.channelId ?? null,
-      conversation_id: target.conversationId ?? null,
-      parent_id: null,
-      reply_to_id: replyingTo?.id ?? null,
-      reply_to: replyingTo
-        ? {
-            id: replyingTo.id,
-            body: replyingTo.body,
-            user_id: replyingTo.user_id,
-            deleted_at: replyingTo.deleted_at,
-            profiles: replyingTo.profiles
-              ? {
-                  id: replyingTo.profiles.id,
-                  full_name: replyingTo.profiles.full_name,
-                  email: replyingTo.profiles.email,
-                }
-              : null,
-            message_attachments: replyingTo.message_attachments.map((a) => ({
-              kind: a.kind,
-            })),
-          }
-        : null,
-      user_id: meId,
-      kind: "user",
-      body,
-      edited_at: null,
-      pinned_at: null,
-      pinned_by: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-      // Echo the sender so the optimistic row shows the name/avatar, not
-      // "Unknown", until the real row (with the full profile) arrives.
-      profiles: {
-        id: meId,
-        email: meName,
-        full_name: meName,
-        title: null,
-        avatar_url: meAvatarUrl,
-        status_emoji: null,
-        status_text: null,
-        status_expires_at: null,
-        presence: "online",
-        last_seen_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        deleted_at: null,
-      },
-      message_reactions: [],
-      message_attachments: [],
-    };
     // A summon shows the thinking indicator until Cleotilda's reply lands via
     // realtime (sendMessage returns before the AI finishes - the responder
-    // runs in after(), detached from the action). Set outside startTransition
-    // so it's an urgent update that renders immediately (a transition update
-    // is low-priority and wouldn't show the dots right away).
+    // runs in after(), detached from the action).
     const summonsCleotilda = new RegExp(`@${CLEOTILDA_HANDLE}\\b`, "i").test(
       body,
     );
     if (summonsCleotilda) setCleotildaThinking(true);
-    // Clear the banner immediately - the snapshot above keeps this send's quote.
     setReplyTo(null);
-    startTransition(async () => {
-      addOptimistic(optimisticMsg);
-      const result = await sendMessage({
-        workspaceId: target.workspaceId,
-        channelId: target.channelId,
-        conversationId: target.conversationId,
-        replyToId: replyingTo?.id,
-        body,
-        attachments,
-      });
-      if (result.error && summonsCleotilda) setCleotildaThinking(false);
-      if (result.error) {
-        // Blocked pair (or any refusal): the optimistic echo evaporates with
-        // the transition; tell the user why instead of failing silently.
-        setSendError(
-          result.error.includes("blocked")
-            ? "You can't message this person."
-            : result.error,
-        );
-      }
+    enqueuePendingSend({
+      workspaceId: target.workspaceId,
+      channelId: target.channelId,
+      conversationId: target.conversationId,
+      body,
+      replyToId: replyingTo?.id ?? null,
+      meId,
+      meName,
+      meAvatarUrl,
+      files,
     });
   }
 
@@ -419,8 +353,8 @@ export function ChatRoom({
   // Deleted messages disappear entirely (no placeholder row). Filtering before
   // day-grouping also removes dividers for days left with no visible messages.
   const grouped = useMemo(
-    () => groupByDay(optimistic.filter((m) => !m.deleted_at)),
-    [optimistic],
+    () => groupByDay(messages.filter((m) => !m.deleted_at)),
+    [messages],
   );
 
   return (
@@ -430,7 +364,7 @@ export function ChatRoom({
         onScroll={() => setAtBottom(isNearBottom())}
         className="flex-1 overflow-y-auto px-2 py-4 sm:px-4 sm:py-6"
       >
-        {optimistic.length === 0 && (
+        {messages.length === 0 && pendingSends.length === 0 && (
           <div className="grid h-full place-items-center text-center">
             <div className="flex flex-col items-center animate-fade-in-up">
               <span className="mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-linear-to-br from-primary/15 to-primary/5 text-primary ring-1 ring-inset ring-primary/10">
@@ -521,6 +455,9 @@ export function ChatRoom({
             })}
           </div>
         ))}
+        {pendingSends.map((s) => (
+          <PendingMessageRow key={s.id} send={s} />
+        ))}
         {cleotildaThinking && <CleotildaThinking />}
         <div ref={bottomRef} />
       </div>
@@ -546,21 +483,6 @@ export function ChatRoom({
           </svg>
           {unreadCount} new {unreadCount === 1 ? "message" : "messages"}
         </button>
-      )}
-
-      {sendError && (
-        <div className="mx-4 mb-1 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-1.5 text-xs text-danger">
-          <span className="min-w-0 flex-1">{sendError}</span>
-          <button
-            onClick={() => setSendError(null)}
-            aria-label="Dismiss"
-            className="grid h-4 w-4 shrink-0 cursor-pointer place-items-center rounded hover:bg-danger/15"
-          >
-            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
       )}
 
       <TypingIndicator users={typingUsers} />

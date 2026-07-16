@@ -1,17 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/avatar";
 import { EmojiPicker } from "@/components/emoji-picker";
 import { highlightComposerValue } from "@/lib/message-format";
-import { makeThumbnail } from "@/lib/make-thumbnail";
 import type { PendingAttachment } from "../chat-actions";
 import { VoiceRecorder } from "./voice-recorder";
-import { createUploadUrl } from "@/app/(app)/s3-actions";
-import { S3_PATH_PREFIX } from "@/lib/s3-shared";
-
-const BUCKET = "chat-attachments";
 
 export type MentionMember = {
   id: string;
@@ -36,9 +30,10 @@ function mentionHandle(m: MentionMember): string {
 }
 
 // A file the user picked but hasn't sent yet. It stays entirely local (with an
-// object-URL preview for media) and is only uploaded to S3 when Send is
-// pressed - so files attached and then discarded never touch storage.
-type Selected = {
+// object-URL preview for media). Once Send is pressed the file is handed off
+// to the pending-message store (which owns the upload+send flow and survives
+// chat navigation); the composer never sees it again.
+export type Selected = {
   id: string;
   file: File;
   fileName: string;
@@ -49,11 +44,6 @@ type Selected = {
   height?: number;
   // Object URL for image/video thumbnails; revoked when removed/sent.
   previewUrl?: string;
-  // "pending" until Send; then "uploading" (real S3 progress) or "error".
-  progress: "pending" | "uploading" | "error";
-  // 0..100 while uploading (S3 XHR reports real progress; Supabase fallback
-  // stays indeterminate at 0).
-  percent: number;
 };
 
 // Measure an image/video's intrinsic dimensions from its object URL. Resolves
@@ -82,70 +72,6 @@ function measureDimensions(
     });
   }
   return Promise.resolve({});
-}
-
-// POST a presigned form to S3 via XHR so we get upload progress events
-// (fetch has no upload progress API).
-function postWithProgress(
-  url: string,
-  form: FormData,
-  onProgress: (percent: number) => void,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    };
-    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
-    xhr.onerror = () => resolve(false);
-    xhr.send(form);
-  });
-}
-
-// Small circular progress ring + percent label for an in-flight upload.
-// percent 0 with no progress events yet renders as a spinning arc.
-function UploadRing({ percent }: { percent: number }) {
-  const R = 7;
-  const CIRC = 2 * Math.PI * R;
-  const indeterminate = percent <= 0;
-  return (
-    <span className="flex items-center gap-1 text-muted">
-      <svg
-        className={`h-4 w-4 -rotate-90 ${indeterminate ? "animate-spin" : ""}`}
-        viewBox="0 0 20 20"
-      >
-        <circle
-          cx="10"
-          cy="10"
-          r={R}
-          fill="none"
-          stroke="currentColor"
-          strokeOpacity="0.2"
-          strokeWidth="2.5"
-        />
-        <circle
-          cx="10"
-          cy="10"
-          r={R}
-          fill="none"
-          stroke="var(--primary)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeDasharray={CIRC}
-          strokeDashoffset={
-            indeterminate ? CIRC * 0.75 : CIRC * (1 - percent / 100)
-          }
-          className="transition-[stroke-dashoffset] duration-200"
-        />
-      </svg>
-      {!indeterminate && (
-        <span className="min-w-7 tabular-nums">{percent}%</span>
-      )}
-    </span>
-  );
 }
 
 function attachmentKind(mime: string): PendingAttachment["kind"] {
@@ -196,7 +122,10 @@ export function Composer({
   workspaceId: string | null;
   meId: string;
   members?: MentionMember[];
-  onSend: (body: string, attachments: PendingAttachment[]) => void;
+  // Composer packages up the staged files and hands them off; the pending
+  // store owns the upload+send from here (see enqueuePendingSend). The composer
+  // is done as soon as this returns.
+  onSend: (body: string, files: Selected[]) => void;
   onTyping?: () => void;
   // When set, the composer shows a "Replying to …" banner; sending clears it
   // via the parent's onCancelReply.
@@ -207,7 +136,6 @@ export function Composer({
   const [value, setValue] = useState("");
   const [selected, setSelected] = useState<Selected[]>([]);
   const [preview, setPreview] = useState<Selected | null>(null);
-  const [sending, setSending] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [mention, setMention] = useState<MentionState | null>(null);
@@ -261,92 +189,20 @@ export function Composer({
     });
   }
 
-  const canSend =
-    (value.trim().length > 0 || selected.length > 0) && !sending;
+  const canSend = value.trim().length > 0 || selected.length > 0;
 
-  // On Send, upload every selected file to S3 first, then hand the resulting
-  // attachments to onSend. Files that fail to upload are kept in the composer
-  // (marked "error") and the message is not sent, so nothing is lost silently.
-  async function submit() {
+  // Hand the staged files straight to the pending store via onSend, then reset
+  // the composer immediately. Upload progress lives in the store from here on
+  // and shows as a ghost row in the message list - so switching chats mid-send
+  // doesn't stall the UI. The composer keeps the object-URL previews alive
+  // (revoking them is the store's job once the file finishes uploading).
+  function submit() {
     if (!canSend) return;
     const body = value.trim();
-
-    // Text-only: no uploads to wait on.
-    if (selected.length === 0) {
-      onSend(body, []);
-      setValue("");
-      if (taRef.current) taRef.current.style.height = "auto";
-      return;
-    }
-
-    setSending(true);
-    setSelected((prev) =>
-      prev.map((s) => ({ ...s, progress: "uploading", percent: 0 })),
-    );
-
-    const results = await Promise.all(
-      selected.map(
-        async (s): Promise<{ id: string; attachment: PendingAttachment | null }> => {
-          try {
-            const setPercent = (percent: number) =>
-              setSelected((prev) =>
-                prev.map((x) => (x.id === s.id ? { ...x, percent } : x)),
-              );
-            const kind = attachmentKind(s.file.type);
-            // Image bubbles render a small WebP thumb; the HD original only
-            // loads in the viewer. Uploaded together with the original.
-            const [path, thumbPath] = await Promise.all([
-              uploadOne(s.file, s.id, setPercent),
-              kind === "image" ? uploadThumb(s.file, s.id) : null,
-            ]);
-            if (!path) return { id: s.id, attachment: null };
-            return {
-              id: s.id,
-              attachment: {
-                storagePath: path,
-                thumbPath,
-                fileName: s.fileName,
-                mimeType: s.file.type || null,
-                sizeBytes: s.file.size,
-                kind,
-                durationMs: s.durationMs ?? null,
-                width: s.width ?? null,
-                height: s.height ?? null,
-              },
-            };
-          } catch {
-            return { id: s.id, attachment: null };
-          }
-        },
-      ),
-    );
-
-    const failed = new Set(
-      results.filter((r) => r.attachment === null).map((r) => r.id),
-    );
-    if (failed.size > 0) {
-      // Keep the failed ones for retry; drop the ones that made it.
-      setSelected((prev) =>
-        prev
-          .filter((s) => failed.has(s.id))
-          .map((s) => ({ ...s, progress: "error", percent: 0 })),
-      );
-      setSending(false);
-      return;
-    }
-
-    const attachments = results
-      .map((r) => r.attachment)
-      .filter((a): a is PendingAttachment => a !== null);
-    onSend(body, attachments);
-
-    selected.forEach((s) => {
-      if (s.previewUrl) URL.revokeObjectURL(s.previewUrl);
-    });
+    onSend(body, selected);
     setValue("");
     setSelected([]);
     setPreview(null);
-    setSending(false);
     if (taRef.current) taRef.current.style.height = "auto";
   }
 
@@ -495,58 +351,6 @@ export function Composer({
     });
   }
 
-  // Upload one file. S3 first (via a server-issued presigned POST - the
-  // browser never sees AWS credentials); Supabase Storage when S3 isn't
-  // configured. Returns the storage path or null on failure.
-  async function uploadOne(
-    file: File,
-    id: string,
-    onPercent?: (percent: number) => void,
-  ): Promise<string | null> {
-    if (!workspaceId) return null;
-    const presign = await createUploadUrl({
-      workspaceId,
-      fileName: file.name,
-      fileType: file.type || "application/octet-stream",
-      fileSizeBytes: file.size,
-    });
-
-    if ("url" in presign) {
-      // Direct browser → S3 POST using only the returned url + fields.
-      const form = new FormData();
-      Object.entries(presign.fields).forEach(([k, v]) => form.append(k, v));
-      form.append("file", file);
-      const ok = await postWithProgress(presign.url, form, onPercent ?? (() => {}));
-      return ok ? `${S3_PATH_PREFIX}${presign.key}` : null;
-    }
-
-    if ("error" in presign) return null;
-
-    // S3 disabled - Supabase Storage fallback.
-    const supabase = createClient();
-    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-    const path = `${workspaceId}/${meId}/${id}-${safeName}`;
-    const { error } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, file, { contentType: file.type, upsert: false });
-    return error ? null : path;
-  }
-
-  // Best-effort thumbnail upload for an image - a failed thumb never blocks
-  // the message; the bubble just falls back to the original.
-  async function uploadThumb(file: File, id: string): Promise<string | null> {
-    try {
-      const blob = await makeThumbnail(file);
-      if (!blob) return null;
-      const thumbFile = new File([blob], `thumb-${id}.webp`, {
-        type: "image/webp",
-      });
-      return await uploadOne(thumbFile, `${id}-thumb`);
-    } catch {
-      return null;
-    }
-  }
-
   // Selecting files only stages them locally (with a preview) - nothing is
   // uploaded until Send. Attaching and then discarding never touches S3.
   function handleFiles(files: FileList | File[], durationMs?: number) {
@@ -559,8 +363,6 @@ export function Composer({
       // Object URL for every file so the staged preview is clickable (image /
       // video render inline; docs and other types open in a new tab).
       previewUrl: URL.createObjectURL(file),
-      progress: "pending",
-      percent: 0,
     }));
     setSelected((prev) => [...prev, ...staged]);
 
@@ -699,17 +501,12 @@ export function Composer({
                   {s.fileName}
                 </span>
               </button>
-              {s.progress === "uploading" && <UploadRing percent={s.percent} />}
-              {s.progress === "error" && (
-                <span className="text-danger">failed</span>
-              )}
-              {s.progress !== "uploading" && (
-                <button
-                  onClick={() => removeSelected(s.id)}
-                  aria-label="Remove"
-                  className="grid h-4 w-4 place-items-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                >
-                  <svg
+              <button
+                onClick={() => removeSelected(s.id)}
+                aria-label="Remove"
+                className="grid h-4 w-4 place-items-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+              >
+                <svg
                     className="h-3 w-3"
                     viewBox="0 0 24 24"
                     fill="none"
@@ -721,7 +518,6 @@ export function Composer({
                     <path d="M18 6 6 18M6 6l12 12" />
                   </svg>
                 </button>
-              )}
             </div>
             );
           })}
@@ -939,24 +735,17 @@ export function Composer({
               aria-label="Send"
               className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-linear-to-br from-primary to-primary/75 text-primary-foreground shadow-sm shadow-primary/30 transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:shadow-primary/40 active:scale-95 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
             >
-              {sending ? (
-                <svg className="h-4.5 w-4.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
-                  <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                </svg>
-              ) : (
-                <svg
-                  className="h-4.5 w-4.5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-                </svg>
-              )}
+              <svg
+                className="h-4.5 w-4.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+              </svg>
             </button>
           </span>
         </div>
