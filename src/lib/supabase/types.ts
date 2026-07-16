@@ -1166,6 +1166,10 @@ export interface Database {
         Args: { p_channel_id: string; p_member_id: string };
         Returns: undefined;
       };
+      delete_channel: {
+        Args: { p_channel_id: string };
+        Returns: undefined;
+      };
       cleotilda_post_message: {
         Args: {
           p_body: string;

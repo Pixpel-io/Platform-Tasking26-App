@@ -14,6 +14,7 @@ import { ChatRoom } from "../../chat/chat-room";
 import { TypingSubtitle } from "../../chat/typing";
 import { GroupMembers } from "./group-members";
 import { RenameGroup } from "./rename-group";
+import { DeleteGroupButton } from "./delete-group-button";
 
 export default async function ChannelPage({
   params,
@@ -47,6 +48,8 @@ export default async function ChannelPage({
 
   // Only the group creator or a workspace admin may add/remove members.
   const canManageMembers = isAdmin || channel.created_by === user.id;
+  // Deleting the whole group is reserved for the creator alone.
+  const isCreator = channel.created_by === user.id;
 
   const meName = profile?.full_name ?? profile?.email ?? "You";
 
@@ -83,6 +86,13 @@ export default async function ChannelPage({
               canManage={canManageMembers}
               creatorId={channel.created_by}
             />
+            {isCreator && (
+              <DeleteGroupButton
+                workspaceId={workspaceId}
+                channelId={channelId}
+                groupName={channel.name}
+              />
+            )}
           </>
         }
       />

@@ -119,6 +119,24 @@ export async function removeGroupMember(
   return {};
 }
 
+// Delete a group. Only the group creator can do this - enforced in the RPC
+// (workspace admins are NOT allowed, unlike rename/remove-member). The RPC
+// soft-deletes the channel and its members, so every member's sidebar drops
+// the group on next refresh. On success this redirects to the workspace home.
+export async function deleteChannel(
+  workspaceId: string,
+  channelId: string,
+): Promise<ChatResult> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("delete_channel", {
+    p_channel_id: channelId,
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/w/${workspaceId}`, "layout");
+  redirect(`/w/${workspaceId}`);
+}
+
 // -- DMs ---------------------------------------------------------------------
 
 // Remove someone from YOUR DM list only (Slack's close-conversation). The
