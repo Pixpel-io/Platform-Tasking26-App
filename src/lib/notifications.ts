@@ -47,6 +47,29 @@ export const getUnreadCountsByWorkspace = cache(
   },
 );
 
+// Unread notifications bucketed by project (task board) inside one workspace,
+// so the sidebar can show which board has activity. Only rows carrying a
+// project_id are counted (task.assigned, task.status, task.comment,
+// project.added) - the rest live outside the boards section.
+export const getUnreadCountsByProject = cache(
+  async (workspaceId: string): Promise<Record<string, number>> => {
+    await requireUser();
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("notifications")
+      .select("project_id")
+      .eq("workspace_id", workspaceId)
+      .not("project_id", "is", null)
+      .is("read_at", null);
+    const counts: Record<string, number> = {};
+    for (const row of data ?? []) {
+      if (!row.project_id) continue;
+      counts[row.project_id] = (counts[row.project_id] ?? 0) + 1;
+    }
+    return counts;
+  },
+);
+
 export const getUnreadNotificationCount = cache(
   async (workspaceId: string): Promise<number> => {
     await requireUser();

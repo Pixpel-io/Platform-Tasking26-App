@@ -17,6 +17,7 @@ import { useDmActivity } from "@/lib/use-dm-activity";
 import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useWorkspaceUnreads } from "@/lib/use-workspace-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
+import { useProjectUnreads } from "@/lib/use-project-unreads";
 import { setFaviconBadge, setTitleUnread } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
@@ -67,6 +68,7 @@ export function Sidebar({
   dmUnreads,
   channelUnreads,
   workspaceUnreads,
+  projectUnreads,
 }: {
   workspaceId: string;
   workspaces: MembershipWithWorkspace[];
@@ -80,6 +82,7 @@ export function Sidebar({
   dmUnreads: Record<string, number>;
   channelUnreads: Record<string, number>;
   workspaceUnreads: Record<string, number>;
+  projectUnreads: Record<string, number>;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -92,6 +95,11 @@ export function Sidebar({
   const members = useLiveMembers(initialMembers);
   const dmContacts = useLiveMembers(initialDmContacts, "sidebar:dm-contacts");
   const workspaceUnreadCounts = useWorkspaceUnreads(userId, workspaceUnreads);
+  const projectUnreadCounts = useProjectUnreads(
+    workspaceId,
+    userId,
+    projectUnreads,
+  );
   useGroupMembership(userId);
   useHiddenContacts(userId);
   useDmRoster(userId);
@@ -408,6 +416,7 @@ export function Sidebar({
             {projects.slice(0, 8).map((p) => {
               const href = `${base}/projects/${p.id}`;
               const active = pathname.startsWith(href);
+              const unreadPr = projectUnreadCounts[p.id] ?? 0;
               return (
                 <Link
                   key={p.id}
@@ -416,7 +425,9 @@ export function Sidebar({
                   className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
+                      : unreadPr > 0
+                        ? "font-semibold text-foreground hover:bg-surface-2"
+                        : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
                   {active && (
@@ -426,7 +437,15 @@ export function Sidebar({
                     d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
                     className="h-3.5 w-3.5 shrink-0"
                   />
-                  <span className="truncate">{p.name}</span>
+                  <span className="flex-1 truncate">{p.name}</span>
+                  {unreadPr > 0 && (
+                    <span
+                      aria-label={`${unreadPr} unread`}
+                      className="grid h-5 min-w-5 shrink-0 animate-scale-in place-items-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground shadow-sm shadow-primary/30"
+                    >
+                      {unreadPr > 99 ? "99+" : unreadPr}
+                    </span>
+                  )}
                 </Link>
               );
             })}

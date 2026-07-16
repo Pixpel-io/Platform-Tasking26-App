@@ -7,6 +7,7 @@ import { getProject, PRIORITY_META } from "@/lib/projects";
 import { ProjectViewTabs } from "./project-view-tabs";
 import { DeleteProjectButton } from "./delete-project-button";
 import { BoardMembersButton } from "./board-members-button";
+import { AutoMarkProjectRead } from "./auto-mark-read";
 
 export default async function ProjectLayout({
   children,
@@ -45,6 +46,7 @@ export default async function ProjectLayout({
 
   return (
     <div className="flex h-full flex-col">
+      <AutoMarkProjectRead workspaceId={workspaceId} projectId={projectId} />
       <header className="border-b border-border bg-surface px-6 pt-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">

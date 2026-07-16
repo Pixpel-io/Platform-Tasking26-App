@@ -34,3 +34,22 @@ export async function markNotificationRead(
   revalidatePath(`/w/${workspaceId}`, "layout");
   return {};
 }
+
+// Clear every unread notification tied to one board when the user opens it -
+// Slack-style: visiting the room is what dismisses its badge. RLS scopes the
+// update to the caller's own rows so this can't touch anyone else.
+export async function markProjectNotificationsRead(
+  workspaceId: string,
+  projectId: string,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("workspace_id", workspaceId)
+    .eq("project_id", projectId)
+    .is("read_at", null);
+  if (error) return { error: error.message };
+  return {};
+}
