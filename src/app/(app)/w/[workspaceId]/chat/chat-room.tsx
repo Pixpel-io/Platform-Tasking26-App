@@ -489,6 +489,8 @@ export function ChatRoom({
 
       <Composer
         workspaceId={target.workspaceId}
+        channelId={target.channelId ?? null}
+        conversationId={target.conversationId ?? null}
         meId={meId}
         members={members}
         onSend={handleSend}

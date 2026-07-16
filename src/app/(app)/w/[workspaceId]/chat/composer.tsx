@@ -6,6 +6,10 @@ import { EmojiPicker } from "@/components/emoji-picker";
 import { highlightComposerValue } from "@/lib/message-format";
 import type { PendingAttachment } from "../chat-actions";
 import { VoiceRecorder } from "./voice-recorder";
+import {
+  useDraftSelected,
+  useDraftValue,
+} from "./composer-drafts-store";
 
 export type MentionMember = {
   id: string;
@@ -109,6 +113,8 @@ export type ReplyTarget = {
 
 export function Composer({
   workspaceId,
+  channelId = null,
+  conversationId = null,
   meId,
   members = [],
   onSend,
@@ -120,6 +126,10 @@ export function Composer({
   // Null in the global /dm shell (no-workspace users): text-only composer,
   // attachments and voice need a workspace's storage context.
   workspaceId: string | null;
+  // Which chat this composer belongs to - drives the drafts key so text and
+  // staged files survive switching to another chat and coming back.
+  channelId?: string | null;
+  conversationId?: string | null;
   meId: string;
   members?: MentionMember[];
   // Composer packages up the staged files and hands them off; the pending
@@ -133,8 +143,9 @@ export function Composer({
   onCancelReply?: () => void;
   placeholder?: string;
 }) {
-  const [value, setValue] = useState("");
-  const [selected, setSelected] = useState<Selected[]>([]);
+  const draftTarget = { channelId, conversationId };
+  const [value, setValue] = useDraftValue(draftTarget);
+  const [selected, setSelected] = useDraftSelected(draftTarget);
   const [preview, setPreview] = useState<Selected | null>(null);
   const [micError, setMicError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -405,6 +416,15 @@ export function Composer({
   useEffect(() => {
     if (replyTo) taRef.current?.focus();
   }, [replyTo]);
+
+  // When the composer mounts with a hydrated draft (user typed something,
+  // switched chats, and came back), size the textarea to match. rows=1 alone
+  // leaves a multi-line draft looking cramped.
+  useEffect(() => {
+    if (taRef.current && value) autoGrow(taRef.current);
+    // Run once per mount; live edits handle their own resize on change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="border-t border-border bg-surface p-2 sm:p-3">
