@@ -256,10 +256,26 @@ export function MessageItem({
   const [draft, setDraft] = useState(message.body);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFullPicker, setShowFullPicker] = useState(false);
+  // Touch devices have no hover: a tap on the row's mobile "⋮" trigger pins
+  // the action bar open so edit / delete / react are reachable there too.
+  const [mobileActions, setMobileActions] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
   // "down" opens below the button, "up" opens above it - chosen by available
   // viewport space so the picker is never clipped off the bottom/top.
   const [pickerDir, setPickerDir] = useState<"down" | "up">("down");
   const reactRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss the mobile action bar when the user taps outside this row.
+  useEffect(() => {
+    if (!mobileActions) return;
+    function onDocClick(e: MouseEvent) {
+      if (rowRef.current && !rowRef.current.contains(e.target as Node)) {
+        setMobileActions(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [mobileActions]);
 
   function openFullPicker() {
     const PICKER_HEIGHT = 320; // matches EmojiPicker h-80
@@ -333,6 +349,7 @@ export function MessageItem({
 
   return (
     <div
+      ref={rowRef}
       className={`group relative flex animate-fade-in gap-3 rounded-lg px-2 py-1 transition-colors duration-150 hover:bg-surface-2/60 ${
         grouped ? "" : "mt-2.5"
       } ${isOptimistic ? "opacity-60" : ""}`}
@@ -545,11 +562,43 @@ export function MessageItem({
         )}
       </div>
 
-      {/* Hover actions */}
+      {/* Mobile trigger: hover doesn't fire on touch, so a tap on this "⋮"
+          button pins the action bar open below lg. Hidden on desktop where
+          hover already surfaces the same bar. */}
+      {!isOptimistic && !editing && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMobileActions((v) => !v);
+          }}
+          aria-label={mobileActions ? "Hide actions" : "Show actions"}
+          className={`absolute right-2 top-1 z-10 grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground lg:hidden ${
+            mobileActions ? "bg-surface-2 text-foreground" : ""
+          }`}
+        >
+          <svg
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="5" r="1" />
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="12" cy="19" r="1" />
+          </svg>
+        </button>
+      )}
+
+      {/* Hover actions - desktop shows on group-hover, mobile shows when
+          "⋮" is toggled or a picker is open. */}
       {!isOptimistic && !editing && (
         <div
           className={`absolute right-2 top-0 -translate-y-1/2 animate-scale-in items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shadow-md group-hover:flex ${
-            showEmoji ? "flex" : "hidden"
+            showEmoji || mobileActions ? "flex" : "hidden"
           }`}
         >
           <div className="relative" ref={reactRef}>
