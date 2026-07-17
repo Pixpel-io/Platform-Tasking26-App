@@ -195,7 +195,7 @@ export function Sidebar({
   ];
 
   return (
-    <aside className="relative flex h-screen w-64 shrink-0 flex-col border-r border-border bg-linear-to-b from-surface to-background/60">
+    <aside className="relative flex h-dvh w-64 shrink-0 flex-col border-r border-border bg-linear-to-b from-surface to-background/60">
       {/* Workspace switcher */}
       <div className="relative border-b border-border/70 p-3">
         <button

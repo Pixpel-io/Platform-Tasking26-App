@@ -109,7 +109,7 @@ export function DmShellSidebar({
   }, [contacts, conversations, userId, dmActivity]);
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-border bg-linear-to-b from-surface to-background/60">
+    <aside className="flex h-dvh w-64 shrink-0 flex-col border-r border-border bg-linear-to-b from-surface to-background/60">
       {/* Header */}
       <div className="flex items-center gap-2.5 border-b border-border/70 p-4">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-linear-to-br from-primary to-primary/60 text-primary-foreground shadow-sm shadow-primary/30">
