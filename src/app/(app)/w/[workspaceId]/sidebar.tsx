@@ -236,6 +236,8 @@ export function Sidebar({
             {workspaces.map((w) => {
               const isCurrent = w.workspace_id === workspaceId;
               const color = w.workspaces?.color ?? "#4f46e5";
+              const unread = workspaceUnreadCounts[w.workspace_id] ?? 0;
+              const hasUnread = !isCurrent && unread > 0;
               return (
                 <button
                   key={w.workspace_id}
@@ -249,24 +251,34 @@ export function Sidebar({
                   className={`group/ws flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition-all duration-150 ${
                     isCurrent
                       ? "bg-primary/10 font-semibold text-foreground ring-1 ring-inset ring-primary/20"
-                      : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
+                      : hasUnread
+                        ? "font-semibold text-foreground hover:bg-surface-2"
+                        : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
-                  <span
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-xs font-bold text-white shadow-sm"
-                    style={{ backgroundColor: color }}
-                  >
-                    {w.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
-                  </span>
-                  <span className="flex-1 truncate">{w.workspaces?.name}</span>
-                  {!isCurrent && (workspaceUnreadCounts[w.workspace_id] ?? 0) > 0 && (
+                  <span className="relative shrink-0">
                     <span
-                      className="grid h-5 min-w-5 shrink-0 animate-scale-in place-items-center rounded-full px-1.5 text-[11px] font-semibold text-white shadow-sm"
+                      className="grid h-7 w-7 place-items-center rounded-md text-xs font-bold text-white shadow-sm"
                       style={{ backgroundColor: color }}
                     >
-                      {(workspaceUnreadCounts[w.workspace_id] ?? 0) > 99
-                        ? "99+"
-                        : workspaceUnreadCounts[w.workspace_id]}
+                      {w.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
+                    </span>
+                    {/* Solid danger dot on the avatar so unread workspaces
+                        pop instantly even before the eye reaches the count. */}
+                    {hasUnread && (
+                      <span
+                        aria-hidden
+                        className="absolute -right-1 -top-1 h-2.5 w-2.5 animate-scale-in rounded-full bg-danger ring-2 ring-surface"
+                      />
+                    )}
+                  </span>
+                  <span className="flex-1 truncate">{w.workspaces?.name}</span>
+                  {hasUnread && (
+                    <span
+                      aria-label={`${unread} unread`}
+                      className="grid h-5 min-w-5 shrink-0 animate-scale-in place-items-center rounded-full bg-danger px-1.5 text-[11px] font-semibold text-white shadow-sm shadow-danger/30"
+                    >
+                      {unread > 99 ? "99+" : unread}
                     </span>
                   )}
                   {isCurrent && (
