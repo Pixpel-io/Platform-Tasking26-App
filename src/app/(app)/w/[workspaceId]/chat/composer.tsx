@@ -571,11 +571,14 @@ export function Composer({
             rows={1}
             placeholder={placeholder}
             // Chat is often Roman Urdu / mixed language: OS + browser
-            // autocorrect and text-prediction mangle words on space (and the
-            // spellcheck squiggle fights the styled overlay), so disable all
-            // input assistance here. writingsuggestions is the Edge/Chrome
-            // text-prediction opt-out; data-gramm keeps Grammarly out.
-            spellCheck={false}
+            // autocorrect and text-prediction mangle words on space, so those
+            // stay off. Native spellcheck stays ON though - the browser draws
+            // its squiggle against the (transparent) textarea's text metrics,
+            // which match the visible styled overlay 1:1, so misspellings
+            // underline under the right word. writingsuggestions is the
+            // Edge/Chrome text-prediction opt-out; data-gramm keeps Grammarly
+            // out (its overlay fights the styled mirror).
+            spellCheck
             autoCorrect="off"
             autoCapitalize="none"
             autoComplete="off"
