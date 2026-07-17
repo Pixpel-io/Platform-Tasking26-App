@@ -116,7 +116,12 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
   const [viewerOpen, setViewerOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // FB-style sensitive scrim: images flagged by Rekognition render blurred
+  // until the viewer taps "See anyway". Only affects the current tab / this
+  // message row - other people still see their own scrim.
+  const [revealed, setRevealed] = useState(false);
   const box = mediaBox(attachment.width, attachment.height);
+  const isSensitive = attachment.sensitive && !revealed;
 
   useEffect(() => {
     let active = true;
@@ -169,13 +174,16 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
         <div className="group/att relative inline-block">
           <button
             type="button"
-            onClick={() => url && setViewerOpen(true)}
+            onClick={() => {
+              if (isSensitive) return; // scrim's own button handles reveal
+              if (url) setViewerOpen(true);
+            }}
             onContextMenu={(e) => {
-              if (!url) return;
+              if (!url || isSensitive) return;
               e.preventDefault();
               setMenu({ x: e.clientX, y: e.clientY });
             }}
-            className="block cursor-zoom-in text-left"
+            className={`block text-left ${isSensitive ? "cursor-default" : "cursor-zoom-in"}`}
             aria-label={`View ${attachment.file_name}`}
             style={box ? { width: box.width, height: box.height } : undefined}
           >
@@ -206,14 +214,51 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
                   onLoad={() => setImgLoaded(true)}
                   className={`h-full w-full object-cover transition-all duration-500 ease-out hover:opacity-95 ${
                     imgLoaded
-                      ? "scale-100 blur-0 opacity-100"
+                      ? "scale-100 opacity-100"
                       : "scale-105 blur-xl opacity-0"
+                  } ${
+                    // FB-style sensitive scrim: heavy blur that persists until
+                    // "See anyway" is tapped, on top of the normal blur-up.
+                    isSensitive ? "scale-110 blur-2xl" : "blur-0"
                   }`}
                 />
               )}
+              {isSensitive && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/25 p-3 text-center backdrop-blur-sm">
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-black/50 text-white shadow-md">
+                    <svg
+                      className="h-4.5 w-4.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    </svg>
+                  </span>
+                  <p className="max-w-55 text-xs font-semibold text-white">
+                    Sensitive content
+                  </p>
+                  <p className="max-w-55 text-[11px] text-white/80">
+                    This may contain graphic or adult content.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRevealed(true);
+                    }}
+                    className="mt-1 cursor-pointer rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-black transition-colors hover:bg-white"
+                  >
+                    See anyway
+                  </button>
+                </div>
+              )}
             </div>
           </button>
-          {downloadBtn}
+          {!isSensitive && downloadBtn}
         </div>
 
         {menu && url && (

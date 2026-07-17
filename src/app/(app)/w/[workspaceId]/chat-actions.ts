@@ -6,6 +6,8 @@ import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { CLEOTILDA_HANDLE, respondAsCleotilda } from "@/lib/cleotilda";
+import { moderateImageAtKey } from "@/lib/moderation";
+import { isS3Path, S3_PATH_PREFIX } from "@/lib/s3-shared";
 
 type ChatResult = { error?: string };
 
@@ -298,7 +300,7 @@ export async function sendMessage(args: {
   if (error) return { error: error.message };
 
   if (attachments.length > 0) {
-    const { error: attachErr } = await supabase
+    const { data: inserted, error: attachErr } = await supabase
       .from("message_attachments")
       .insert(
         attachments.map((a) => ({
@@ -313,8 +315,38 @@ export async function sendMessage(args: {
           height: a.height ?? null,
           duration_ms: a.durationMs ?? null,
         })),
-      );
+      )
+      .select("id, storage_path, kind");
     if (attachErr) return { error: attachErr.message };
+
+    // Kick off Rekognition on every image after the send round-trip is done -
+    // the message shows up instantly, and the sensitive flag flips in via
+    // realtime once the scan lands (usually 300-800ms). Non-image / non-S3
+    // attachments never get scanned; failure is logged and treated as "clean".
+    const toScan = (inserted ?? []).filter(
+      (a) => a.kind === "image" && isS3Path(a.storage_path),
+    );
+    if (toScan.length > 0) {
+      after(async () => {
+        const admin = await createClient();
+        await Promise.all(
+          toScan.map(async (a) => {
+            const key = a.storage_path.slice(S3_PATH_PREFIX.length);
+            const result = await moderateImageAtKey(key);
+            if (result.status === "skipped") return;
+            await admin.rpc("set_attachment_moderation", {
+              p_attachment_id: a.id,
+              p_sensitive: result.status === "flagged",
+              p_status: result.status,
+              p_labels:
+                result.status === "flagged" || result.status === "clean"
+                  ? result.labels
+                  : null,
+            });
+          }),
+        );
+      });
+    }
   }
 
   // Resolve @mentions against workspace members and record them.

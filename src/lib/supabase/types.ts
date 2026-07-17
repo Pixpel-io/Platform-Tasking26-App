@@ -593,6 +593,9 @@ export interface Database {
           height: number | null;
           duration_ms: number | null;
           created_at: string;
+          sensitive: boolean;
+          moderation_status: string;
+          moderation_labels: string[] | null;
         };
         Insert: {
           id?: string;
@@ -607,6 +610,9 @@ export interface Database {
           height?: number | null;
           duration_ms?: number | null;
           created_at?: string;
+          sensitive?: boolean;
+          moderation_status?: string;
+          moderation_labels?: string[] | null;
         };
         Update: {
           file_name?: string;
@@ -1168,6 +1174,15 @@ export interface Database {
       };
       delete_channel: {
         Args: { p_channel_id: string };
+        Returns: undefined;
+      };
+      set_attachment_moderation: {
+        Args: {
+          p_attachment_id: string;
+          p_sensitive: boolean;
+          p_status: string;
+          p_labels: string[] | null;
+        };
         Returns: undefined;
       };
       cleotilda_post_message: {
