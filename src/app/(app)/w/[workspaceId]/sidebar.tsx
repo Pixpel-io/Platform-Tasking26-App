@@ -18,6 +18,7 @@ import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useWorkspaceUnreads } from "@/lib/use-workspace-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
 import { useProjectUnreads } from "@/lib/use-project-unreads";
+import { useProjectsLive } from "@/lib/use-projects-live";
 import { setFaviconBadge, setTitleUnread } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
@@ -103,6 +104,7 @@ export function Sidebar({
   useGroupMembership(userId);
   useHiddenContacts(userId);
   useDmRoster(userId);
+  useProjectsLive(workspaceId);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   // When switching workspaces we show a branded full-screen splash, then push
   // the route. The whole layout remounts on arrival, tearing the splash down.
