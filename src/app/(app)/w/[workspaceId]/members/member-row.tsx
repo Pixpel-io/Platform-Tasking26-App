@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Avatar } from "@/components/avatar";
 import { usePresence } from "@/components/presence-provider";
 import { useProfileCard } from "@/components/profile-card";
 import type { Profile, WorkspaceMember } from "@/lib/supabase/types";
-import { removeMember } from "@/app/(app)/actions";
+import { changeMemberRole, removeMember } from "@/app/(app)/actions";
 import { openDirectMessage } from "../chat-actions";
 
 type Props = {
@@ -27,10 +27,34 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const roleMenuRef = useRef<HTMLDivElement>(null);
   const profile = member.profiles;
   const name = profile?.full_name ?? profile?.email ?? "Unknown";
-  // Owner can't be removed; you can't remove yourself from this roster.
+  // Owner can't be removed / re-roled; you can't touch your own row here.
   const canRemove = canManage && !isSelf && member.role !== "owner";
+  const canChangeRole = canManage && !isSelf && member.role !== "owner";
+
+  useEffect(() => {
+    if (!roleMenuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (
+        roleMenuRef.current &&
+        !roleMenuRef.current.contains(e.target as Node)
+      ) {
+        setRoleMenuOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setRoleMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [roleMenuOpen]);
 
   function handleRemove() {
     setError(null);
@@ -40,6 +64,20 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
         setError(result.error);
         setConfirming(false);
       }
+    });
+  }
+
+  function handleRoleChange(nextRole: "admin" | "member") {
+    setError(null);
+    setRoleMenuOpen(false);
+    if (nextRole === member.role) return;
+    startTransition(async () => {
+      const result = await changeMemberRole(
+        workspaceId,
+        member.user_id,
+        nextRole,
+      );
+      if (result?.error) setError(result.error);
     });
   }
 
@@ -117,16 +155,110 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
                 Remove
               </button>
             )}
-            <span
-              className={`rounded px-2 py-0.5 text-xs font-medium capitalize ${
-                roleBadge[member.role] ?? roleBadge.member
-              }`}
-            >
-              {member.role}
-            </span>
+            {canChangeRole ? (
+              <div ref={roleMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setRoleMenuOpen((v) => !v)}
+                  disabled={pending}
+                  aria-haspopup="menu"
+                  aria-expanded={roleMenuOpen}
+                  className={`flex cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-xs font-medium capitalize transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    roleBadge[member.role] ?? roleBadge.member
+                  }`}
+                >
+                  {member.role}
+                  <svg
+                    className={`h-3 w-3 transition-transform duration-150 ${
+                      roleMenuOpen ? "rotate-180" : ""
+                    }`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+                {roleMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full z-20 mt-1 w-48 animate-scale-in origin-top-right overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xl shadow-black/20"
+                  >
+                    <RoleOption
+                      label="Admin"
+                      description="Manage members and settings"
+                      active={member.role === "admin"}
+                      onClick={() => handleRoleChange("admin")}
+                    />
+                    <RoleOption
+                      label="Member"
+                      description="Regular access"
+                      active={member.role === "member"}
+                      onClick={() => handleRoleChange("member")}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span
+                className={`rounded px-2 py-0.5 text-xs font-medium capitalize ${
+                  roleBadge[member.role] ?? roleBadge.member
+                }`}
+              >
+                {member.role}
+              </span>
+            )}
           </>
         )}
       </div>
     </li>
+  );
+}
+
+function RoleOption({
+  label,
+  description,
+  active,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className={`flex w-full cursor-pointer items-start gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+        active ? "bg-primary/10" : "hover:bg-surface-2"
+      }`}
+    >
+      <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center">
+        {active && (
+          <svg
+            className="h-4 w-4 text-primary"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-foreground">
+          {label}
+        </span>
+        <span className="block text-xs text-muted">{description}</span>
+      </span>
+    </button>
   );
 }

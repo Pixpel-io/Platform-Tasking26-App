@@ -1185,6 +1185,14 @@ export interface Database {
         };
         Returns: undefined;
       };
+      set_workspace_member_role: {
+        Args: {
+          p_workspace_id: string;
+          p_member_user_id: string;
+          p_role: "admin" | "member";
+        };
+        Returns: undefined;
+      };
       cleotilda_post_message: {
         Args: {
           p_body: string;

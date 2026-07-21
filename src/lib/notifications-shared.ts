@@ -19,7 +19,12 @@ export function notificationHref(
   workspaceId: string,
   n: Pick<
     Notification,
-    "workspace_id" | "channel_id" | "conversation_id" | "task_id" | "project_id"
+    | "workspace_id"
+    | "channel_id"
+    | "conversation_id"
+    | "task_id"
+    | "project_id"
+    | "type"
   >,
 ): string | null {
   // DM notifications with no workspace at all (recipient belongs to none)
@@ -31,6 +36,9 @@ export function notificationHref(
   if (n.channel_id) return `${base}/c/${n.channel_id}`;
   if (n.conversation_id) return `${base}/dm/${n.conversation_id}`;
   if (n.project_id) return `${base}/projects/${n.project_id}`;
+  // Role change: land on the members list so the recipient can see the new
+  // badge on their own row.
+  if (n.type === "workspace.admin") return `${base}/settings/members`;
   return null;
 }
 

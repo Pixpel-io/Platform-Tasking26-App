@@ -429,6 +429,29 @@ export async function removeMember(
   return { success: "Member removed." };
 }
 
+// Owner-only: promote a member to admin, or demote an admin back to member.
+// The RPC (0043) enforces every gate - only owners can call it, the owner
+// itself can't be changed, and the caller can't touch their own role - so
+// this action just forwards the call and revalidates.
+export async function changeMemberRole(
+  workspaceId: string,
+  memberUserId: string,
+  role: "admin" | "member",
+): Promise<FormState> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_workspace_member_role", {
+    p_workspace_id: workspaceId,
+    p_member_user_id: memberUserId,
+    p_role: role,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/w/${workspaceId}/settings/members`);
+  revalidatePath(`/w/${workspaceId}`, "layout");
+  return { success: role === "admin" ? "Promoted to admin." : "Changed to member." };
+}
+
 export async function updateProfile(
   _prev: FormState,
   formData: FormData,
