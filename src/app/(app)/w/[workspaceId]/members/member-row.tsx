@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { Avatar } from "@/components/avatar";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { usePresence } from "@/components/presence-provider";
 import { useProfileCard } from "@/components/profile-card";
 import type { Profile, WorkspaceMember } from "@/lib/supabase/types";
@@ -28,6 +30,14 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState<
+    "admin" | "member" | null
+  >(null);
+  const roleBtnRef = useRef<HTMLButtonElement>(null);
   const roleMenuRef = useRef<HTMLDivElement>(null);
   const profile = member.profiles;
   const name = profile?.full_name ?? profile?.email ?? "Unknown";
@@ -35,24 +45,44 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
   const canRemove = canManage && !isSelf && member.role !== "owner";
   const canChangeRole = canManage && !isSelf && member.role !== "owner";
 
+  function openRoleMenu() {
+    const rect = roleBtnRef.current?.getBoundingClientRect();
+    if (rect) {
+      setMenuPos({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setRoleMenuOpen(true);
+  }
+
   useEffect(() => {
     if (!roleMenuOpen) return;
     function onDocClick(e: MouseEvent) {
+      const t = e.target as Node;
       if (
-        roleMenuRef.current &&
-        !roleMenuRef.current.contains(e.target as Node)
+        roleMenuRef.current?.contains(t) ||
+        roleBtnRef.current?.contains(t)
       ) {
-        setRoleMenuOpen(false);
+        return;
       }
+      setRoleMenuOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setRoleMenuOpen(false);
     }
+    function onScrollOrResize() {
+      setRoleMenuOpen(false);
+    }
     document.addEventListener("mousedown", onDocClick);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
     return () => {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
     };
   }, [roleMenuOpen]);
 
@@ -67,16 +97,23 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
     });
   }
 
-  function handleRoleChange(nextRole: "admin" | "member") {
-    setError(null);
+  function selectRole(nextRole: "admin" | "member") {
     setRoleMenuOpen(false);
     if (nextRole === member.role) return;
+    setPendingRoleChange(nextRole);
+  }
+
+  function applyRoleChange() {
+    if (!pendingRoleChange) return;
+    setError(null);
+    const nextRole = pendingRoleChange;
     startTransition(async () => {
       const result = await changeMemberRole(
         workspaceId,
         member.user_id,
         nextRole,
       );
+      setPendingRoleChange(null);
       if (result?.error) setError(result.error);
     });
   }
@@ -156,52 +193,34 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
               </button>
             )}
             {canChangeRole ? (
-              <div ref={roleMenuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setRoleMenuOpen((v) => !v)}
-                  disabled={pending}
-                  aria-haspopup="menu"
-                  aria-expanded={roleMenuOpen}
-                  className={`flex cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-xs font-medium capitalize transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 ${
-                    roleBadge[member.role] ?? roleBadge.member
+              <button
+                ref={roleBtnRef}
+                type="button"
+                onClick={() =>
+                  roleMenuOpen ? setRoleMenuOpen(false) : openRoleMenu()
+                }
+                disabled={pending}
+                aria-haspopup="menu"
+                aria-expanded={roleMenuOpen}
+                className={`flex cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-xs font-medium capitalize transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  roleBadge[member.role] ?? roleBadge.member
+                }`}
+              >
+                {member.role}
+                <svg
+                  className={`h-3 w-3 transition-transform duration-150 ${
+                    roleMenuOpen ? "rotate-180" : ""
                   }`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  {member.role}
-                  <svg
-                    className={`h-3 w-3 transition-transform duration-150 ${
-                      roleMenuOpen ? "rotate-180" : ""
-                    }`}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-                {roleMenuOpen && (
-                  <div
-                    role="menu"
-                    className="absolute right-0 top-full z-20 mt-1 w-48 animate-scale-in origin-top-right overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xl shadow-black/20"
-                  >
-                    <RoleOption
-                      label="Admin"
-                      description="Manage members and settings"
-                      active={member.role === "admin"}
-                      onClick={() => handleRoleChange("admin")}
-                    />
-                    <RoleOption
-                      label="Member"
-                      description="Regular access"
-                      active={member.role === "member"}
-                      onClick={() => handleRoleChange("member")}
-                    />
-                  </div>
-                )}
-              </div>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
             ) : (
               <span
                 className={`rounded px-2 py-0.5 text-xs font-medium capitalize ${
@@ -214,6 +233,61 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
           </>
         )}
       </div>
+
+      {/* Dropdown is portalled to <body> so the settings card's
+          `overflow-hidden` doesn't clip it. Positioning is fixed to the
+          trigger button's bounding rect. */}
+      {roleMenuOpen &&
+        menuPos &&
+        createPortal(
+          <div
+            ref={roleMenuRef}
+            role="menu"
+            style={{
+              position: "fixed",
+              top: menuPos.top,
+              right: menuPos.right,
+              zIndex: 100,
+            }}
+            className="w-56 animate-scale-in origin-top-right overflow-hidden rounded-xl border border-border bg-surface p-1 shadow-xl shadow-black/30"
+          >
+            <RoleOption
+              label="Admin"
+              description="Manage members and settings"
+              active={member.role === "admin"}
+              onClick={() => selectRole("admin")}
+            />
+            <RoleOption
+              label="Member"
+              description="Regular access"
+              active={member.role === "member"}
+              onClick={() => selectRole("member")}
+            />
+          </div>,
+          document.body,
+        )}
+
+      {pendingRoleChange && (
+        <ConfirmDialog
+          title={
+            pendingRoleChange === "admin"
+              ? `Make ${name} an admin?`
+              : `Change ${name} to member?`
+          }
+          description={
+            pendingRoleChange === "admin"
+              ? `${name} will be able to manage members, groups, and workspace settings. They'll get a notification about this change.`
+              : `${name} will lose admin permissions and revert to regular member access.`
+          }
+          confirmLabel={
+            pendingRoleChange === "admin" ? "Make admin" : "Change to member"
+          }
+          danger={pendingRoleChange === "member"}
+          pending={pending}
+          onConfirm={applyRoleChange}
+          onCancel={() => setPendingRoleChange(null)}
+        />
+      )}
     </li>
   );
 }
