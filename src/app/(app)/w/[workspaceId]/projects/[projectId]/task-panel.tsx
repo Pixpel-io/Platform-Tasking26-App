@@ -203,7 +203,9 @@ function TaskBody({
           </div>
           <button
             onClick={() => act(() => setTaskCompleted(task.id, !done))}
-            className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
+            aria-label={done ? "Mark incomplete" : "Mark complete"}
+            title={done ? "Completed" : "Mark complete"}
+            className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors sm:px-2.5 ${
               done
                 ? "bg-success/10 text-success"
                 : "text-muted hover:bg-surface-2 hover:text-foreground"
@@ -226,7 +228,11 @@ function TaskBody({
                 </svg>
               )}
             </span>
-            {done ? "Completed" : "Mark complete"}
+            {/* Label hides below sm - the icon carries the state, and the
+                title gets all the horizontal room the header can offer. */}
+            <span className="hidden sm:inline">
+              {done ? "Completed" : "Mark complete"}
+            </span>
           </button>
         </div>
 

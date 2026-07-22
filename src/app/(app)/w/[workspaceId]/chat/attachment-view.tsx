@@ -95,7 +95,10 @@ async function copyImage(url: string, storagePath: string) {
 // aspect ratio. Returned so the container reserves the exact space before the
 // media loads - the placeholder and the loaded media occupy identical boxes,
 // so nothing shifts (and the chat never jumps) when the file finishes loading.
-const MEDIA_MAX_W = 384;
+// 320 px fits a 360-390 px phone with the chat scroller's px-4 padding on
+// both sides; the wrapper below also clamps to 100 % of its parent so nothing
+// horizontally overflows on narrower screens.
+const MEDIA_MAX_W = 320;
 const MEDIA_MAX_H = 320;
 function mediaBox(
   width: number | null,
@@ -185,7 +188,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
             }}
             className={`block text-left ${isSensitive ? "cursor-default" : "cursor-zoom-in"}`}
             aria-label={`View ${attachment.file_name}`}
-            style={box ? { width: box.width, height: box.height } : undefined}
+            style={box ? { width: box.width, height: box.height, maxWidth: "100%" } : undefined}
           >
             {/* Slack-style blur-up: a soft placeholder holds the exact box so
                 nothing shifts, then the image cross-fades from blurred to sharp
@@ -315,7 +318,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
     return url ? (
       <div
         className="group/att relative inline-block"
-        style={box ? { width: box.width, height: box.height } : undefined}
+        style={box ? { width: box.width, height: box.height, maxWidth: "100%" } : undefined}
       >
         <video
           src={url}
@@ -334,7 +337,7 @@ export function AttachmentView({ attachment }: { attachment: MessageAttachment }
         className={`rounded-lg border border-border bg-surface-2 ${
           box ? "" : "h-40 w-64"
         }`}
-        style={box ? { width: box.width, height: box.height } : undefined}
+        style={box ? { width: box.width, height: box.height, maxWidth: "100%" } : undefined}
       />
     );
   }

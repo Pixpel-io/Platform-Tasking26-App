@@ -88,7 +88,7 @@ export function PendingMessageRow({ send }: { send: PendingSend }) {
         </div>
 
         {send.body && (
-          <div className="max-w-[72ch] whitespace-pre-wrap text-[15px] leading-relaxed text-foreground">
+          <div className="max-w-[72ch] whitespace-pre-wrap wrap-break-word text-[15px] leading-relaxed text-foreground">
             {send.body}
           </div>
         )}

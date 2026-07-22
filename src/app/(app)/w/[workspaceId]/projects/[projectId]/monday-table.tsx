@@ -332,7 +332,7 @@ export function MondayTable({
   const doneCount = allRows.filter(({ task }) => task.completed_at != null).length;
 
   return (
-    <div className="overflow-y-auto p-4 sm:p-6">
+    <div className="overflow-y-auto overflow-x-hidden p-3 sm:p-6">
       <TableToolbar
         board={board}
         members={members}
@@ -353,9 +353,9 @@ export function MondayTable({
         groupColorOf={(name, i) => groupColor(name, i)}
       />
 
-      <div className="overflow-hidden rounded-lg border border-border">
+      <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-border">
         {/* Header row */}
-        <div className="grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-center gap-0 border-b border-border bg-surface-2/40 text-xs font-medium text-muted max-lg:grid-cols-[minmax(160px,1fr)_110px_100px]">
+        <div className="grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-center gap-0 border-b border-border bg-surface-2/40 text-xs font-medium text-muted max-lg:min-w-full max-lg:grid-cols-[minmax(140px,1fr)_100px_84px]">
           <SortHeader label="Task" sortKey="task" sort={sort} onSort={onSort} />
           <SortHeader label="Status" sortKey="status" sort={sort} onSort={onSort} className="border-l border-border/60 px-3" />
           <SortHeader label="Priority" sortKey="priority" sort={sort} onSort={onSort} className="border-l border-border/60 px-3" />
@@ -767,7 +767,7 @@ function TaskRow({
 
   return (
     <div
-      className={`group/row grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-stretch border-b border-border/60 bg-surface text-sm transition-colors last:border-b-0 hover:bg-surface-2/30 max-lg:grid-cols-[minmax(160px,1fr)_110px_100px] ${
+      className={`group/row grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-stretch border-b border-border/60 bg-surface text-sm transition-colors last:border-b-0 hover:bg-surface-2/30 max-lg:min-w-full max-lg:grid-cols-[minmax(140px,1fr)_100px_84px] ${
         deleting ? "pointer-events-none opacity-40" : ""
       }`}
     >

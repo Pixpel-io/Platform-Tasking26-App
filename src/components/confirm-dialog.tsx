@@ -66,7 +66,9 @@ export function ConfirmDialog({
           </div>
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        {/* Stack below sm so long labels ("Delete workspace") + "Cancel"
+            don't collide inside the max-w-sm dialog. */}
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="ghost" onClick={onCancel} disabled={pending}>
             Cancel
           </Button>

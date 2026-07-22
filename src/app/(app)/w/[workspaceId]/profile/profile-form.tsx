@@ -60,32 +60,34 @@ export function ProfileForm({ profile }: { profile: Profile }) {
 
       <input type="hidden" name="avatarUrl" value={avatarUrl} />
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
         <Avatar
           name={profile.full_name}
           email={profile.email}
           avatarUrl={avatarUrl}
           size="xl"
         />
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-2 disabled:opacity-60"
-          >
-            {uploading ? "Uploading…" : "Upload photo"}
-          </button>
-          {avatarUrl && (
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setAvatarUrl("")}
-              className="ml-2 text-sm text-muted hover:text-foreground"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-2 disabled:opacity-60"
             >
-              Remove
+              {uploading ? "Uploading…" : "Upload photo"}
             </button>
-          )}
-          <p className="text-xs text-muted">PNG or JPG, up to 5MB.</p>
+            {avatarUrl && (
+              <button
+                type="button"
+                onClick={() => setAvatarUrl("")}
+                className="cursor-pointer text-sm text-muted hover:text-foreground"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted">PNG or JPG, up to 5MB.</p>
         </div>
         <input
           ref={fileRef}

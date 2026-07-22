@@ -29,7 +29,7 @@ export default async function DmShellLayout({
   return (
     <PresenceProvider userId={user.id}>
     <TypingProvider meId={user.id} meName={meName}>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-dvh overflow-hidden bg-background">
         <DmShellSidebar
           userId={user.id}
           profile={profile}

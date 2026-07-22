@@ -69,11 +69,14 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
     };
   }, []);
 
-  // Initial position: saved spot or bottom-right corner.
+  // Initial position: saved spot or bottom-right corner. On mobile the
+  // composer sits at the bottom-right, so start higher to keep the launcher
+  // off the Send button; the user can still drag it anywhere.
   useEffect(() => {
+    const bottomInset = window.innerWidth < 1024 ? 110 : 20;
     let initial = {
       x: window.innerWidth - BTN - 20,
-      y: window.innerHeight - BTN - 20,
+      y: window.innerHeight - BTN - bottomInset,
     };
     try {
       const raw = localStorage.getItem("cleotilda:pos");
@@ -305,7 +308,7 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
                 className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                  className={`max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
                     m.role === "user"
                       ? "rounded-br-md bg-primary text-primary-foreground"
                       : "rounded-bl-md border border-border bg-background text-foreground"

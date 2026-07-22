@@ -177,7 +177,7 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
                   })
                 }
                 disabled={pending}
-                className="cursor-pointer rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted opacity-0 transition-opacity hover:bg-surface-2 hover:text-foreground group-hover:opacity-100 disabled:opacity-50"
+                className="cursor-pointer rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-opacity hover:bg-surface-2 hover:text-foreground disabled:opacity-50 lg:opacity-0 lg:group-hover:opacity-100"
               >
                 {pending ? "Opening…" : "Message"}
               </button>
@@ -187,7 +187,7 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
                 onClick={() => setConfirming(true)}
                 aria-label={`Remove ${name}`}
                 title="Remove from workspace"
-                className="cursor-pointer rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted opacity-0 transition-colors hover:border-danger/40 hover:bg-danger/5 hover:text-danger group-hover:opacity-100"
+                className="cursor-pointer rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-danger/40 hover:bg-danger/5 hover:text-danger lg:opacity-0 lg:group-hover:opacity-100"
               >
                 Remove
               </button>

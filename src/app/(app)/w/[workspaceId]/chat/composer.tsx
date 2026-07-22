@@ -624,7 +624,7 @@ export function Composer({
           />
 
           {mentionOpen && mention && (
-            <div className="absolute bottom-full left-2 z-40 mb-2 w-72 max-w-[calc(100%-1rem)] animate-scale-in overflow-hidden rounded-xl border border-border bg-surface shadow-xl shadow-black/20">
+            <div className="absolute bottom-full left-2 right-2 z-40 mb-2 animate-scale-in overflow-hidden rounded-xl border border-border bg-surface shadow-xl shadow-black/20 sm:right-auto sm:w-72">
               <p className="border-b border-border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
                 Mention someone
               </p>

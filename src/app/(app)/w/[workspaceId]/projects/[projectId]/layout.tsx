@@ -47,13 +47,15 @@ export default async function ProjectLayout({
   return (
     <div className="flex h-full flex-col">
       <AutoMarkProjectRead workspaceId={workspaceId} projectId={projectId} />
-      <header className="border-b border-border bg-surface px-6 pt-4">
-        <div className="flex items-start justify-between gap-4">
+      <header className="border-b border-border bg-surface px-4 pt-4 sm:px-6">
+        {/* Stacks on phones so the title has room; goes back to one row on
+            desktop where the actions cluster fits alongside. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Link
                 href={`/w/${workspaceId}/projects`}
-                className="text-sm text-muted hover:text-foreground"
+                className="shrink-0 text-sm text-muted hover:text-foreground"
               >
                 Task Boards
               </Link>
@@ -68,8 +70,9 @@ export default async function ProjectLayout({
               </p>
             )}
           </div>
-          {/* Right padding clears the fixed search/bell overlay on desktop. */}
-          <div className="flex shrink-0 items-center gap-2 lg:pr-24">
+          {/* lg:pr-24 clears the fixed search/bell overlay on desktop; the
+              overlay is hidden below lg so we don't need the padding there. */}
+          <div className="flex shrink-0 flex-wrap items-center gap-2 lg:pr-24">
             <span
               className={`flex shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium ${priority.color}`}
             >

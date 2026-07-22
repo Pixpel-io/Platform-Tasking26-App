@@ -479,7 +479,7 @@ export function MessageItem({
         ) : (
           <div
             data-message-body
-            className="max-w-[72ch] rounded text-[15px] leading-relaxed text-foreground"
+            className="max-w-[72ch] wrap-break-word rounded text-[15px] leading-relaxed text-foreground"
           >
             {/* Grouped rows have no name line, so the via-badge rides inline. */}
             {grouped && isViaCleotilda(message.body) && (

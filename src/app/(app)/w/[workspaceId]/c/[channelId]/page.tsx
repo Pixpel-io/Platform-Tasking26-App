@@ -71,12 +71,17 @@ export default async function ChannelPage({
         actions={
           <>
             {canManageMembers && (
-              <RenameGroup
-                workspaceId={workspaceId}
-                channelId={channelId}
-                name={channel.name}
-                description={channel.description}
-              />
+              /* Rename is rare and hogs header space next to the delete +
+                 members buttons on phones. Owners / admins can still reach
+                 it from the Members panel; hide below sm. */
+              <span className="hidden sm:inline-flex">
+                <RenameGroup
+                  workspaceId={workspaceId}
+                  channelId={channelId}
+                  name={channel.name}
+                  description={channel.description}
+                />
+              </span>
             )}
             <GroupMembers
               workspaceId={workspaceId}

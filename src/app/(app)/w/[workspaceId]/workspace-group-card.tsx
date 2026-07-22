@@ -89,7 +89,7 @@ export function WorkspaceGroupCard({
               {g.name}
             </span>
             {isCurrent && (
-              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              <span className="hidden shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary sm:inline-block">
                 current workspace
               </span>
             )}
@@ -106,7 +106,8 @@ export function WorkspaceGroupCard({
         {g.unread > 0 && (
           <Link
             href={`/w/${g.id}/notifications`}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-danger/10 px-2.5 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/20"
+            aria-label={`${g.unread} unread`}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-danger/10 px-2 py-1 text-xs font-semibold text-danger transition-colors hover:bg-danger/20 sm:px-2.5"
           >
             <svg
               className="h-3.5 w-3.5"
@@ -119,7 +120,8 @@ export function WorkspaceGroupCard({
             >
               <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
-            {g.unread > 99 ? "99+" : g.unread} unread
+            <span>{g.unread > 99 ? "99+" : g.unread}</span>
+            <span className="hidden sm:inline">unread</span>
           </Link>
         )}
       </div>

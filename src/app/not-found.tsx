@@ -26,7 +26,7 @@ export default function NotFound() {
   const CIRC = 2 * Math.PI * 26;
 
   return (
-    <div className="aurora-bg grid min-h-screen place-items-center overflow-hidden bg-background px-6">
+    <div className="aurora-bg grid min-h-dvh place-items-center overflow-hidden bg-background px-6">
       <div className="flex max-w-md animate-fade-in-up flex-col items-center text-center">
         {/* 404 with a floating ghost tile */}
         <div className="relative">

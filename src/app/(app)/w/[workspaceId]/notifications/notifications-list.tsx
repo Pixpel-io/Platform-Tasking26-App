@@ -127,8 +127,8 @@ export function NotificationsList({
 
   return (
     <>
-      <header className="mb-6 flex items-center justify-between">
-        <div>
+      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-foreground">
             Notifications
           </h1>
@@ -139,7 +139,12 @@ export function NotificationsList({
           </p>
         </div>
         {unread > 0 && (
-          <Button variant="outline" size="sm" onClick={onMarkAll}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onMarkAll}
+            className="self-start sm:self-auto"
+          >
             Mark all read
           </Button>
         )}

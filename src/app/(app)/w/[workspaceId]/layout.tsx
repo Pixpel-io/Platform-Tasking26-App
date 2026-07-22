@@ -88,7 +88,7 @@ export default async function WorkspaceLayout({
       <ProfileCardProvider workspaceId={workspaceId} meId={user.id}>
       <WorkspaceLoader name={workspaceName} accent={accent} />
       <div
-        className="flex h-screen overflow-hidden"
+        className="flex h-dvh overflow-hidden"
         style={{ "--primary": accent } as React.CSSProperties}
       >
         <NotificationToaster workspaceId={workspaceId} userId={user.id} />

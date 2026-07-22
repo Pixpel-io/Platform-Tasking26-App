@@ -39,18 +39,18 @@ export function PendingInvites({
         {unique.map((invite) => (
           <li
             key={invite.id}
-            className="flex items-center justify-between px-5 py-3"
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3"
           >
-            <div>
-              <p className="text-sm font-medium text-foreground">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-foreground">
                 {invite.email}
               </p>
-              <p className="text-xs text-muted">
+              <p className="truncate text-xs text-muted">
                 Invited as {invite.role} · expires{" "}
                 {new Date(invite.expires_at).toLocaleDateString()}
               </p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex shrink-0 items-center gap-4">
               <button
                 disabled={pending}
                 onClick={() => {

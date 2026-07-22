@@ -126,7 +126,7 @@ function QrDialog({ onClose }: { onClose: () => void }) {
           then expires.
         </p>
 
-        <div className="mx-auto mt-5 grid aspect-square w-64 place-items-center overflow-hidden rounded-2xl border border-border bg-white p-3">
+        <div className="mx-auto mt-5 grid aspect-square w-full max-w-64 place-items-center overflow-hidden rounded-2xl border border-border bg-white p-3">
           {error ? (
             <p className="px-4 text-sm text-danger">{error}</p>
           ) : !dataUrl ? (

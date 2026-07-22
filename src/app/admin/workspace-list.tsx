@@ -43,7 +43,10 @@ export function WorkspaceList({ workspaces }: { workspaces: Row[] }) {
     <>
       <ul className="mt-3 divide-y divide-border/60">
         {workspaces.map((w) => (
-          <li key={w.id} className="flex items-center gap-3 py-2.5">
+          <li
+            key={w.id}
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5"
+          >
             <span
               className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-bold text-white"
               style={{ backgroundColor: w.color }}

@@ -158,7 +158,7 @@ export function StatusDialog({
               )}
             </button>
             {emojiOpen && (
-              <div className="absolute left-0 top-full z-10 mt-1 h-56 w-64 overflow-y-auto rounded-xl border border-border bg-surface p-2 shadow-xl">
+              <div className="absolute left-0 top-full z-10 mt-1 h-56 w-[min(16rem,calc(100vw-4rem))] overflow-y-auto rounded-xl border border-border bg-surface p-2 shadow-xl">
                 {EMOJI_CATEGORIES.map((cat) => (
                   <div key={cat.id}>
                     <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted first:pt-0">
@@ -256,8 +256,9 @@ export function StatusDialog({
           </select>
         </div>
 
-        {/* Actions */}
-        <div className="mt-5 flex justify-end gap-2">
+        {/* Actions. Stack below sm so three buttons don't collide inside the
+            narrow dialog width. */}
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           {current && (
             <Button
               variant="ghost"

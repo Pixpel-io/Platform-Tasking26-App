@@ -215,7 +215,7 @@ export function GroupMembers({
                           disabled={pending}
                           aria-label={`Remove ${m.full_name ?? m.email}`}
                           title="Remove from group"
-                          className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all duration-150 hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-muted transition-all duration-150 hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-40 lg:opacity-0 lg:group-hover:opacity-100"
                         >
                           {removingId === m.id ? (
                             <svg

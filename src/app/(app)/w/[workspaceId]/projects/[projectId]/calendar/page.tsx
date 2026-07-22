@@ -36,10 +36,74 @@ export default async function ProjectCalendarPage({
     year: "numeric",
   });
 
+  const daysWithTasks = Array.from(byDay.entries())
+    .map(([day, list]) => ({ day, list }))
+    .sort((a, b) => a.day - b.day);
+
   return (
-    <div className="overflow-y-auto p-6">
+    <div className="overflow-y-auto p-4 sm:p-6">
       <h2 className="mb-4 text-lg font-semibold text-foreground">{monthLabel}</h2>
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
+
+      {/* Mobile agenda: a 7-column grid never fits enough characters on a
+          phone, so below sm we switch to a day-by-day list of just the days
+          that have tasks. Desktop keeps the traditional calendar grid. */}
+      <div className="sm:hidden">
+        {daysWithTasks.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted">
+            No tasks scheduled this month.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {daysWithTasks.map(({ day, list }) => {
+              const isToday = day === now.getDate();
+              const date = new Date(year, month, day);
+              const weekday = date.toLocaleDateString(undefined, {
+                weekday: "short",
+              });
+              return (
+                <li
+                  key={day}
+                  className="overflow-hidden rounded-xl border border-border bg-surface"
+                >
+                  <div className="flex items-center gap-3 border-b border-border bg-surface-2/40 px-4 py-2">
+                    <span
+                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-semibold ${
+                        isToday
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-surface text-foreground"
+                      }`}
+                    >
+                      {day}
+                    </span>
+                    <span className="text-xs uppercase tracking-wide text-muted">
+                      {weekday}
+                    </span>
+                    <span className="ml-auto text-xs text-muted">
+                      {list.length} task{list.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <ul className="divide-y divide-border/60">
+                    {list.map((t) => (
+                      <li
+                        key={t.id}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-foreground"
+                      >
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_META[t.priority].dot}`}
+                        />
+                        <span className="min-w-0 flex-1 truncate">{t.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Desktop calendar grid */}
+      <div className="hidden grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid">
         {WEEKDAYS.map((w) => (
           <div
             key={w}

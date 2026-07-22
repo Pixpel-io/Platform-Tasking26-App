@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 
 export default function DownloadPage() {
   return (
-    <div className="aurora-bg relative min-h-screen overflow-hidden bg-background text-foreground">
+    <div className="aurora-bg relative min-h-dvh overflow-hidden bg-background text-foreground">
       {/* Top wordmark strip — keeps brand present without a full nav bar */}
       <header className="relative z-10 flex items-center justify-between px-6 py-6 sm:px-10">
         <Link href="/" className="flex items-center gap-2.5">
