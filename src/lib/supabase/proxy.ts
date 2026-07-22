@@ -12,6 +12,7 @@ const PUBLIC_PREFIXES = [
   "/invite",
   "/dm-invite",
   "/qr",
+  "/download",
 ];
 
 function isPublic(pathname: string) {

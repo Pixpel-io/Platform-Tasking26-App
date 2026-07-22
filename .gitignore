@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Android APK — hosted externally on GitHub Releases (see
+# src/lib/android-app.ts for the ANDROID_APK_URL). GitHub blocks any
+# file over 100 MB in the git tree; keep the binary out of source
+# control and let the release-asset URL serve production traffic.
+public/tasking-app.apk

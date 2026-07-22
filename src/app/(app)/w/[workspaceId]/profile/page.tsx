@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getProfile } from "@/lib/auth";
 import { ProfileForm } from "./profile-form";
 import { QrLoginCard } from "./qr-login";
+import { GetAndroidAppCard } from "./get-android-app-card";
 
 export default async function ProfilePage() {
   const profile = await getProfile();
@@ -19,6 +20,7 @@ export default async function ProfilePage() {
         <ProfileForm profile={profile} />
       </div>
       <QrLoginCard />
+      <GetAndroidAppCard />
     </div>
   );
 }
