@@ -16,7 +16,7 @@
 //   6. Bump ANDROID_APK_META.version + releasedAt + whatsNew, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.1/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.2/tasking-app.apk';
 
 // Displayed size + release info on the download page. Keep updated when a
 // new build lands so users see a fresh "Released N days ago" and a
@@ -29,20 +29,24 @@ export const ANDROID_APK_URL =
 //   whatsNew:   Short bullet-list of user-visible changes in THIS release.
 //               Rendered as a collapsible "What's new" panel on /download.
 export const ANDROID_APK_META = {
-  version: '1.0.1',
-  releasedAt: '2026-07-23T10:37:00Z',
-  size: '~108 MB',
+  version: '1.0.2',
+  releasedAt: '2026-07-23T12:50:00Z',
+  size: '~109 MB',
   minAndroid: 'Android 6.0+',
   whatsNew: [
-    'Fixed app crash on install (missing native dependency)',
-    'New adaptive app icon with proper padding on all launchers',
-    'Theme toggle no longer reloads — instant light/dark switch',
-    '5 new attention-grabbing notification sounds + 2× volume on existing tones',
-    'DM chat header now shows the correct person you\'re messaging',
-    'Redesigned home groups with colorful, purpose-based icons',
-    'Invite people outside your workspaces to message you directly',
-    'Premium color picker + notification-sound picker in Settings',
-    'Real-time workspace name / accent-color sync across devices',
+    'Redesigned Home groups list with colorful, purpose-based icons per channel',
+    'Premium grouped color picker in Workspace settings with live preview',
+    '4-category notification sound picker with per-row play button',
+    'DM chat header now correctly shows the person you\'re messaging',
+    'Instant Cleotilda floating-button toggle — no app restart needed',
+    'DM invitations — connect with anyone outside your workspaces via email or share link',
+    'Theme toggle no longer reloads — navigation state preserved across light/dark switch',
+    'Louder notification tones + 5 new sharp / attention-grabbing sounds',
+    'Real-time workspace name and accent color sync across devices',
+    'Real-time DM partner profile updates',
+    'QR sign-in now surfaces meaningful error messages',
+    'App icon regenerated with proper adaptive safe zone (no more white borders)',
+    'Accepting a DM invite now opens the fresh conversation directly',
   ],
 } as const;
 
