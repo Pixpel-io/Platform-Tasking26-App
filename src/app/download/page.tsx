@@ -1,7 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ANDROID_APK_URL, ANDROID_APK_META } from "@/lib/android-app";
+import {
+  ANDROID_APK_URL,
+  ANDROID_APK_META,
+  getReleaseAge,
+} from "@/lib/android-app";
 
 // Public landing for the Android APK. Whitelisted in
 // `src/lib/supabase/proxy.ts` so unauthenticated visitors can reach it.
@@ -28,6 +32,7 @@ export const metadata: Metadata = {
 };
 
 export default function DownloadPage() {
+  const age = getReleaseAge(ANDROID_APK_META.releasedAt);
   return (
     <div className="aurora-bg relative min-h-dvh overflow-hidden bg-background text-foreground">
       {/* Top wordmark strip — keeps brand present without a full nav bar */}
@@ -72,7 +77,43 @@ export default function DownloadPage() {
           </svg>
         </span>
 
-        <h1 className="mt-8 animate-fade-in-up text-4xl font-semibold tracking-tight sm:text-5xl">
+        {/* Version + release-age pill. Shown above the headline so
+            people can see at a glance whether the download is fresh
+            (relevant now that the /download URL is stable across
+            builds — a stale-looking page kills trust). */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2 animate-fade-in-up">
+          {age.isRecent && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1 text-xs font-semibold text-success ring-1 ring-inset ring-success/30">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
+              </span>
+              NEW
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-muted ring-1 ring-inset ring-border">
+            Version {ANDROID_APK_META.version}
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-muted ring-1 ring-inset ring-border">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3 w-3"
+              aria-hidden
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+            Released {age.label}
+          </span>
+        </div>
+
+        <h1 className="mt-4 animate-fade-in-up text-4xl font-semibold tracking-tight sm:text-5xl">
           Take TasKing <span className="gradient-text">everywhere</span>.
         </h1>
         <p className="mt-4 max-w-xl animate-fade-in-up text-base text-muted sm:text-lg">
@@ -137,8 +178,49 @@ export default function DownloadPage() {
           />
         </div>
 
+        {/* What's new in the current release. Skipped when the release
+            has no bullet points — that way we don't render an awkward
+            empty card if a maintainer forgets to populate whatsNew. */}
+        {ANDROID_APK_META.whatsNew.length > 0 && (
+          <section className="mt-20 w-full max-w-2xl rounded-2xl border border-border bg-surface p-6 text-left shadow-sm sm:p-8">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/15 text-primary ring-1 ring-inset ring-primary/25">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                  aria-hidden
+                >
+                  <path d="M12 2l1.9 5.9L20 10l-6.1 2.1L12 18l-1.9-5.9L4 10l6.1-2.1L12 2z" />
+                </svg>
+              </span>
+              <div>
+                <h2 className="text-xl font-semibold">
+                  What&apos;s new in {ANDROID_APK_META.version}
+                </h2>
+                <p className="mt-0.5 text-xs text-muted">
+                  Released {age.label}
+                </p>
+              </div>
+            </div>
+            <ul className="mt-5 space-y-2.5">
+              {ANDROID_APK_META.whatsNew.map((item) => (
+                <li key={item} className="flex gap-2.5 text-sm text-foreground">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                  <span className="text-muted">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Install guide */}
-        <section className="mt-20 w-full max-w-2xl rounded-2xl border border-border bg-surface p-6 text-left shadow-sm sm:p-8">
+        <section className="mt-6 w-full max-w-2xl rounded-2xl border border-border bg-surface p-6 text-left shadow-sm sm:p-8">
           <h2 className="text-xl font-semibold">How to install</h2>
           <p className="mt-1 text-sm text-muted">
             Not on the Play Store yet — it&apos;s a direct APK. Two-minute setup.
