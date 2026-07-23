@@ -16,12 +16,12 @@
 //   6. Bump ANDROID_APK_META.version + size, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.0/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.1/tasking-app.apk';
 
 // Displayed size + release info on the download page. Optional — keep
 // updated for polish, but the page still works if these are missing.
 export const ANDROID_APK_META = {
-  version: '1.0.0',
+  version: '1.0.1',
   size: '~108 MB',
   minAndroid: 'Android 6.0+',
 };
