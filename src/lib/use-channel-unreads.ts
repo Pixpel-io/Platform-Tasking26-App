@@ -69,6 +69,32 @@ export function useChannelUnreads(
             }));
           },
         )
+        // Cross-device read sync — when this user reads a channel on
+        // mobile (or another tab), Supabase writes their new last_read_at
+        // to `read_state`. Drop the local unread count so the sidebar
+        // badge matches what the other device now shows.
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "read_state",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const row = (payload.new ?? payload.old) as {
+              channel_id?: string | null;
+            } | null;
+            const chId = row?.channel_id;
+            if (!chId) return;
+            setCounts((prev) => {
+              if (!prev[chId]) return prev;
+              const next = { ...prev };
+              delete next[chId];
+              return next;
+            });
+          },
+        )
         .subscribe();
     });
 

@@ -74,6 +74,33 @@ export function useDmUnreads(
             }));
           },
         )
+        // Cross-device read sync: when this user reads a DM on ANOTHER
+        // device (mobile, or another browser), Supabase writes their new
+        // last_read_at to `read_state`. We drop the local unread count
+        // for that conversation immediately so the sidebar badge stays
+        // consistent with what mobile/other-tab now shows.
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "read_state",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            const row = (payload.new ?? payload.old) as {
+              conversation_id?: string | null;
+            } | null;
+            const convId = row?.conversation_id;
+            if (!convId) return;
+            setCounts((prev) => {
+              if (!prev[convId]) return prev;
+              const next = { ...prev };
+              delete next[convId];
+              return next;
+            });
+          },
+        )
         .subscribe();
     });
 
