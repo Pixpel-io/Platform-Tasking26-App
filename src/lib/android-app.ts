@@ -16,7 +16,7 @@
 //   6. Bump ANDROID_APK_META.version + releasedAt + whatsNew, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.2/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.3/tasking-app.apk';
 
 // Displayed size + release info on the download page. Keep updated when a
 // new build lands so users see a fresh "Released N days ago" and a
@@ -29,24 +29,21 @@ export const ANDROID_APK_URL =
 //   whatsNew:   Short bullet-list of user-visible changes in THIS release.
 //               Rendered as a collapsible "What's new" panel on /download.
 export const ANDROID_APK_META = {
-  version: '1.0.2',
-  releasedAt: '2026-07-23T12:50:00Z',
+  version: '1.0.3',
+  releasedAt: '2026-07-24T10:00:00Z',
   size: '~109 MB',
   minAndroid: 'Android 6.0+',
   whatsNew: [
-    'Redesigned Home groups list with colorful, purpose-based icons per channel',
-    'Premium grouped color picker in Workspace settings with live preview',
-    '4-category notification sound picker with per-row play button',
-    'DM chat header now correctly shows the person you\'re messaging',
-    'Instant Cleotilda floating-button toggle — no app restart needed',
-    'DM invitations — connect with anyone outside your workspaces via email or share link',
-    'Theme toggle no longer reloads — navigation state preserved across light/dark switch',
-    'Louder notification tones + 5 new sharp / attention-grabbing sounds',
-    'Real-time workspace name and accent color sync across devices',
-    'Real-time DM partner profile updates',
-    'QR sign-in now surfaces meaningful error messages',
-    'App icon regenerated with proper adaptive safe zone (no more white borders)',
-    'Accepting a DM invite now opens the fresh conversation directly',
+    'Instant theme flip — dark/light toggle no longer reloads the app, all screen state preserved',
+    'Time-aware greeting — 5 buckets (late night, morning, afternoon, evening, night) with rotating messages that respect your local time',
+    'Animated waving hand on the Home hero, with a crescent moon at late-night hours',
+    'Home DM list redesigned — larger ringed avatars, live presence subtitle (Active now · Offline · typing…), pretty-printed names for email-only contacts',
+    'Chat rooms: modern polish — ringed avatars, elevated header, composer icons in soft pills, subtle send-button shadow',
+    'Settings redesigned — compact horizontal appearance cards, iOS-style grouped notification sound cards with hairline dividers',
+    'Task boards now show a cover-image thumbnail on rows for tasks with a picture',
+    'Task detail: premium 2-up image gallery with floating delete on each tile — no more tiny 40px thumbs',
+    'Full-coverage realtime on task detail — cross-device edits to title, description, attachments, assignees, labels, watchers, subtasks, checklists all reflect instantly',
+    'Greeting bucket auto-transitions across midnight and other time boundaries',
   ],
 } as const;
 
