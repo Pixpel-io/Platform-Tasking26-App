@@ -16,7 +16,7 @@
 //   6. Bump ANDROID_APK_META.version + releasedAt + whatsNew, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.3/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.4/tasking-app.apk';
 
 // Displayed size + release info on the download page. Keep updated when a
 // new build lands so users see a fresh "Released N days ago" and a
@@ -29,21 +29,24 @@ export const ANDROID_APK_URL =
 //   whatsNew:   Short bullet-list of user-visible changes in THIS release.
 //               Rendered as a collapsible "What's new" panel on /download.
 export const ANDROID_APK_META = {
-  version: '1.0.3',
-  releasedAt: '2026-07-24T10:00:00Z',
+  version: '1.0.4',
+  releasedAt: '2026-07-24T12:30:00Z',
   size: '~109 MB',
   minAndroid: 'Android 6.0+',
   whatsNew: [
-    'Instant theme flip — dark/light toggle no longer reloads the app, all screen state preserved',
-    'Time-aware greeting — 5 buckets (late night, morning, afternoon, evening, night) with rotating messages that respect your local time',
-    'Animated waving hand on the Home hero, with a crescent moon at late-night hours',
-    'Home DM list redesigned — larger ringed avatars, live presence subtitle (Active now · Offline · typing…), pretty-printed names for email-only contacts',
-    'Chat rooms: modern polish — ringed avatars, elevated header, composer icons in soft pills, subtle send-button shadow',
-    'Settings redesigned — compact horizontal appearance cards, iOS-style grouped notification sound cards with hairline dividers',
-    'Task boards now show a cover-image thumbnail on rows for tasks with a picture',
-    'Task detail: premium 2-up image gallery with floating delete on each tile — no more tiny 40px thumbs',
-    'Full-coverage realtime on task detail — cross-device edits to title, description, attachments, assignees, labels, watchers, subtasks, checklists all reflect instantly',
-    'Greeting bucket auto-transitions across midnight and other time boundaries',
+    'App renamed to just "Tasking" (launcher, splash, all branding)',
+    'Runtime-permission bootstrap on first sign-in — notifications, camera, microphone, and photo library prompts fire up front instead of hiding in App Info',
+    'Unread badges clear the instant you tap into a DM or channel (no more 2-second wait)',
+    'Cross-device read sync — reading a room on the web instantly clears the badge on mobile, and vice versa',
+    'Attach a cover image while CREATING a task on the board (small image button in the add-task row)',
+    'Cleotilda can act on its own UI — say "hide your floating icon" in any chat or the assistant panel and it toggles instantly',
+    'New Notifications screen with filter tabs — All / Unread / I was mentioned / Assigned to me / Task updates, each with live count badges',
+    'Dashboard cleaned up — Boards tile + list removed (dedicated Boards tab), workspace name and dropdown chevron sit tightly together',
+    'Live "N teammates online right now" pill under the Home hero, with a pulsing green dot that updates as people connect/disconnect',
+    'Compact chat composer — reduced empty space above the gesture-nav bar',
+    'Performance pass — trimmed realtime refetch surface (Home, Chat reactions, Board join tables), single-pass Notification counts, filtered Notifications subscription, memoized channel-icon lookup',
+    'Cleotilda command parser hardened — imperative-only patterns so narrative text no longer accidentally toggles the FAB',
+    'Cached image loading in Chat — no more spinner flash when switching between DMs/groups',
   ],
 } as const;
 
