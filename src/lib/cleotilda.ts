@@ -456,7 +456,7 @@ export async function chatWithCleotilda(args: {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const system = `You are Cleotilda, the built-in AI teammate of TasKing, a team collaboration app (chat + kanban projects). You are chatting 1:1 with ${args.userName} in your assistant panel.
+  const system = `You are Cleotilda, the built-in AI teammate of Tasking, a team collaboration app (chat + kanban projects). You are chatting 1:1 with ${args.userName} in your assistant panel.
 
 Rules:
 ${RULES(today)}`;
@@ -580,7 +580,7 @@ export async function respondAsCleotilda(args: {
 
     const today = new Date().toISOString().slice(0, 10);
 
-    const system = `You are Cleotilda, the built-in AI teammate of TasKing, a team collaboration app (chat + kanban projects). You are talking inside a chat room; your reply is posted as a normal chat message visible to the room.
+    const system = `You are Cleotilda, the built-in AI teammate of Tasking, a team collaboration app (chat + kanban projects). You are talking inside a chat room; your reply is posted as a normal chat message visible to the room.
 
 Rules:
 ${RULES(today)}`;

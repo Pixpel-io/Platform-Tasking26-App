@@ -40,7 +40,7 @@ export default async function QrLandingPage({
         {token ? (
           <>
             <p className="mt-3 text-sm text-muted">
-              Tap the button to open TasKing signed in to your account. This
+              Tap the button to open Tasking signed in to your account. This
               link works once.
             </p>
             <div className="mt-6">

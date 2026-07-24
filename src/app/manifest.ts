@@ -1,12 +1,12 @@
 import type { MetadataRoute } from "next";
 
-// Web app manifest: lets users install TasKing as an app (Chrome/Edge
-// "Install app"). Installed, OS notifications show the TasKing name and logo
+// Web app manifest: lets users install Tasking as an app (Chrome/Edge
+// "Install app"). Installed, OS notifications show the Tasking name and logo
 // instead of the browser's branding.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "TasKing",
-    short_name: "TasKing",
+    name: "Tasking",
+    short_name: "Tasking",
     description: "Team collaboration - chat, task boards and notifications.",
     start_url: "/",
     display: "standalone",

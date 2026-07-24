@@ -33,7 +33,7 @@ export default function AuthLayout({
         >
           <Image
             src="/image/taskcycle-ios-appicon-1024.png"
-            alt="TasKing logo"
+            alt="Tasking logo"
             width={36}
             height={36}
             className="rounded-lg ring-1 ring-white/20"
@@ -67,7 +67,7 @@ export default function AuthLayout({
           <div className="mb-8 flex items-center gap-2.5 lg:hidden">
             <Image
               src="/image/taskcycle-ios-appicon-1024.png"
-              alt="TasKing logo"
+              alt="Tasking logo"
               width={36}
               height={36}
               className="rounded-lg"

@@ -119,7 +119,7 @@ export function DmShellSidebar({
           <span className="block truncate text-sm font-semibold text-foreground">
             Direct messages
           </span>
-          <span className="block text-[11px] text-muted">TasKing</span>
+          <span className="block text-[11px] text-muted">Tasking</span>
         </span>
         <button
           onClick={() => setInviteOpen(true)}

@@ -53,7 +53,7 @@ export function showDesktopNotification(opts: {
       body: opts.body ?? undefined,
       // Safari on macOS ignores `icon` (it always shows the browser/app icon);
       // harmless to pass it for the browsers that do render it. Without an
-      // actor avatar we fall back to the TasKing logo.
+      // actor avatar we fall back to the Tasking logo.
       icon: opts.icon ?? "/icon-192.png",
       // Small brand mark some platforms show alongside the notification.
       badge: "/icon-192.png",

@@ -41,7 +41,7 @@ export function QrScanButton() {
   );
 }
 
-// Pulls the one-time token out of a scanned TasKing QR URL (/qr?t=... or a
+// Pulls the one-time token out of a scanned Tasking QR URL (/qr?t=... or a
 // raw callback URL). Returns null for foreign QR codes.
 function tokenFromQr(text: string): string | null {
   try {

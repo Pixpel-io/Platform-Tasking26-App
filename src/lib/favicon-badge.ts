@@ -1,7 +1,7 @@
 "use client";
 
 // Slack-style tab alerts: a red dot drawn onto the favicon plus an unread
-// count in the tab title ("(3) TasKing - ...") while anything is unread;
+// count in the tab title ("(3) Tasking - ...") while anything is unread;
 // both restore when everything is read.
 
 let badged = false;

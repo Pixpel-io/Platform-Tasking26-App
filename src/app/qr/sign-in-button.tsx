@@ -35,7 +35,7 @@ export function QrSignInButton({ token }: { token: string }) {
     <div className="space-y-3">
       {error && <FormMessage type="error">{error}</FormMessage>}
       <Button className="w-full" disabled={pending} onClick={signIn}>
-        {pending ? "Signing in…" : "Open TasKing"}
+        {pending ? "Signing in…" : "Open Tasking"}
       </Button>
     </div>
   );

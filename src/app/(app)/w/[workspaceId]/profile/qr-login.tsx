@@ -17,10 +17,10 @@ export function QrLoginCard() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold text-foreground">
-              Use TasKing on your phone
+              Use Tasking on your phone
             </h2>
             <p className="mt-1 text-sm text-muted">
-              Scan a QR code with your phone&apos;s camera to open TasKing
+              Scan a QR code with your phone&apos;s camera to open Tasking
               already signed in - no password needed.
             </p>
           </div>

@@ -13,19 +13,19 @@ import {
 // aurora background, gradient headline, floating icon tile.
 
 export const metadata: Metadata = {
-  title: "Download TasKing for Android",
+  title: "Download Tasking for Android",
   description:
-    "Team chat, tasks, and boards on the go. Get the TasKing Android app — free, offline-friendly, notifications wired up.",
+    "Team chat, tasks, and boards on the go. Get the Tasking Android app — free, offline-friendly, notifications wired up.",
   openGraph: {
-    title: "Download TasKing for Android",
+    title: "Download Tasking for Android",
     description:
-      "Team chat, tasks, and boards on the go. Get the TasKing Android app.",
+      "Team chat, tasks, and boards on the go. Get the Tasking Android app.",
     images: [
       {
         url: "/image/taskcycle-ios-appicon-1024.png",
         width: 1024,
         height: 1024,
-        alt: "TasKing",
+        alt: "Tasking",
       },
     ],
   },
@@ -42,7 +42,7 @@ export default function DownloadPage() {
             src="/image/taskcycle-ios-appicon-1024.png"
             width={36}
             height={36}
-            alt="TasKing"
+            alt="Tasking"
             className="rounded-lg"
             priority
           />
@@ -114,7 +114,7 @@ export default function DownloadPage() {
         </div>
 
         <h1 className="mt-4 animate-fade-in-up text-4xl font-semibold tracking-tight sm:text-5xl">
-          Take TasKing <span className="gradient-text">everywhere</span>.
+          Take Tasking <span className="gradient-text">everywhere</span>.
         </h1>
         <p className="mt-4 max-w-xl animate-fade-in-up text-base text-muted sm:text-lg">
           Team chat, tasks, and Monday-style boards — right on your phone.
@@ -239,7 +239,7 @@ export default function DownloadPage() {
             <Step
               n={3}
               title="Open the file, tap Install"
-              body="Takes ~10 seconds. When done, the TasKing icon appears on your home screen."
+              body="Takes ~10 seconds. When done, the Tasking icon appears on your home screen."
             />
             <Step
               n={4}
@@ -255,7 +255,7 @@ export default function DownloadPage() {
             href="/login"
             className="text-primary underline-offset-2 hover:underline"
           >
-            keep using TasKing on the web
+            keep using Tasking on the web
           </Link>
           .
         </p>
