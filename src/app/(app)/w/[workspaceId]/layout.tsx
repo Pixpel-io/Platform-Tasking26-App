@@ -96,7 +96,15 @@ export default async function WorkspaceLayout({
           topBarTitle={workspaceName}
           topBarActions={
             <>
-              <HeaderSearch workspaceId={workspaceId} />
+              <HeaderSearch
+                workspaceId={workspaceId}
+                userId={user.id}
+                channels={channels}
+                conversations={conversations}
+                members={members}
+                projects={projects}
+                dmContacts={dmContacts}
+              />
               <NotificationBell
                 workspaceId={workspaceId}
                 userId={user.id}
@@ -124,7 +132,15 @@ export default async function WorkspaceLayout({
         >
           <div className="relative flex-1 overflow-hidden pt-13 lg:pt-0">
             <div className="absolute right-5 top-3.5 z-30 hidden items-center gap-2 lg:flex">
-              <HeaderSearch workspaceId={workspaceId} />
+              <HeaderSearch
+                workspaceId={workspaceId}
+                userId={user.id}
+                channels={channels}
+                conversations={conversations}
+                members={members}
+                projects={projects}
+                dmContacts={dmContacts}
+              />
               <NotificationBell
                 workspaceId={workspaceId}
                 userId={user.id}

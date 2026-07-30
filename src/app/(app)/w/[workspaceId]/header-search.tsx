@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { searchWorkspace, type SearchHit } from "./search-actions";
+import type { ConversationWithParticipants } from "@/lib/chat-shared";
+import { dmCounterpart } from "@/lib/chat-shared";
+import type { Channel, Profile } from "@/lib/supabase/types";
+import type { ProjectWithMembers } from "@/lib/projects-shared";
+import {
+  searchWorkspaceText,
+  type SearchHit,
+  type SearchChannelHit,
+  type SearchDmHit,
+  type SearchPersonHit,
+  type SearchProjectHit,
+} from "./search-actions";
 
 // Order results appear in: navigational entities first, content last. The flat
 // index used for keyboard nav follows this same order.
@@ -38,7 +49,29 @@ function timeAgo(iso: string): string {
 
 // Global search living in the top bar. A trigger button opens a Cmd+K command
 // palette with debounced live results across messages and tasks.
-export function HeaderSearch({ workspaceId }: { workspaceId: string }) {
+//
+// The client already has channels / conversations / members / projects loaded
+// (they drive the sidebar), so those categories filter INSTANTLY in-memory as
+// the user types - no server round-trip. Only messages + tasks (the DB text
+// searches) hit the server, and each keystroke now does two indexed queries
+// instead of five discovery queries plus the text queries.
+export function HeaderSearch({
+  workspaceId,
+  userId,
+  channels,
+  conversations,
+  members,
+  projects,
+  dmContacts,
+}: {
+  workspaceId: string;
+  userId: string;
+  channels: Channel[];
+  conversations: ConversationWithParticipants[];
+  members: Profile[];
+  projects: ProjectWithMembers[];
+  dmContacts: Profile[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -48,6 +81,19 @@ export function HeaderSearch({ workspaceId }: { workspaceId: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // Guards against out-of-order responses: only the latest query may commit.
   const reqIdRef = useRef(0);
+
+  // Local filter data - fixed for the session (same as sidebar), so filtering
+  // is a one-pass array walk in JS. Cheap even with hundreds of items.
+  const contactIds = useMemo(
+    () => new Set(dmContacts.map((p) => p.id)),
+    [dmContacts],
+  );
+  const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
+  const channelNameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of channels) m[c.id] = c.name;
+    return m;
+  }, [channels]);
 
   // Cmd/Ctrl+K opens the palette from anywhere.
   useEffect(() => {
@@ -73,7 +119,11 @@ export function HeaderSearch({ workspaceId }: { workspaceId: string }) {
     }
   }, [open]);
 
-  // Debounced live search.
+  // Debounced live search. Local matches (channels / DMs / people / projects)
+  // paint IMMEDIATELY on every keystroke - no round-trip - and the server
+  // action only runs the two DB text searches (messages, tasks) in
+  // parallel. Result: the palette feels instant for navigation, and content
+  // hits stream in a few tens of ms later.
   useEffect(() => {
     if (!open) return;
     const q = query.trim();
@@ -81,18 +131,128 @@ export function HeaderSearch({ workspaceId }: { workspaceId: string }) {
       setHits([]);
       return;
     }
+    const lowerQ = q.toLowerCase();
+
+    const channelHits: SearchChannelHit[] = channels
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(lowerQ) ||
+          (c.description?.toLowerCase().includes(lowerQ) ?? false),
+      )
+      .slice(0, 8)
+      .map((c) => ({
+        kind: "channel",
+        id: c.id,
+        name: c.name,
+        subtitle: c.description || "Group",
+        href: `/w/${workspaceId}/c/${c.id}`,
+      }));
+
+    const dmHits: SearchDmHit[] = conversations
+      .map((conv) => {
+        if (conv.is_group) {
+          const names = conv.conversation_participants
+            .map(
+              (p) => p.profiles?.full_name ?? p.profiles?.email ?? "",
+            )
+            .filter(Boolean);
+          return { conv, label: names.join(", "), subtitle: "Group message" };
+        }
+        const other = dmCounterpart(conv, userId);
+        if (other && other.id !== userId && !contactIds.has(other.id)) {
+          return null;
+        }
+        const label = other?.full_name ?? other?.email ?? "Direct message";
+        return { conv, label, subtitle: "Direct message" };
+      })
+      .filter((hit): hit is NonNullable<typeof hit> => hit !== null)
+      .filter(({ label }) => label.toLowerCase().includes(lowerQ))
+      .slice(0, 8)
+      .map(({ conv, label, subtitle }) => ({
+        kind: "dm",
+        id: conv.id,
+        name: label,
+        subtitle,
+        href: `/w/${workspaceId}/dm/${conv.id}`,
+      }));
+
+    const peopleHits: SearchPersonHit[] = members
+      .filter(
+        (p) =>
+          (p.full_name?.toLowerCase().includes(lowerQ) ?? false) ||
+          p.email.toLowerCase().includes(lowerQ) ||
+          (p.title?.toLowerCase().includes(lowerQ) ?? false),
+      )
+      .slice(0, 8)
+      .map((p) => ({
+        kind: "person",
+        id: p.id,
+        name: p.full_name ?? p.email,
+        subtitle: p.title || p.email,
+        href: `/w/${workspaceId}/settings/members`,
+      }));
+
+    const projectHits: SearchProjectHit[] = projects
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(lowerQ) ||
+          (p.description?.toLowerCase().includes(lowerQ) ?? false),
+      )
+      .slice(0, 8)
+      .map((p) => ({
+        kind: "project",
+        id: p.id,
+        name: p.name,
+        subtitle: p.description || "Project",
+        href: `/w/${workspaceId}/projects/${p.id}`,
+      }));
+
+    const localHits: SearchHit[] = [
+      ...channelHits,
+      ...dmHits,
+      ...peopleHits,
+      ...projectHits,
+    ];
+
+    // Paint local matches right away.
+    setHits(localHits);
+    setActiveIdx(0);
+
+    // Anything below the trigram threshold has no DB path to run.
+    if (q.length < 2) return;
+
     const reqId = ++reqIdRef.current;
     const t = setTimeout(() => {
       startTransition(async () => {
-        const results = await searchWorkspace(workspaceId, q);
-        // Ignore if a newer request already fired.
+        const results = await searchWorkspaceText(
+          workspaceId,
+          q,
+          projectIds,
+          channelNameById,
+        );
         if (reqId !== reqIdRef.current) return;
-        setHits(flattenResults(results));
-        setActiveIdx(0);
+        setHits(flattenResults({ ...results,
+          channels: channelHits,
+          dms: dmHits,
+          people: peopleHits,
+          projects: projectHits,
+        }));
       });
-    }, 180);
+    }, 140);
     return () => clearTimeout(t);
-  }, [query, open, workspaceId]);
+  }, [
+    query,
+    open,
+    workspaceId,
+    userId,
+    channels,
+    conversations,
+    members,
+    projects,
+    contactIds,
+    projectIds,
+    channelNameById,
+  ]);
 
   const go = useMemo(
     () => (hit: SearchHit) => {

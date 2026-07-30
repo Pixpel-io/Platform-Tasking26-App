@@ -92,6 +92,111 @@ const EMPTY: SearchResults = {
   messages: [],
 };
 
+// Fast-path text search: only messages + tasks, both trigram-indexed.
+// The header palette already has channels / DMs / people / projects loaded
+// via the workspace layout (they drive the sidebar), so local filtering runs
+// client-side and instantly - re-fetching them every keystroke was the
+// biggest source of latency.
+export type TextSearchResults = {
+  tasks: SearchTaskHit[];
+  messages: SearchMessageHit[];
+};
+
+export async function searchWorkspaceText(
+  workspaceId: string,
+  rawQuery: string,
+  projectIds: string[],
+  channelNameById: Record<string, string>,
+): Promise<TextSearchResults> {
+  await requireUser();
+  const query = rawQuery.trim();
+  if (query.length < 2) return { tasks: [], messages: [] };
+
+  const supabase = await createClient();
+  const like = `%${escapeLike(query)}%`;
+
+  const projectNameById = new Map<string, string>();
+  // Client passes only the ids it can see; look up names for the returned
+  // hits from the same list (server-side lookup would defeat the point).
+  // We fetch names alongside tasks below.
+
+  const messagesP = supabase
+    .from("messages")
+    .select(
+      "id, body, created_at, channel_id, conversation_id, profiles:profiles!messages_user_id_fkey(full_name, email)",
+    )
+    .eq("workspace_id", workspaceId)
+    .eq("kind", "user")
+    .is("deleted_at", null)
+    .ilike("body", like)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const tasksP =
+    projectIds.length > 0
+      ? supabase
+          .from("tasks")
+          .select("id, title, description, project_id, projects(name)")
+          .in("project_id", projectIds)
+          .is("deleted_at", null)
+          .or(`title.ilike.${like},description.ilike.${like}`)
+          .order("updated_at", { ascending: false })
+          .limit(20)
+      : Promise.resolve({ data: null });
+
+  const [{ data: msgs }, { data: tasksData }] = await Promise.all([
+    messagesP,
+    tasksP,
+  ]);
+
+  type MsgRow = {
+    id: string;
+    body: string;
+    created_at: string;
+    channel_id: string | null;
+    conversation_id: string | null;
+    profiles: { full_name: string | null; email: string } | null;
+  };
+  type TaskRow = {
+    id: string;
+    title: string;
+    description: string | null;
+    project_id: string;
+    projects: { name: string } | null;
+  };
+
+  const messageRows = (msgs as unknown as MsgRow[] | null) ?? [];
+  const taskRows = (tasksData as unknown as TaskRow[] | null) ?? [];
+
+  const messages: SearchMessageHit[] = messageRows.map((m) => ({
+    kind: "message",
+    id: m.id,
+    body: m.body,
+    createdAt: m.created_at,
+    authorName: m.profiles?.full_name ?? m.profiles?.email ?? "Unknown",
+    where: m.channel_id
+      ? `# ${channelNameById[m.channel_id] ?? "group"}`
+      : "Direct message",
+    href: m.channel_id
+      ? `/w/${workspaceId}/c/${m.channel_id}`
+      : `/w/${workspaceId}/dm/${m.conversation_id}`,
+  }));
+
+  const tasks: SearchTaskHit[] = taskRows.map((t) => {
+    projectNameById.set(t.project_id, t.projects?.name ?? "Project");
+    return {
+      kind: "task",
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      projectName: t.projects?.name ?? "Project",
+      href: `/w/${workspaceId}/projects/${t.project_id}`,
+    };
+  });
+
+  return { tasks, messages };
+}
+
 // Broad, partial-match search across everything the user can reach in a
 // workspace: groups (channels), DMs, people, projects, tasks, and messages.
 // Message bodies use a case-insensitive LIKE (not tsvector) so partial words
