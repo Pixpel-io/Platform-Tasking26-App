@@ -56,6 +56,22 @@ export function NotificationsList({
     setItems(initial);
   }, [initial]);
 
+  // Slack-style inbox: visiting the notifications page counts as "I've seen
+  // these" - clear every unread in the workspace, including any that fell
+  // outside the visible window (limit 50). Without this the bell can drift
+  // above the list count when older unread rows aren't rendered here.
+  useEffect(() => {
+    // Optimistically clear the read state in the visible list too.
+    setItems((prev) =>
+      prev.map((n) =>
+        n.read_at ? n : { ...n, read_at: new Date().toISOString() },
+      ),
+    );
+    void markAllNotificationsRead(workspaceId);
+    // Only fire once per workspaceId - navigating away and back is a fresh
+    // visit and correctly re-triggers this.
+  }, [workspaceId]);
+
   // Live-prepend new notifications as they arrive.
   useEffect(() => {
     const supabase = createClient();
