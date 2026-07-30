@@ -1,15 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Avatar } from "@/components/avatar";
-import { EmojiPicker } from "@/components/emoji-picker";
 import { highlightComposerValue } from "@/lib/message-format";
 import type { PendingAttachment } from "../chat-actions";
-import { VoiceRecorder } from "./voice-recorder";
 import {
   useDraftSelected,
   useDraftValue,
 } from "./composer-drafts-store";
+
+// Heavy interactive components that don't need to be in the composer's
+// first-paint bundle: emoji picker only shows on click, voice recorder on
+// mic press. Both are lazy-loaded so the composer parses faster.
+const EmojiPicker = dynamic(
+  () => import("@/components/emoji-picker").then((m) => m.EmojiPicker),
+  { ssr: false },
+);
+const VoiceRecorder = dynamic(
+  () => import("./voice-recorder").then((m) => m.VoiceRecorder),
+  { ssr: false },
+);
 
 export type MentionMember = {
   id: string;

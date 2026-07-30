@@ -21,7 +21,13 @@ import {
   toggleReaction,
 } from "../chat-actions";
 import { MessageItem } from "./message-item";
-import { ForwardDialog } from "./forward-dialog";
+import dynamic from "next/dynamic";
+// ForwardDialog only opens when someone clicks the forward icon; keep it out
+// of the initial chat bundle.
+const ForwardDialog = dynamic(
+  () => import("./forward-dialog").then((m) => m.ForwardDialog),
+  { ssr: false },
+);
 import { buildReplySnippet } from "@/lib/chat-shared";
 import { Composer, type MentionMember, type Selected } from "./composer";
 import {

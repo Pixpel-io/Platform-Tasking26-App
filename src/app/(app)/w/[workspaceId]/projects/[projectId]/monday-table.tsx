@@ -17,7 +17,13 @@ import {
   toggleAssignee,
   updateTask,
 } from "../task-actions";
-import { TaskPanel } from "./task-panel";
+import dynamic from "next/dynamic";
+// TaskPanel is 900+ lines and only renders after a task is clicked. Lazy-load
+// so the board's first paint doesn't have to parse it.
+const TaskPanel = dynamic(
+  () => import("./task-panel").then((m) => m.TaskPanel),
+  { ssr: false },
+);
 
 // Popovers render into a body portal at a fixed position so the group's
 // rounded/overflow-hidden container can't clip them (the assignee dropdown

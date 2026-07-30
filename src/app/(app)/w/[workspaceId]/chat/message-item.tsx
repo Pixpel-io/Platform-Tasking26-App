@@ -4,7 +4,13 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar";
 import { useProfileCard } from "@/components/profile-card";
-import { EmojiPicker } from "@/components/emoji-picker";
+import dynamic from "next/dynamic";
+// EmojiPicker only opens when the user clicks the reaction "+". Load lazily
+// so every message row doesn't parse the emoji dataset at mount.
+const EmojiPicker = dynamic(
+  () => import("@/components/emoji-picker").then((m) => m.EmojiPicker),
+  { ssr: false },
+);
 import { buildReplySnippet, type MessageWithRelations } from "@/lib/chat-shared";
 import { QUICK_REACTIONS } from "@/lib/emoji";
 import { formatMessageBody } from "@/lib/message-format";
