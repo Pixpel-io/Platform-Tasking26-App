@@ -53,6 +53,8 @@ export type ChecklistItem =
   Database["public"]["Tables"]["checklist_items"]["Row"];
 export type TaskComment =
   Database["public"]["Tables"]["task_comments"]["Row"];
+export type TaskCommentAttachment =
+  Database["public"]["Tables"]["task_comment_attachments"]["Row"];
 export type TaskAttachment =
   Database["public"]["Tables"]["task_attachments"]["Row"];
 export type TaskTimeEntry =
@@ -951,6 +953,41 @@ export interface Database {
           edited_at?: string | null;
           updated_at?: string;
           deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      task_comment_attachments: {
+        Row: {
+          id: string;
+          comment_id: string;
+          storage_path: string;
+          thumb_path: string | null;
+          file_name: string;
+          mime_type: string | null;
+          size_bytes: number | null;
+          kind: AttachmentKind;
+          width: number | null;
+          height: number | null;
+          duration_ms: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          comment_id: string;
+          storage_path: string;
+          thumb_path?: string | null;
+          file_name: string;
+          mime_type?: string | null;
+          size_bytes?: number | null;
+          kind?: AttachmentKind;
+          width?: number | null;
+          height?: number | null;
+          duration_ms?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          file_name?: string;
+          mime_type?: string | null;
         };
         Relationships: [];
       };

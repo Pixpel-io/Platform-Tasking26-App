@@ -1,3 +1,4 @@
+import { requireUser } from "@/lib/auth";
 import { getBoard } from "@/lib/projects";
 import { getWorkspaceMembersForChat } from "@/lib/chat";
 import { MondayTable } from "./monday-table";
@@ -6,6 +7,7 @@ export default async function ProjectTasksPage({
   params,
 }: PageProps<"/w/[workspaceId]/projects/[projectId]">) {
   const { workspaceId, projectId } = await params;
+  const user = await requireUser();
   // People picker offers every workspace member (not just current board
   // members) - assigning someone auto-seats them into the board.
   const [board, members] = await Promise.all([
@@ -14,6 +16,12 @@ export default async function ProjectTasksPage({
   ]);
 
   return (
-    <MondayTable projectId={projectId} initialBoard={board} members={members} />
+    <MondayTable
+      projectId={projectId}
+      workspaceId={workspaceId}
+      meId={user.id}
+      initialBoard={board}
+      members={members}
+    />
   );
 }

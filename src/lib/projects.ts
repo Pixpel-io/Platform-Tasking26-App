@@ -104,7 +104,7 @@ export async function getTaskDetail(
   const { data } = await supabase
     .from("tasks")
     .select(
-      "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*)), task_watchers(user_id), task_comments(*, profiles(*)), checklists(*, checklist_items(*))",
+      "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*)), task_watchers(user_id), task_comments(*, profiles(*), task_comment_attachments(*)), checklists(*, checklist_items(*))",
     )
     .eq("id", taskId)
     .is("deleted_at", null)

@@ -4,6 +4,12 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/ui";
+import {
+  attachmentKind,
+  measureDimensions,
+  uploadOne,
+  uploadThumb,
+} from "@/lib/attachment-upload";
 import type { PriorityLevel, Profile } from "@/lib/supabase/types";
 import {
   formatDuration,
@@ -11,6 +17,7 @@ import {
   PRIORITY_ORDER,
   type TaskDetail,
 } from "@/lib/projects-shared";
+import { AttachmentView } from "../../chat/attachment-view";
 import {
   addChecklist,
   addChecklistItem,
@@ -21,17 +28,22 @@ import {
   toggleAssignee,
   toggleChecklistItem,
   updateTask,
+  type PendingCommentAttachment,
 } from "../task-actions";
 
 const DETAIL_SELECT =
-  "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*)), task_watchers(user_id), task_comments(*, profiles(*)), checklists(*, checklist_items(*))";
+  "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*)), task_watchers(user_id), task_comments(*, profiles(*), task_comment_attachments(*)), checklists(*, checklist_items(*))";
 
 export function TaskPanel({
   taskId,
+  workspaceId,
+  meId,
   members,
   onClose,
 }: {
   taskId: string;
+  workspaceId: string;
+  meId: string;
   members: Profile[];
   onClose: () => void;
 }) {
@@ -119,6 +131,8 @@ export function TaskPanel({
           <TaskBody
             task={task}
             members={members}
+            workspaceId={workspaceId}
+            meId={meId}
             onClose={onClose}
             act={act}
           />
@@ -133,11 +147,15 @@ type Tab = "updates" | "details";
 function TaskBody({
   task,
   members,
+  workspaceId,
+  meId,
   act,
   onClose,
 }: {
   task: TaskDetail;
   members: Profile[];
+  workspaceId: string;
+  meId: string;
   onClose: () => void;
   act: (fn: () => Promise<unknown>) => void;
 }) {
@@ -292,7 +310,13 @@ function TaskBody({
       </div>
 
       {tab === "updates" ? (
-        <UpdatesTab task={task} comments={comments} act={act} />
+        <UpdatesTab
+          task={task}
+          comments={comments}
+          workspaceId={workspaceId}
+          meId={meId}
+          act={act}
+        />
       ) : (
         <DetailsTab task={task} members={members} act={act} />
       )}
@@ -304,25 +328,124 @@ function TaskBody({
 // Updates tab: Monday-style composer on top, update cards below.
 // =============================================================================
 
+// A file the user picked but hasn't posted yet. Stays entirely local until
+// Update is pressed, mirroring the chat composer.
+type StagedFile = {
+  id: string;
+  file: File;
+  fileName: string;
+  previewUrl?: string;
+  width?: number;
+  height?: number;
+};
+
 function UpdatesTab({
   task,
   comments,
+  workspaceId,
+  meId,
   act,
 }: {
   task: TaskDetail;
   comments: TaskDetail["task_comments"];
+  workspaceId: string;
+  meId: string;
   act: (fn: () => Promise<unknown>) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
+  const [staged, setStaged] = useState<StagedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  function send() {
-    const value = draft.trim();
-    if (!value) return;
-    setDraft("");
-    act(() => addComment(task.id, value));
+  function stageFiles(list: FileList | File[]) {
+    const next: StagedFile[] = Array.from(list).map((file) => ({
+      id: crypto.randomUUID(),
+      file,
+      fileName: file.name,
+      previewUrl: URL.createObjectURL(file),
+    }));
+    setStaged((prev) => [...prev, ...next]);
+    // Measure image/video dimensions in the background so the persisted rows
+    // carry width/height and the AttachmentView reserves the exact box.
+    next.forEach((s) => {
+      void measureDimensions(s.file).then((dim) => {
+        if (dim.width == null || dim.height == null) return;
+        setStaged((prev) =>
+          prev.map((x) =>
+            x.id === s.id ? { ...x, width: dim.width, height: dim.height } : x,
+          ),
+        );
+      });
+    });
   }
+
+  function removeStaged(id: string) {
+    setStaged((prev) => {
+      const target = prev.find((s) => s.id === id);
+      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((s) => s.id !== id);
+    });
+  }
+
+  async function send() {
+    const value = draft.trim();
+    if (!value && staged.length === 0) return;
+
+    // Upload every staged file first, then hand the storage paths to the
+    // server action. If any upload fails we surface the error and keep the
+    // draft so the user can retry - we don't want to persist a comment that
+    // references files that never made it.
+    setUploadError(null);
+    setUploading(true);
+    let attachments: PendingCommentAttachment[] = [];
+    try {
+      const results: (PendingCommentAttachment | null)[] = await Promise.all(
+        staged.map(async (s): Promise<PendingCommentAttachment | null> => {
+          const kind = attachmentKind(s.file.type);
+          const [path, thumbPath] = await Promise.all([
+            uploadOne(workspaceId, meId, s.file, s.id, () => {}),
+            kind === "image"
+              ? uploadThumb(workspaceId, meId, s.file, s.id)
+              : null,
+          ]);
+          if (!path) return null;
+          return {
+            storagePath: path,
+            thumbPath,
+            fileName: s.fileName,
+            mimeType: s.file.type || null,
+            sizeBytes: s.file.size,
+            kind,
+            width: s.width ?? null,
+            height: s.height ?? null,
+            durationMs: null,
+          };
+        }),
+      );
+      if (results.some((r) => r === null)) {
+        setUploadError("One or more files failed to upload. Try again.");
+        return;
+      }
+      attachments = results.filter(
+        (r): r is PendingCommentAttachment => r !== null,
+      );
+    } finally {
+      setUploading(false);
+    }
+
+    // Revoke previews now that the store owns the uploaded copies.
+    staged.forEach((s) => {
+      if (s.previewUrl) URL.revokeObjectURL(s.previewUrl);
+    });
+    setDraft("");
+    setStaged([]);
+    act(() => addComment(task.id, value, attachments));
+  }
+
+  const canSend = (draft.trim().length > 0 || staged.length > 0) && !uploading;
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -342,12 +465,118 @@ function UpdatesTab({
             rows={focused || draft ? 4 : 2}
             className="w-full resize-none bg-transparent px-4 py-3 text-sm text-foreground placeholder:text-muted focus:outline-none"
           />
+
+          {/* Staged files (image thumbs + generic tile) */}
+          {staged.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-t border-border/60 px-3 py-2">
+              {staged.map((s) => {
+                const kind = attachmentKind(s.file.type);
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-center gap-2 rounded-lg border border-border bg-background px-2 py-1.5 text-xs"
+                  >
+                    {kind === "image" && s.previewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s.previewUrl}
+                        alt=""
+                        className="h-8 w-8 shrink-0 rounded object-cover"
+                      />
+                    ) : kind === "video" && s.previewUrl ? (
+                      <video
+                        src={s.previewUrl}
+                        className="h-8 w-8 shrink-0 rounded object-cover"
+                        muted
+                      />
+                    ) : (
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded bg-surface-2 text-muted">
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <path d="M14 2v6h6" />
+                        </svg>
+                      </span>
+                    )}
+                    <span className="max-w-40 truncate text-foreground">
+                      {s.fileName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeStaged(s.id)}
+                      aria-label={`Remove ${s.fileName}`}
+                      className="grid h-4 w-4 cursor-pointer place-items-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                    >
+                      <svg
+                        className="h-3 w-3"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                      >
+                        <path d="M18 6 6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {uploadError && (
+            <p className="border-t border-border/60 px-3 py-2 text-xs text-danger">
+              {uploadError}
+            </p>
+          )}
+
           <div className="flex items-center justify-between border-t border-border/60 px-3 py-2">
-            <span className="text-[11px] text-muted">
-              Ctrl+Enter to post
-            </span>
-            <Button onClick={send} disabled={!draft.trim()}>
-              Update
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                aria-label="Attach file"
+                title="Attach file"
+                className="grid h-7 w-7 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/*,video/*,application/pdf,application/*"
+                multiple
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    stageFiles(e.target.files);
+                  }
+                  e.target.value = "";
+                }}
+                className="hidden"
+              />
+              <span className="text-[11px] text-muted">
+                {uploading ? "Uploading…" : "Ctrl+Enter to post"}
+              </span>
+            </div>
+            <Button onClick={send} disabled={!canSend}>
+              {uploading ? "Posting…" : "Update"}
             </Button>
           </div>
         </div>
@@ -398,9 +627,19 @@ function UpdatesTab({
                     </p>
                   </div>
                 </div>
-                <p className="mt-2.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                  {c.body}
-                </p>
+                {c.body && (
+                  <p className="mt-2.5 whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
+                    {c.body}
+                  </p>
+                )}
+                {c.task_comment_attachments &&
+                  c.task_comment_attachments.length > 0 && (
+                    <div className="mt-3 flex flex-col gap-2">
+                      {c.task_comment_attachments.map((a) => (
+                        <AttachmentView key={a.id} attachment={a} />
+                      ))}
+                    </div>
+                  )}
               </div>
             ))}
           </div>

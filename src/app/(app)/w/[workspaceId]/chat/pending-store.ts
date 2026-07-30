@@ -7,13 +7,12 @@
 // straight away.
 
 import { useSyncExternalStore } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { makeThumbnail } from "@/lib/make-thumbnail";
-import { createUploadUrl } from "@/app/(app)/s3-actions";
-import { S3_PATH_PREFIX } from "@/lib/s3-shared";
+import {
+  attachmentKind,
+  uploadOne,
+  uploadThumb,
+} from "@/lib/attachment-upload";
 import { sendMessage, type PendingAttachment } from "../chat-actions";
-
-const BUCKET = "chat-attachments";
 
 export type PendingFileStatus =
   | "queued"
@@ -127,89 +126,6 @@ export function usePendingSends(target: Target): PendingSend[] {
     () => snapshotForTarget(tk),
     () => EMPTY,
   );
-}
-
-// -- upload plumbing (moved from composer) -----------------------------------
-
-function attachmentKind(mime: string): PendingAttachment["kind"] {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "voice";
-  return "file";
-}
-
-// POST a presigned form to S3 via XHR so the caller gets upload progress
-// events (fetch has no upload progress API).
-function postWithProgress(
-  url: string,
-  form: FormData,
-  onProgress: (percent: number) => void,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    };
-    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
-    xhr.onerror = () => resolve(false);
-    xhr.send(form);
-  });
-}
-
-async function uploadOne(
-  workspaceId: string | null,
-  meId: string,
-  file: File,
-  id: string,
-  onPercent: (percent: number) => void,
-): Promise<string | null> {
-  if (!workspaceId) return null;
-  const presign = await createUploadUrl({
-    workspaceId,
-    fileName: file.name,
-    fileType: file.type || "application/octet-stream",
-    fileSizeBytes: file.size,
-  });
-
-  if ("url" in presign) {
-    const form = new FormData();
-    Object.entries(presign.fields).forEach(([k, v]) => form.append(k, v));
-    form.append("file", file);
-    const ok = await postWithProgress(presign.url, form, onPercent);
-    return ok ? `${S3_PATH_PREFIX}${presign.key}` : null;
-  }
-
-  if ("error" in presign) return null;
-
-  // S3 disabled - Supabase Storage fallback (no per-chunk progress).
-  const supabase = createClient();
-  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-  const path = `${workspaceId}/${meId}/${id}-${safeName}`;
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-  return error ? null : path;
-}
-
-async function uploadThumb(
-  workspaceId: string | null,
-  meId: string,
-  file: File,
-  id: string,
-): Promise<string | null> {
-  try {
-    const blob = await makeThumbnail(file);
-    if (!blob) return null;
-    const thumbFile = new File([blob], `thumb-${id}.webp`, {
-      type: "image/webp",
-    });
-    return await uploadOne(workspaceId, meId, thumbFile, `${id}-thumb`, () => {});
-  } catch {
-    return null;
-  }
 }
 
 // -- enqueue ----------------------------------------------------------------

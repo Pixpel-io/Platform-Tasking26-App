@@ -234,10 +234,14 @@ function SortHeader({
 
 export function MondayTable({
   projectId,
+  workspaceId,
+  meId,
   initialBoard,
   members,
 }: {
   projectId: string;
+  workspaceId: string;
+  meId: string;
   initialBoard: BoardColumn[];
   members: Profile[];
 }) {
@@ -398,6 +402,8 @@ export function MondayTable({
       {openTaskId && (
         <TaskPanel
           taskId={openTaskId}
+          workspaceId={workspaceId}
+          meId={meId}
           members={members}
           onClose={() => setOpenTaskId(null)}
         />

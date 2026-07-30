@@ -3,12 +3,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
-import type { MessageAttachment } from "@/lib/supabase/types";
 import { getS3AttachmentData, getS3DownloadUrl } from "@/app/(app)/s3-actions";
 import { getAttachmentUrl } from "@/lib/attachment-url-cache";
 import { isS3Path } from "@/lib/s3-shared";
 
 const BUCKET = "chat-attachments";
+
+// Structural shape rather than a specific table row - lets the same component
+// render both message attachments (chat) and task comment attachments
+// (task-panel Updates tab), which share every field except the FK column.
+// `sensitive` is optional so callers without moderation columns can omit it.
+export type ViewableAttachment = {
+  storage_path: string;
+  thumb_path: string | null;
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  kind: "file" | "image" | "video" | "voice";
+  width: number | null;
+  height: number | null;
+  duration_ms: number | null;
+  sensitive?: boolean;
+};
 
 function formatSize(bytes: number | null): string {
   if (!bytes) return "";
@@ -27,7 +43,7 @@ function formatSize(bytes: number | null): string {
 // streams the file itself (native progress, original filename) - the old
 // fetch()->blob approach died on cross-origin S3 URLs and buffered the whole
 // file in memory.
-async function downloadAttachment(attachment: MessageAttachment) {
+async function downloadAttachment(attachment: ViewableAttachment) {
   let href: string | null = null;
   if (isS3Path(attachment.storage_path)) {
     const res = await getS3DownloadUrl(attachment.storage_path, {
@@ -112,7 +128,7 @@ function mediaBox(
   };
 }
 
-export function AttachmentView({ attachment }: { attachment: MessageAttachment }) {
+export function AttachmentView({ attachment }: { attachment: ViewableAttachment }) {
   const [url, setUrl] = useState<string | null>(null);
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);

@@ -11,6 +11,7 @@ import type {
   Project,
   Task,
   TaskComment,
+  TaskCommentAttachment,
 } from "@/lib/supabase/types";
 
 export type TaskWithRelations = Task & {
@@ -29,8 +30,13 @@ export type ChecklistWithItems = Checklist & {
   checklist_items: ChecklistItem[];
 };
 
+export type TaskCommentWithRelations = TaskComment & {
+  profiles: Profile | null;
+  task_comment_attachments: TaskCommentAttachment[];
+};
+
 export type TaskDetail = TaskWithRelations & {
-  task_comments: (TaskComment & { profiles: Profile | null })[];
+  task_comments: TaskCommentWithRelations[];
   checklists: ChecklistWithItems[];
   task_watchers: { user_id: string }[];
 };

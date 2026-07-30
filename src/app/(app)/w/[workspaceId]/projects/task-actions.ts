@@ -7,6 +7,21 @@ import type { PriorityLevel } from "@/lib/supabase/types";
 
 type Result = { error?: string };
 
+// Same shape as chat's PendingAttachment (chat-actions.ts): the client has
+// already uploaded each file to storage and hands us the metadata + storage
+// path to persist against the freshly-created comment row.
+export type PendingCommentAttachment = {
+  storagePath: string;
+  thumbPath?: string | null;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  kind: "file" | "image" | "video" | "voice";
+  width?: number | null;
+  height?: number | null;
+  durationMs?: number | null;
+};
+
 // -- Create ------------------------------------------------------------------
 
 export async function createTask(args: {
@@ -272,15 +287,45 @@ export async function toggleTaskLabel(
 export async function addComment(
   taskId: string,
   body: string,
+  attachments: PendingCommentAttachment[] = [],
 ): Promise<Result> {
   const user = await requireUser();
   const trimmed = body.trim();
-  if (!trimmed) return { error: "Comment is empty." };
+  // A comment must have text OR at least one attachment - a totally empty
+  // update is meaningless in the feed.
+  if (!trimmed && attachments.length === 0) {
+    return { error: "Add a message or attach a file." };
+  }
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data: inserted, error } = await supabase
     .from("task_comments")
-    .insert({ task_id: taskId, user_id: user.id, body: trimmed });
-  if (error) return { error: error.message };
+    .insert({ task_id: taskId, user_id: user.id, body: trimmed })
+    .select("id")
+    .single();
+  if (error || !inserted) return { error: error?.message ?? "insert failed" };
+
+  if (attachments.length > 0) {
+    const { error: attachErr } = await supabase
+      .from("task_comment_attachments")
+      .insert(
+        attachments.map((a) => ({
+          comment_id: inserted.id,
+          storage_path: a.storagePath,
+          thumb_path: a.thumbPath ?? null,
+          file_name: a.fileName,
+          mime_type: a.mimeType,
+          size_bytes: a.sizeBytes,
+          kind: a.kind,
+          width: a.width ?? null,
+          height: a.height ?? null,
+          duration_ms: a.durationMs ?? null,
+        })),
+      );
+    // If attachments fail we DON'T roll back the comment - the text update
+    // still delivers - but surface the error so the client can retry the
+    // upload rather than pretending everything worked.
+    if (attachErr) return { error: attachErr.message };
+  }
 
   // Comment isn't covered by the task trigger; log it explicitly.
   const { data: task } = await supabase
