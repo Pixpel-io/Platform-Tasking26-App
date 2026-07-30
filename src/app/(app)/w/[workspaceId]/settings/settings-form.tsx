@@ -4,6 +4,7 @@ import { useActionState, useRef, useState, useTransition } from "react";
 import { deleteWorkspace, updateWorkspace } from "@/app/(app)/actions";
 import { ColorPicker } from "@/components/color-picker";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ImageCropDialog } from "@/components/image-crop-dialog";
 import { Button, FieldError, FormMessage, Input, Label } from "@/components/ui";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeColor } from "@/lib/workspace-theme";
@@ -35,9 +36,12 @@ export function SettingsForm({
   const [iconUploading, setIconUploading] = useState(false);
   const [iconError, setIconError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // Set to the picked file once size/type pass; the crop dialog then owns it
+  // and yields a cropped blob before we upload.
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleIconFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function pickIconFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -52,16 +56,22 @@ export function SettingsForm({
     }
 
     setIconError(null);
+    setPendingCropFile(file);
+  }
+
+  async function handleCroppedIcon(blob: Blob) {
+    setPendingCropFile(null);
     setIconUploading(true);
     try {
       const supabase = createClient();
-      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
       // The bucket's RLS keys on the first path folder = workspace id, so
-      // this path is the only shape that passes for a workspace admin.
-      const path = `${workspaceId}/${crypto.randomUUID()}-${safeName}`;
+      // this path is the only shape that passes for a workspace admin. The
+      // cropped blob is always PNG (preserves alpha for logos with
+      // transparent backgrounds).
+      const path = `${workspaceId}/${crypto.randomUUID()}.png`;
       const { error } = await supabase.storage
         .from(ICON_BUCKET)
-        .upload(path, file, { contentType: file.type, upsert: false });
+        .upload(path, blob, { contentType: "image/png", upsert: false });
       if (error) {
         setIconError(error.message);
         return;
@@ -122,14 +132,15 @@ export function SettingsForm({
                 )}
               </div>
               <p className="mt-2 text-xs text-muted">
-                PNG or JPG, up to 5MB. Square works best.
+                PNG, JPG, WebP, or GIF up to 5MB. You'll get to crop it before
+                it saves.
               </p>
             </div>
             <input
               ref={iconInputRef}
               type="file"
-              accept="image/*"
-              onChange={handleIconFile}
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/*"
+              onChange={pickIconFile}
               className="hidden"
             />
           </div>
@@ -188,6 +199,17 @@ export function SettingsForm({
               setConfirmRemove(false);
             }}
             onCancel={() => setConfirmRemove(false)}
+          />
+        )}
+
+        {pendingCropFile && (
+          <ImageCropDialog
+            file={pendingCropFile}
+            title="Crop workspace logo"
+            confirmLabel="Save logo"
+            aspect={1}
+            onDone={(blob) => void handleCroppedIcon(blob)}
+            onCancel={() => setPendingCropFile(null)}
           />
         )}
       </form>

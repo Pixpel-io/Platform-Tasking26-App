@@ -5,6 +5,7 @@ import { updateProfile } from "@/app/(app)/actions";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/avatar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ImageCropDialog } from "@/components/image-crop-dialog";
 import { Button, FieldError, FormMessage, Input, Label } from "@/components/ui";
 import type { Profile } from "@/lib/supabase/types";
 
@@ -17,9 +18,10 @@ export function ProfileForm({ profile }: { profile: Profile }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function pickAvatarFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -34,14 +36,18 @@ export function ProfileForm({ profile }: { profile: Profile }) {
     }
 
     setUploadError(null);
+    setPendingCropFile(file);
+  }
+
+  async function handleCroppedAvatar(blob: Blob) {
+    setPendingCropFile(null);
     setUploading(true);
     try {
       const supabase = createClient();
-      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-      const path = `${profile.id}/${crypto.randomUUID()}-${safeName}`;
+      const path = `${profile.id}/${crypto.randomUUID()}.png`;
       const { error } = await supabase.storage
         .from(AVATAR_BUCKET)
-        .upload(path, file, { contentType: file.type, upsert: false });
+        .upload(path, blob, { contentType: "image/png", upsert: false });
       if (error) {
         setUploadError(error.message);
         return;
@@ -89,13 +95,16 @@ export function ProfileForm({ profile }: { profile: Profile }) {
               </button>
             )}
           </div>
-          <p className="mt-2 text-xs text-muted">PNG or JPG, up to 5MB.</p>
+          <p className="mt-2 text-xs text-muted">
+            PNG, JPG, WebP, or GIF up to 5MB. You&apos;ll get to crop it before
+            it saves.
+          </p>
         </div>
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
-          onChange={handleFile}
+          accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/*"
+          onChange={pickAvatarFile}
           className="hidden"
         />
       </div>
@@ -143,6 +152,17 @@ export function ProfileForm({ profile }: { profile: Profile }) {
             setConfirmRemove(false);
           }}
           onCancel={() => setConfirmRemove(false)}
+        />
+      )}
+
+      {pendingCropFile && (
+        <ImageCropDialog
+          file={pendingCropFile}
+          title="Crop profile picture"
+          confirmLabel="Save photo"
+          aspect={1}
+          onDone={(blob) => void handleCroppedAvatar(blob)}
+          onCancel={() => setPendingCropFile(null)}
         />
       )}
     </form>
