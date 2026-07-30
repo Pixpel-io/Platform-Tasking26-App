@@ -30,13 +30,16 @@ export function useWorkspaceUnreads(
       client = supabase;
 
       async function recount() {
+        // Mirror getUnreadCountsByWorkspace: DM notifications are cross-
+        // workspace, they shouldn't inflate a specific workspace's badge.
         const { data } = await supabase
           .from("notifications")
           .select("workspace_id")
+          .neq("type", "dm")
           .is("read_at", null);
         const next: Record<string, number> = {};
         for (const row of data ?? []) {
-          if (!row.workspace_id) continue; // global DM rows belong to no workspace
+          if (!row.workspace_id) continue;
           next[row.workspace_id] = (next[row.workspace_id] ?? 0) + 1;
         }
         setCounts(next);
@@ -53,10 +56,18 @@ export function useWorkspaceUnreads(
             filter: `user_id=eq.${userId}`,
           },
           (payload) => {
-            const wid = (payload.new as { workspace_id?: string | null })
-              ?.workspace_id;
-            if (wid) {
-              setCounts((prev) => ({ ...prev, [wid]: (prev[wid] ?? 0) + 1 }));
+            const row = payload.new as {
+              workspace_id?: string | null;
+              type?: string;
+            };
+            // DM notifications are cross-workspace; don't inflate any
+            // specific workspace's badge with them.
+            if (row.type === "dm") return;
+            if (row.workspace_id) {
+              setCounts((prev) => ({
+                ...prev,
+                [row.workspace_id!]: (prev[row.workspace_id!] ?? 0) + 1,
+              }));
             }
           },
         )

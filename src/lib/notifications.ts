@@ -17,10 +17,13 @@ export const getNotifications = cache(
   ): Promise<NotificationWithActor[]> => {
     await requireUser();
     const supabase = await createClient();
+    // Same shape as the bell count: this workspace + global DM notifications
+    // (workspace_id null), so clicking the bell lands the user on a list
+    // that includes the DMs the bell just counted.
     const { data } = await supabase
       .from("notifications")
       .select(NOTIFICATION_SELECT)
-      .eq("workspace_id", workspaceId)
+      .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
       .order("created_at", { ascending: false })
       .limit(limit);
     return (data as NotificationWithActor[] | null) ?? [];
@@ -29,7 +32,10 @@ export const getNotifications = cache(
 
 // Unread notification counts for EVERY workspace the user belongs to, keyed
 // by workspace id - drives the per-workspace badges in the switcher. RLS
-// already scopes rows to the current user.
+// already scopes rows to the current user. DM notifications are cross-
+// workspace by design (0026 stamped them with an incidental workspace_id;
+// 0028 leaves it null) - either way they shouldn't inflate a specific
+// workspace's badge, so filter type='dm' out here.
 export const getUnreadCountsByWorkspace = cache(
   async (): Promise<Record<string, number>> => {
     await requireUser();
@@ -37,10 +43,11 @@ export const getUnreadCountsByWorkspace = cache(
     const { data } = await supabase
       .from("notifications")
       .select("workspace_id")
+      .neq("type", "dm")
       .is("read_at", null);
     const counts: Record<string, number> = {};
     for (const row of data ?? []) {
-      if (!row.workspace_id) continue; // global DM rows belong to no workspace
+      if (!row.workspace_id) continue; // global rows belong to no workspace
       counts[row.workspace_id] = (counts[row.workspace_id] ?? 0) + 1;
     }
     return counts;
@@ -74,10 +81,14 @@ export const getUnreadNotificationCount = cache(
   async (workspaceId: string): Promise<number> => {
     await requireUser();
     const supabase = await createClient();
+    // Include this workspace's notifications AND global DM notifications
+    // (workspace_id is null since 0028 made DMs cross-workspace). Without
+    // the null branch a DM ping wouldn't surface on the bell of whichever
+    // workspace the recipient happens to be viewing.
     const { count } = await supabase
       .from("notifications")
       .select("id", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId)
+      .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
       .is("read_at", null);
     return count ?? 0;
   },

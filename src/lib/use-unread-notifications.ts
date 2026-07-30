@@ -28,10 +28,12 @@ export function useUnreadNotifications(
       client = supabase;
 
       async function recount() {
+        // Match getUnreadNotificationCount's server query: this workspace's
+        // notifications PLUS global DM notifications (workspace_id null).
         const { count: c } = await supabase
           .from("notifications")
           .select("id", { count: "exact", head: true })
-          .eq("workspace_id", workspaceId)
+          .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
           .is("read_at", null);
         setCount(c ?? 0);
       }
@@ -46,7 +48,16 @@ export function useUnreadNotifications(
             table: "notifications",
             filter: `user_id=eq.${userId}`,
           },
-          () => setCount((c) => c + 1),
+          (payload) => {
+            // Bell counts this workspace's notifications + global DM ones
+            // (workspace_id null). Skip inserts destined for other workspaces
+            // so the badge stays accurate between recounts.
+            const wid = (payload.new as { workspace_id?: string | null })
+              ?.workspace_id;
+            if (wid == null || wid === workspaceId) {
+              setCount((c) => c + 1);
+            }
+          },
         )
         .on(
           "postgres_changes",
