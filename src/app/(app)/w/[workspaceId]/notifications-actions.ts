@@ -53,3 +53,19 @@ export async function markProjectNotificationsRead(
   if (error) return { error: error.message };
   return {};
 }
+
+// Same pattern for channels: opening a chat clears every unread notification
+// tied to that channel (group.message + any mentions there). Uses a
+// SECURITY DEFINER RPC that already gates on auth.uid(); no revalidatePath
+// because the bell / inbox listen on realtime UPDATE and refresh on their own.
+export async function markChannelNotificationsRead(
+  channelId: string,
+): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("mark_channel_notifications_read", {
+    p_channel_id: channelId,
+  });
+  if (error) return { error: error.message };
+  return {};
+}

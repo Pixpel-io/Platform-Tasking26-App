@@ -1213,6 +1213,10 @@ export interface Database {
         Args: { p_channel_id: string };
         Returns: undefined;
       };
+      mark_channel_notifications_read: {
+        Args: { p_channel_id: string };
+        Returns: undefined;
+      };
       set_attachment_moderation: {
         Args: {
           p_attachment_id: string;

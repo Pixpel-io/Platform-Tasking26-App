@@ -15,6 +15,7 @@ import { TypingSubtitle } from "../../chat/typing";
 import { GroupMembers } from "./group-members";
 import { RenameGroup } from "./rename-group";
 import { DeleteGroupButton } from "./delete-group-button";
+import { AutoMarkChannelRead } from "./auto-mark-read";
 
 export default async function ChannelPage({
   params,
@@ -55,6 +56,7 @@ export default async function ChannelPage({
 
   return (
     <div className="flex h-full flex-col">
+      <AutoMarkChannelRead channelId={channelId} />
       <ChatHeader
         title={channel.name}
         subtitle={
