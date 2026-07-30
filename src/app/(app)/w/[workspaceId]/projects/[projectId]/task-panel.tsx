@@ -57,6 +57,12 @@ export function TaskPanel({
   const task = loading ? null : result.task;
   const [, startTransition] = useTransition();
 
+  // task_comment_attachments has no task_id column, only comment_id, so
+  // Supabase's server-side filter can't scope events to this task. We keep
+  // the set of comment ids for the currently loaded task in a ref and
+  // ignore attachment events for other tasks in the handler below.
+  const commentIdsRef = useRef<Set<string>>(new Set());
+
   const reload = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -64,15 +70,18 @@ export function TaskPanel({
       .select(DETAIL_SELECT)
       .eq("id", taskId)
       .single();
-    setResult({
-      id: taskId,
-      task: (data as unknown as TaskDetail | null) ?? null,
-    });
+    const detail = (data as unknown as TaskDetail | null) ?? null;
+    commentIdsRef.current = new Set(
+      detail?.task_comments?.map((c) => c.id) ?? [],
+    );
+    setResult({ id: taskId, task: detail });
   }, [taskId]);
 
   // Initial fetch happens once the realtime subscription is live, so no
   // comment posted in between is missed. Live updates: another member
-  // commenting on this task shows up without reopening the panel.
+  // commenting on this task shows up without reopening the panel. A second
+  // subscription on task_comment_attachments catches attachment deletes /
+  // moderation hides so the updates feed drops them without a reopen.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -86,6 +95,23 @@ export function TaskPanel({
           filter: `task_id=eq.${taskId}`,
         },
         () => void reload(),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "task_comment_attachments",
+        },
+        (payload) => {
+          const row =
+            (payload.new as { comment_id?: string } | null) ??
+            (payload.old as { comment_id?: string } | null);
+          const commentId = row?.comment_id;
+          if (commentId && commentIdsRef.current.has(commentId)) {
+            void reload();
+          }
+        },
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") void reload();

@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/supabase/types";
 import { Avatar } from "@/components/avatar";
 import { useProfileCard } from "@/components/profile-card";
+import { getRealtimeClient } from "@/lib/supabase/client";
 import { addGroupMembers, removeGroupMember } from "../../chat-actions";
 
 function Icon({
@@ -63,6 +65,40 @@ export function GroupMembers({
     if (open) window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
+
+  // Live roster: useGroupMembership only refreshes for THE user who was
+  // added/removed. Everyone else viewing the channel keeps the stale server
+  // seed until they navigate. Watching channel_members filtered by this
+  // channel closes that gap so the pill count and the member panel stay
+  // accurate for the whole group in real time.
+  useEffect(() => {
+    let channel: RealtimeChannel | null = null;
+    let client: Awaited<ReturnType<typeof getRealtimeClient>> | null = null;
+    let cancelled = false;
+
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      client = supabase;
+      channel = supabase
+        .channel(`channel-members-live:${channelId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "channel_members",
+            filter: `channel_id=eq.${channelId}`,
+          },
+          () => router.refresh(),
+        )
+        .subscribe();
+    });
+
+    return () => {
+      cancelled = true;
+      if (channel && client) void client.removeChannel(channel);
+    };
+  }, [channelId, router]);
 
   // Reset the picker each time the panel opens.
   useEffect(() => {

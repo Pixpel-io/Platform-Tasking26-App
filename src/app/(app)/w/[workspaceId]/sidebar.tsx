@@ -19,6 +19,8 @@ import { useWorkspaceUnreads } from "@/lib/use-workspace-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
 import { useProjectUnreads } from "@/lib/use-project-unreads";
 import { useProjectsLive } from "@/lib/use-projects-live";
+import { useWorkspacesLive } from "@/lib/use-workspaces-live";
+import { useChannelsLive } from "@/lib/use-channels-live";
 import { setFaviconBadge, setTitleUnread } from "@/lib/favicon-badge";
 import { useLiveMembers } from "@/lib/use-live-members";
 import { useGroupMembership } from "@/lib/use-group-membership";
@@ -105,6 +107,8 @@ export function Sidebar({
   useHiddenContacts(userId);
   useDmRoster(userId);
   useProjectsLive(workspaceId);
+  useWorkspacesLive(userId);
+  useChannelsLive(workspaceId);
 
   // Prefetch every other workspace the user belongs to as soon as the shell
   // mounts. Next caches the RSC payload, so clicking a workspace in the
