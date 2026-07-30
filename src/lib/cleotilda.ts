@@ -130,7 +130,7 @@ const TOOLS = [
     function: {
       name: "create_task",
       description:
-        "Create a task on a project's board. Call list_projects first to get a valid project_id (and optionally a column_id - if omitted the task lands in the project's first column). Use assignee_ids only with ids from list_members.",
+        "Create a NEW task on a project's board. IMPORTANT: if the user is following up on a task they already created earlier in this conversation (e.g. 'now assign it to Bob', 'change the due date', 'delete that task'), call list_tasks FIRST to find the existing task and then use update_task / assign_task / delete_task instead of creating a new one. Call list_projects first to get a valid project_id (and optionally a column_id - if omitted the task lands in the project's first column). Use assignee_ids only with ids from list_members.",
       parameters: {
         type: "object",
         properties: {
@@ -157,6 +157,160 @@ const TOOLS = [
           },
         },
         required: ["project_id", "title"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "list_tasks",
+      description:
+        "List / search tasks in a project so you can pick the right existing task to update, assign, or delete. Always call this BEFORE creating a new task when the user's request could plausibly be about a task that already exists (e.g. 'assign the login task to Bob', 'delete that report task', 'change the due date to Friday'). Returns each task's id, title, description, priority, due date, completed state, column, and current assignees.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: {
+            type: "string",
+            description: "Project id from list_projects",
+          },
+          query: {
+            type: "string",
+            description:
+              "Optional case-insensitive substring to filter task titles by (e.g. 'login', 'report').",
+          },
+        },
+        required: ["project_id"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "update_task",
+      description:
+        "Update fields on an EXISTING task (title, description, priority, due date, column, completed). Use this - not create_task - when the user asks to change something about a task they already created. Only include the fields the user actually wants changed.",
+      parameters: {
+        type: "object",
+        properties: {
+          task_id: {
+            type: "string",
+            description: "Task id from list_tasks",
+          },
+          title: { type: "string" },
+          description: { type: "string" },
+          priority: {
+            type: "string",
+            enum: ["none", "low", "medium", "high", "urgent"],
+          },
+          due_date: {
+            type: "string",
+            description:
+              "Due date as YYYY-MM-DD, or empty string to clear it",
+          },
+          column_id: {
+            type: "string",
+            description: "Kanban column id (to move between columns)",
+          },
+          completed: {
+            type: "boolean",
+            description: "true to mark complete, false to reopen",
+          },
+        },
+        required: ["task_id"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "assign_task",
+      description:
+        "Add one or more people to an existing task's assignees. Also seats them into the project if they aren't already board members. Use this when the user says 'assign Bob to task X' - do NOT create a new task with assignees for that; find the existing task via list_tasks and then assign it.",
+      parameters: {
+        type: "object",
+        properties: {
+          task_id: { type: "string" },
+          assignee_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "Profile ids from list_members",
+          },
+        },
+        required: ["task_id", "assignee_ids"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "unassign_task",
+      description:
+        "Remove one or more people from an existing task's assignees (does not remove them from the board, just this task).",
+      parameters: {
+        type: "object",
+        properties: {
+          task_id: { type: "string" },
+          assignee_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "Profile ids from list_members to unassign",
+          },
+        },
+        required: ["task_id", "assignee_ids"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "delete_task",
+      description:
+        "Soft-delete an existing task from its board. Only call this when the user explicitly asks to remove or delete a task.",
+      parameters: {
+        type: "object",
+        properties: {
+          task_id: { type: "string" },
+        },
+        required: ["task_id"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "add_project_members",
+      description:
+        "Add one or more people to a project (kanban board) so they can see and work on it. Use this when the user says 'add Alice to the marketing board' - not create_project. Call list_projects and list_members first to resolve names to ids.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "string" },
+          member_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "Profile ids from list_members to add",
+          },
+        },
+        required: ["project_id", "member_ids"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "remove_project_member",
+      description:
+        "Remove one person from a project (kanban board). This only removes them from that board - they stay in the workspace and their other boards.",
+      parameters: {
+        type: "object",
+        properties: {
+          project_id: { type: "string" },
+          member_id: {
+            type: "string",
+            description: "Profile id from list_members",
+          },
+        },
+        required: ["project_id", "member_id"],
       },
     },
   },
@@ -354,6 +508,232 @@ async function runTool(
     return JSON.stringify({ ok: true, task_id: task?.id, title: task?.title });
   }
 
+  if (name === "list_tasks") {
+    const projectId = String(input.project_id ?? "");
+    if (!projectId) {
+      return JSON.stringify({ error: "project_id is required" });
+    }
+    let query = supabase
+      .from("tasks")
+      .select(
+        "id, title, description, priority, due_date, column_id, completed_at, task_assignees(user_id, profiles(id, full_name, email))",
+      )
+      .eq("project_id", projectId)
+      .is("deleted_at", null)
+      .order("position", { ascending: true })
+      .limit(200);
+    const q = String(input.query ?? "").trim();
+    if (q.length > 0) {
+      const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
+      query = query.ilike("title", like);
+    }
+    const { data, error } = await query;
+    if (error) return JSON.stringify({ error: error.message });
+    // Flatten assignee shape to something the model can reason about easily.
+    const rows = (data ?? []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      priority: t.priority,
+      due_date: t.due_date,
+      column_id: t.column_id,
+      completed: t.completed_at != null,
+      assignees: (
+        t.task_assignees as unknown as {
+          user_id: string;
+          profiles: { id: string; full_name: string | null; email: string } | null;
+        }[]
+      )
+        .map((a) => a.profiles)
+        .filter((p): p is NonNullable<typeof p> => p != null),
+    }));
+    return JSON.stringify(rows);
+  }
+
+  if (name === "update_task") {
+    const taskId = String(input.task_id ?? "");
+    if (!taskId) return JSON.stringify({ error: "task_id is required" });
+    const priorities = ["none", "low", "medium", "high", "urgent"] as const;
+    type TaskUpdate = {
+      title?: string;
+      description?: string | null;
+      priority?: (typeof priorities)[number];
+      due_date?: string | null;
+      column_id?: string;
+      completed_at?: string | null;
+    };
+    const patch: TaskUpdate = {};
+    if (typeof input.title === "string" && input.title.trim().length > 0) {
+      patch.title = input.title.trim();
+    }
+    if (typeof input.description === "string") {
+      patch.description = input.description || null;
+    }
+    if (
+      typeof input.priority === "string" &&
+      priorities.includes(input.priority as (typeof priorities)[number])
+    ) {
+      patch.priority = input.priority as (typeof priorities)[number];
+    }
+    if (typeof input.due_date === "string") {
+      patch.due_date = /^\d{4}-\d{2}-\d{2}$/.test(input.due_date)
+        ? input.due_date
+        : null;
+    }
+    if (typeof input.column_id === "string" && input.column_id) {
+      patch.column_id = input.column_id;
+    }
+    if (typeof input.completed === "boolean") {
+      patch.completed_at = input.completed ? new Date().toISOString() : null;
+    }
+    if (Object.keys(patch).length === 0) {
+      return JSON.stringify({ error: "no updatable fields provided" });
+    }
+    const { data, error } = await supabase
+      .from("tasks")
+      .update(patch)
+      .eq("id", taskId)
+      .is("deleted_at", null)
+      .select("id, title")
+      .maybeSingle();
+    if (error) return JSON.stringify({ error: error.message });
+    if (!data) {
+      return JSON.stringify({
+        error: "task not found or you don't have permission to update it",
+      });
+    }
+    return JSON.stringify({ ok: true, task_id: data.id, title: data.title });
+  }
+
+  if (name === "assign_task") {
+    const taskId = String(input.task_id ?? "");
+    const assigneeIds = Array.isArray(input.assignee_ids)
+      ? (input.assignee_ids as string[])
+          .filter((id) => id && id !== CLEOTILDA_ID)
+          .slice(0, 10)
+      : [];
+    if (!taskId || assigneeIds.length === 0) {
+      return JSON.stringify({
+        error: "task_id and non-empty assignee_ids are required",
+      });
+    }
+    // Confirm the task exists (and RLS lets us see it) so we return a real
+    // error instead of silently upserting rows against a bogus id.
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("id, project_id")
+      .eq("id", taskId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!task) {
+      return JSON.stringify({ error: "task not found" });
+    }
+    // Seat each assignee onto the project first so they can actually open
+    // the task and get their assignment notification without a 404.
+    for (const uid of assigneeIds) {
+      await supabase.rpc("ensure_project_member", {
+        p_project_id: task.project_id,
+        p_user_id: uid,
+      });
+    }
+    // The task_assignees primary key is (task_id, user_id), so ignoreDuplicates
+    // makes re-assigning an already-assigned person a no-op instead of an error.
+    const { error: assignErr } = await supabase
+      .from("task_assignees")
+      .upsert(
+        assigneeIds.map((uid) => ({ task_id: taskId, user_id: uid })),
+        { onConflict: "task_id,user_id", ignoreDuplicates: true },
+      );
+    if (assignErr) return JSON.stringify({ error: assignErr.message });
+    return JSON.stringify({
+      ok: true,
+      task_id: taskId,
+      assigned: assigneeIds.length,
+    });
+  }
+
+  if (name === "unassign_task") {
+    const taskId = String(input.task_id ?? "");
+    const assigneeIds = Array.isArray(input.assignee_ids)
+      ? (input.assignee_ids as string[]).filter(Boolean).slice(0, 10)
+      : [];
+    if (!taskId || assigneeIds.length === 0) {
+      return JSON.stringify({
+        error: "task_id and non-empty assignee_ids are required",
+      });
+    }
+    const { error } = await supabase
+      .from("task_assignees")
+      .delete()
+      .eq("task_id", taskId)
+      .in("user_id", assigneeIds);
+    if (error) return JSON.stringify({ error: error.message });
+    return JSON.stringify({
+      ok: true,
+      task_id: taskId,
+      unassigned: assigneeIds.length,
+    });
+  }
+
+  if (name === "delete_task") {
+    const taskId = String(input.task_id ?? "");
+    if (!taskId) return JSON.stringify({ error: "task_id is required" });
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", taskId)
+      .is("deleted_at", null)
+      .select("id, title")
+      .maybeSingle();
+    if (error) return JSON.stringify({ error: error.message });
+    if (!data) {
+      return JSON.stringify({
+        error: "task not found or you don't have permission to delete it",
+      });
+    }
+    return JSON.stringify({ ok: true, task_id: data.id, title: data.title });
+  }
+
+  if (name === "add_project_members") {
+    const projectId = String(input.project_id ?? "");
+    const memberIds = Array.isArray(input.member_ids)
+      ? (input.member_ids as string[])
+          .filter((id) => id && id !== CLEOTILDA_ID)
+          .slice(0, 50)
+      : [];
+    if (!projectId || memberIds.length === 0) {
+      return JSON.stringify({
+        error: "project_id and non-empty member_ids are required",
+      });
+    }
+    const { error } = await supabase.rpc("add_project_members", {
+      p_project_id: projectId,
+      p_member_ids: memberIds,
+    });
+    if (error) return JSON.stringify({ error: error.message });
+    return JSON.stringify({
+      ok: true,
+      project_id: projectId,
+      added: memberIds.length,
+    });
+  }
+
+  if (name === "remove_project_member") {
+    const projectId = String(input.project_id ?? "");
+    const memberId = String(input.member_id ?? "");
+    if (!projectId || !memberId) {
+      return JSON.stringify({
+        error: "project_id and member_id are required",
+      });
+    }
+    const { error } = await supabase.rpc("remove_project_member", {
+      p_project_id: projectId,
+      p_user_id: memberId,
+    });
+    if (error) return JSON.stringify({ error: error.message });
+    return JSON.stringify({ ok: true, project_id: projectId, removed: memberId });
+  }
+
   return JSON.stringify({ error: `unknown tool: ${name}` });
 }
 
@@ -427,12 +807,12 @@ async function ensureUserLanguage(
 const RULES = (
   today: string,
 ) => `- Be brief and friendly, like a helpful coworker on chat. A few sentences at most.
-- You have tools that ACT: create_project (new kanban board), create_group (new chat channel), create_task (work item on a project), send_dm (message a member), plus list_projects and list_members for lookups. Use them to actually do things instead of describing how the user could do them. Never say you can't create something that one of your tools creates.
-- Pick the right tool: "make/create a project X" means create_project. "Make a group/channel X" means create_group. "Send a message to X" / "X ko msg karo" means send_dm. Only create_task when they ask for a task, todo, or work item.
-- Call list_projects before create_task (real project id), and list_members before send_dm or adding/assigning people by name.
-- When you act, confirm in one line what you did (project/group created, task created on which project, message sent to whom).
-- If the request is ambiguous (e.g. multiple matching projects or people), ask one short clarifying question instead of guessing.
-- If something is truly outside your tools (deleting things, editing settings), say so briefly.
+- Your tools ACT on the workspace. Creation: create_project (new board), create_group (new chat channel), create_task (work item), send_dm. Discovery: list_projects, list_members, list_tasks. Task edits: update_task, assign_task, unassign_task, delete_task. Board membership: add_project_members, remove_project_member. Use them to actually do things instead of describing how the user could do them. Never say you can't do something one of your tools already covers.
+- CRITICAL - avoid duplicates. Before you create_task, ask: is this the same task the user (or you) already mentioned in this conversation? If the user is following up ("assign it to Bob", "change the due date", "delete that report task", "make it urgent"), that is almost certainly an EXISTING task. Call list_tasks (with a query substring if useful) to find the id and use update_task / assign_task / delete_task on it. Only call create_task when the user is asking for a genuinely new work item. The same rule applies to boards: don't create_project if one with that name already exists in list_projects - work with the existing one.
+- Pick the right tool: "make/create a project X" means create_project. "Make a group/channel X" means create_group. "Send a message to X" / "X ko msg karo" means send_dm. "Assign X to that task" / "reassign" means assign_task. "Remove X from the task" means unassign_task. "Delete that task" means delete_task. "Add X to the board" means add_project_members. "Remove X from the board" means remove_project_member.
+- Always call list_projects before create_task / list_tasks / add_project_members, and list_members before send_dm or resolving people by name to an id.
+- When you act, confirm in one line what you did (task assigned to whom, task deleted, member added, etc.).
+- If the request is ambiguous (multiple matching tasks / projects / people), ask one short clarifying question instead of guessing.
 - Today's date is ${today}. Resolve relative dates like "tomorrow" or "Friday" to YYYY-MM-DD yourself.
 - LANGUAGE: Always reply in English by default. Only switch to another language if the user's latest message is clearly written in that language (e.g. Roman Urdu → reply in Roman Urdu). Never reply in Chinese, Japanese, or any language the user did not use.`;
 
@@ -471,7 +851,18 @@ ${RULES(today)}`;
   ];
 
   const target: RoomTarget = { workspaceId: args.workspaceId };
-  const MUTATING = new Set(["create_project", "create_group", "create_task", "send_dm"]);
+  const MUTATING = new Set([
+    "create_project",
+    "create_group",
+    "create_task",
+    "send_dm",
+    "update_task",
+    "assign_task",
+    "unassign_task",
+    "delete_task",
+    "add_project_members",
+    "remove_project_member",
+  ]);
 
   let reply = "";
   let mutated = false;
