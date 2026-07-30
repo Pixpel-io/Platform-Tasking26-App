@@ -60,6 +60,24 @@ export const InviteSchema = z.object({
   role: z.enum(["admin", "member"]),
 });
 
+export const ChangePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password."),
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters.")
+      .max(200, "Password is too long."),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords don't match.",
+  })
+  .refine((v) => v.newPassword !== v.currentPassword, {
+    path: ["newPassword"],
+    message: "Choose a password different from your current one.",
+  });
+
 export type FormState = {
   error?: string;
   fieldErrors?: Record<string, string[]>;

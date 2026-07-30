@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { requireUser } from "@/lib/auth";
 import { emailEnabled, sendInviteEmail } from "@/lib/email";
 import {
+  ChangePasswordSchema,
   CreateWorkspaceSchema,
   InviteSchema,
   UpdateWorkspaceSchema,
@@ -487,6 +488,49 @@ export async function updateProfile(
 
   revalidatePath("/", "layout");
   return { success: "Profile updated." };
+}
+
+// Change the signed-in user's password. Current password is re-verified via
+// signInWithPassword before the update runs, so a stolen session (or somebody
+// who left their laptop unlocked) can't quietly rotate the account's
+// password. OAuth-only accounts have no password provider - callers gate the
+// UI on `hasPassword`, but the action also fails safely for them because
+// signInWithPassword returns an error for accounts without an email password.
+export async function changePassword(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+  if (!user.email) {
+    return { error: "Your account has no email address on file." };
+  }
+
+  const parsed = ChangePasswordSchema.safeParse({
+    currentPassword: formData.get("currentPassword"),
+    newPassword: formData.get("newPassword"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return { fieldErrors: fieldErrorsOf(parsed.error) };
+  }
+
+  const supabase = await createClient();
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: parsed.data.currentPassword,
+  });
+  if (signInError) {
+    return {
+      fieldErrors: { currentPassword: ["Current password is incorrect."] },
+    };
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: parsed.data.newPassword,
+  });
+  if (updateError) return { error: updateError.message };
+
+  return { success: "Password updated." };
 }
 
 export async function updatePresence(
