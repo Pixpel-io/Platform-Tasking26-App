@@ -155,6 +155,7 @@ export async function updateWorkspace(
     name: formData.get("name"),
     color: formData.get("color"),
     companyName: formData.get("companyName") || undefined,
+    iconUrl: formData.get("iconUrl")?.toString() ?? undefined,
   });
   if (!parsed.success) {
     return { fieldErrors: fieldErrorsOf(parsed.error) };
@@ -163,7 +164,14 @@ export async function updateWorkspace(
   const supabase = await createClient();
   const { data: workspace, error } = await supabase
     .from("workspaces")
-    .update({ name: parsed.data.name, color: parsed.data.color.toLowerCase() })
+    .update({
+      name: parsed.data.name,
+      color: parsed.data.color.toLowerCase(),
+      // Empty string clears the icon, null-safe.
+      ...(parsed.data.iconUrl !== undefined
+        ? { icon_url: parsed.data.iconUrl || null }
+        : {}),
+    })
     .eq("id", workspaceId)
     .select("organization_id")
     .single();

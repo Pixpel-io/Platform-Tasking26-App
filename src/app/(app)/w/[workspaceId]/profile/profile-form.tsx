@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { updateProfile } from "@/app/(app)/actions";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/avatar";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button, FieldError, FormMessage, Input, Label } from "@/components/ui";
 import type { Profile } from "@/lib/supabase/types";
 
@@ -15,6 +16,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? "");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -80,7 +82,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
             {avatarUrl && (
               <button
                 type="button"
-                onClick={() => setAvatarUrl("")}
+                onClick={() => setConfirmRemove(true)}
                 className="cursor-pointer text-sm text-muted hover:text-foreground"
               >
                 Remove
@@ -130,6 +132,19 @@ export function ProfileForm({ profile }: { profile: Profile }) {
       <Button type="submit" disabled={pending || uploading}>
         {pending ? "Saving…" : "Save changes"}
       </Button>
+
+      {confirmRemove && (
+        <ConfirmDialog
+          title="Remove profile picture?"
+          description="Your avatar will fall back to your initials until you upload a new photo. Save changes to apply."
+          confirmLabel="Remove photo"
+          onConfirm={() => {
+            setAvatarUrl("");
+            setConfirmRemove(false);
+          }}
+          onCancel={() => setConfirmRemove(false)}
+        />
+      )}
     </form>
   );
 }

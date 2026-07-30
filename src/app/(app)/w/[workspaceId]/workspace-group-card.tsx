@@ -16,7 +16,11 @@ function dueLabel(dateOnly: string | null): { text: string; chip: string } {
     return { text: "Today", chip: "bg-amber-500/10 text-amber-500" };
   const d = new Date(`${dateOnly}T00:00:00`);
   return {
-    text: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    // Pin the locale to en-US so server-rendered "Aug 3" matches the client -
+    // Intl.toLocaleDateString(undefined, …) uses the browser locale on the
+    // client and the server locale on the server, and the mismatch trips
+    // React's hydration check.
+    text: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     chip: "bg-surface-2 text-muted",
   };
 }

@@ -25,10 +25,12 @@ export function useProjectUnreads(
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
+    let client: Awaited<ReturnType<typeof getRealtimeClient>> | null = null;
     let cancelled = false;
 
     void getRealtimeClient().then((supabase) => {
       if (cancelled) return;
+      client = supabase;
 
       async function recount() {
         const { data } = await supabase
@@ -83,7 +85,7 @@ export function useProjectUnreads(
 
     return () => {
       cancelled = true;
-      if (channel) void channel.unsubscribe();
+      if (channel && client) void client.removeChannel(channel);
     };
   }, [workspaceId, userId]);
 

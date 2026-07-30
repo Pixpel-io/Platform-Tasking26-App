@@ -62,6 +62,8 @@ export function DmShellSidebar({
   const [inviteOpen, setInviteOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signOutPending, startSignOut] = useTransition();
   const [, startTransition] = useTransition();
   useHiddenContacts(userId);
   useDmRoster(userId);
@@ -270,20 +272,35 @@ export function DmShellSidebar({
                 )}
               </button>
             )}
-            <form action={signOut}>
-              <button
-                type="submit"
-                aria-label="Sign out"
-                className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-danger"
-              >
-                <Icon d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-              </button>
-            </form>
+            <button
+              type="button"
+              onClick={() => setSignOutOpen(true)}
+              aria-label="Sign out"
+              title="Sign out"
+              className="grid h-8 w-8 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-danger"
+            >
+              <Icon d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+            </button>
           </span>
         </div>
       </div>
 
       <DmInviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />
+
+      {signOutOpen && (
+        <ConfirmDialog
+          title="Sign out?"
+          description="You'll need to sign in again the next time you open Tasking."
+          confirmLabel="Sign out"
+          pending={signOutPending}
+          onConfirm={() => {
+            startSignOut(async () => {
+              await signOut();
+            });
+          }}
+          onCancel={() => setSignOutOpen(false)}
+        />
+      )}
 
       {removeTarget && (
         <ConfirmDialog

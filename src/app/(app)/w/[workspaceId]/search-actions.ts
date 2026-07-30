@@ -102,7 +102,11 @@ export async function searchWorkspace(
 ): Promise<SearchResults> {
   const user = await requireUser();
   const query = rawQuery.trim();
-  if (query.length < 1) return EMPTY;
+  // pg_trgm's GIN index needs 3-char shingles to be effective on ILIKE
+  // '%needle%', so anything shorter falls back to a full-table scan (which
+  // was the 10-second problem). Two chars is common enough for names /
+  // channels; a single character is too broad to be useful anyway.
+  if (query.length < 2) return EMPTY;
 
   const supabase = await createClient();
   const q = query.toLowerCase();

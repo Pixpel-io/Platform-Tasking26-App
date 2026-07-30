@@ -117,6 +117,8 @@ export function Sidebar({
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signOutPending, startSignOut] = useTransition();
   const [, startTransition] = useTransition();
   const base = `/w/${workspaceId}`;
   const current = workspaces.find((w) => w.workspace_id === workspaceId);
@@ -206,8 +208,17 @@ export function Sidebar({
         >
           <span className="flex min-w-0 items-center gap-2.5">
             <span className="relative shrink-0">
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/30">
-                {current?.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
+              <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/30">
+                {current?.workspaces?.icon_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={current.workspaces.icon_url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  (current?.workspaces?.name?.[0]?.toUpperCase() ?? "?")
+                )}
               </span>
               {otherWorkspaceUnread > 0 && (
                 <span
@@ -260,10 +271,19 @@ export function Sidebar({
                 >
                   <span className="relative shrink-0">
                     <span
-                      className="grid h-7 w-7 place-items-center rounded-md text-xs font-bold text-white shadow-sm"
+                      className="grid h-7 w-7 place-items-center overflow-hidden rounded-md text-xs font-bold text-white shadow-sm"
                       style={{ backgroundColor: color }}
                     >
-                      {w.workspaces?.name?.[0]?.toUpperCase() ?? "?"}
+                      {w.workspaces?.icon_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={w.workspaces.icon_url}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        (w.workspaces?.name?.[0]?.toUpperCase() ?? "?")
+                      )}
                     </span>
                     {/* Solid danger dot on the avatar so unread workspaces
                         pop instantly even before the eye reaches the count. */}
@@ -651,17 +671,32 @@ export function Sidebar({
             </button>
           )}
           <ThemeToggle />
-          <form action={signOut}>
-            <button
-              type="submit"
-              aria-label="Sign out"
-              className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-danger"
-            >
-              <Icon d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-            </button>
-          </form>
+          <button
+            type="button"
+            onClick={() => setSignOutOpen(true)}
+            aria-label="Sign out"
+            title="Sign out"
+            className="grid h-9 w-9 cursor-pointer place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-danger"
+          >
+            <Icon d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+          </button>
         </div>
       </div>
+
+      {signOutOpen && (
+        <ConfirmDialog
+          title="Sign out?"
+          description="You'll need to sign in again the next time you open Tasking."
+          confirmLabel="Sign out"
+          pending={signOutPending}
+          onConfirm={() => {
+            startSignOut(async () => {
+              await signOut();
+            });
+          }}
+          onCancel={() => setSignOutOpen(false)}
+        />
+      )}
 
       <DmInviteDialog
         open={dmInviteOpen}

@@ -49,6 +49,10 @@ export const UpdateWorkspaceSchema = z.object({
     .trim()
     .min(2, "Company name must be at least 2 characters.")
     .optional(),
+  // Public URL of a workspace logo uploaded to the workspace-icons bucket, or
+  // an empty string to clear it. Kept lenient (any URL / empty) since the
+  // client picks/hosts the value and we only persist what it hands us.
+  iconUrl: z.string().trim().max(2048).optional(),
 });
 
 export const InviteSchema = z.object({

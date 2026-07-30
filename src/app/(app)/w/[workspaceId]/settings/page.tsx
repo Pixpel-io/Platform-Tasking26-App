@@ -12,21 +12,25 @@ export default async function SettingsPage({
   const user = await requireUser();
   const supabase = await createClient();
 
-  const [{ data: workspace }, { data: me }] = await Promise.all([
-    supabase
-      .from("workspaces")
-      .select("id, name, color, organizations(id, name, owner_id)")
-      .eq("id", workspaceId)
-      .is("deleted_at", null)
-      .single(),
-    supabase
-      .from("workspace_members")
-      .select("role")
-      .eq("workspace_id", workspaceId)
-      .eq("user_id", user.id)
-      .single(),
-  ]);
+  const [{ data: workspace, error: workspaceError }, { data: me }] =
+    await Promise.all([
+      supabase
+        .from("workspaces")
+        .select("*, organizations(id, name, owner_id)")
+        .eq("id", workspaceId)
+        .is("deleted_at", null)
+        .single(),
+      supabase
+        .from("workspace_members")
+        .select("role")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
 
+  if (workspaceError) {
+    console.error("[settings] workspace query failed:", workspaceError);
+  }
   if (!workspace) notFound();
 
   const org = (workspace as unknown as {
@@ -53,6 +57,7 @@ export default async function SettingsPage({
             workspaceId={workspace.id}
             name={workspace.name}
             color={workspace.color}
+            iconUrl={workspace.icon_url ?? ""}
             companyName={org?.name ?? ""}
             canEditCompany={isCompanyOwner}
             canDelete={isOwner}

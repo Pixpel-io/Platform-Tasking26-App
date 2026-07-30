@@ -90,10 +90,12 @@ export function NotificationToaster({
 
   useEffect(() => {
     let channel: RealtimeChannel | null = null;
+    let client: Awaited<ReturnType<typeof getRealtimeClient>> | null = null;
     let cancelled = false;
 
     void getRealtimeClient().then((supabase) => {
       if (cancelled) return;
+      client = supabase;
       channel = supabase
         .channel(`notification-toaster:${workspaceId}:${userId}`)
         .on(
@@ -156,7 +158,10 @@ export function NotificationToaster({
     const pending = timers.current;
     return () => {
       cancelled = true;
-      if (channel) void channel.unsubscribe();
+      // removeChannel drops the channel from the client's registry so a
+      // fresh mount (Strict Mode / HMR) gets a new channel; plain
+      // unsubscribe leaves it cached and the next .on() call throws.
+      if (channel && client) void client.removeChannel(channel);
       pending.forEach((t) => clearTimeout(t));
       pending.clear();
     };

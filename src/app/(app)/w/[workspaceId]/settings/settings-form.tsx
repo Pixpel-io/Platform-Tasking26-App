@@ -1,15 +1,21 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { deleteWorkspace, updateWorkspace } from "@/app/(app)/actions";
 import { ColorPicker } from "@/components/color-picker";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button, FieldError, FormMessage, Input, Label } from "@/components/ui";
+import { createClient } from "@/lib/supabase/client";
 import { normalizeColor } from "@/lib/workspace-theme";
+
+const ICON_BUCKET = "workspace-icons";
+const MAX_ICON_BYTES = 5 * 1024 * 1024;
 
 export function SettingsForm({
   workspaceId,
   name,
   color,
+  iconUrl: initialIconUrl,
   companyName,
   canEditCompany,
   canDelete,
@@ -17,6 +23,7 @@ export function SettingsForm({
   workspaceId: string;
   name: string;
   color: string;
+  iconUrl: string;
   companyName: string;
   canEditCompany: boolean;
   canDelete: boolean;
@@ -24,6 +31,47 @@ export function SettingsForm({
   const action = updateWorkspace.bind(null, workspaceId);
   const [state, formAction, pending] = useActionState(action, undefined);
   const [selected, setSelected] = useState<string>(normalizeColor(color));
+  const [iconUrl, setIconUrl] = useState(initialIconUrl);
+  const [iconUploading, setIconUploading] = useState(false);
+  const [iconError, setIconError] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const iconInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleIconFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setIconError("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_ICON_BYTES) {
+      setIconError("Image must be 5MB or smaller.");
+      return;
+    }
+
+    setIconError(null);
+    setIconUploading(true);
+    try {
+      const supabase = createClient();
+      const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+      // The bucket's RLS keys on the first path folder = workspace id, so
+      // this path is the only shape that passes for a workspace admin.
+      const path = `${workspaceId}/${crypto.randomUUID()}-${safeName}`;
+      const { error } = await supabase.storage
+        .from(ICON_BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (error) {
+        setIconError(error.message);
+        return;
+      }
+      const { data } = supabase.storage.from(ICON_BUCKET).getPublicUrl(path);
+      setIconUrl(data.publicUrl);
+    } finally {
+      setIconUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -32,6 +80,65 @@ export function SettingsForm({
         {state?.success && (
           <FormMessage type="success">{state.success}</FormMessage>
         )}
+
+        <input type="hidden" name="iconUrl" value={iconUrl} />
+
+        <div>
+          <Label>Workspace logo</Label>
+          <div className="mt-2 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+            <span
+              className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl text-xl font-bold text-white shadow-sm"
+              style={{ backgroundColor: normalizeColor(selected) }}
+            >
+              {iconUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={iconUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                name[0]?.toUpperCase() ?? "?"
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => iconInputRef.current?.click()}
+                  disabled={iconUploading}
+                  className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-2 disabled:opacity-60"
+                >
+                  {iconUploading ? "Uploading…" : "Upload logo"}
+                </button>
+                {iconUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRemove(true)}
+                    className="cursor-pointer text-sm text-muted hover:text-foreground"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                PNG or JPG, up to 5MB. Square works best.
+              </p>
+            </div>
+            <input
+              ref={iconInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleIconFile}
+              className="hidden"
+            />
+          </div>
+          {iconError && (
+            <div className="mt-2">
+              <FormMessage type="error">{iconError}</FormMessage>
+            </div>
+          )}
+        </div>
 
         <div>
           <Label htmlFor="companyName">
@@ -67,9 +174,22 @@ export function SettingsForm({
           <FieldError message={state?.fieldErrors?.color} />
         </div>
 
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || iconUploading}>
           {pending ? "Saving…" : "Save changes"}
         </Button>
+
+        {confirmRemove && (
+          <ConfirmDialog
+            title="Remove workspace logo?"
+            description="The workspace tile will fall back to the accent color + initial until you upload a new logo. Save changes to apply."
+            confirmLabel="Remove logo"
+            onConfirm={() => {
+              setIconUrl("");
+              setConfirmRemove(false);
+            }}
+            onCancel={() => setConfirmRemove(false)}
+          />
+        )}
       </form>
 
       {canDelete && <DangerZone workspaceId={workspaceId} name={name} />}

@@ -59,6 +59,7 @@ function QrDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(EXPIRY_SECONDS);
   const [generation, setGeneration] = useState(0);
+  const [pending, setPending] = useState(true);
   // Reset during render when a new code is requested (avoids a
   // setState-in-effect cascade).
   const [lastGeneration, setLastGeneration] = useState(generation);
@@ -67,6 +68,7 @@ function QrDialog({ onClose }: { onClose: () => void }) {
     setDataUrl(null);
     setError(null);
     setSecondsLeft(EXPIRY_SECONDS);
+    setPending(true);
   }
 
   useEffect(() => {
@@ -85,14 +87,22 @@ function QrDialog({ onClose }: { onClose: () => void }) {
       if (!active) return;
       if ("error" in res) {
         setError(res.error);
+        setPending(false);
         return;
       }
-      const png = await QRCode.toDataURL(res.url, {
-        width: 480,
-        margin: 1,
-        errorCorrectionLevel: "M",
-      });
-      if (active) setDataUrl(png);
+      try {
+        const png = await QRCode.toDataURL(res.url, {
+          width: 480,
+          margin: 1,
+          errorCorrectionLevel: "M",
+        });
+        if (!active) return;
+        setDataUrl(png);
+      } catch {
+        if (active) setError("Couldn't render the code. Try again.");
+      } finally {
+        if (active) setPending(false);
+      }
     });
 
     const tick = setInterval(() => {
@@ -156,9 +166,10 @@ function QrDialog({ onClose }: { onClose: () => void }) {
         <div className="mt-5 flex justify-center gap-2">
           <button
             onClick={() => setGeneration((g) => g + 1)}
-            className="cursor-pointer rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+            disabled={pending}
+            className="cursor-pointer rounded-xl border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Generate new code
+            {pending ? "Generating…" : "Generate new code"}
           </button>
           <button
             onClick={onClose}
