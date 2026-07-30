@@ -58,7 +58,11 @@ export function useUnreadNotifications(
           },
           () => void recount(),
         )
-        .subscribe();
+        .subscribe((status) => {
+          // Recount on SUBSCRIBED so anything that landed in the gap between
+          // the server seed and the live channel is picked up.
+          if (status === "SUBSCRIBED") void recount();
+        });
     });
 
     return () => {

@@ -124,6 +124,7 @@ export function Sidebar({
   const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [signOutPending, startSignOut] = useTransition();
@@ -455,7 +456,19 @@ export function Sidebar({
         {/* Projects */}
         <div>
           <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            <span className="px-2 py-0.5">Task Boards</span>
+            <button
+              onClick={() => setProjectsCollapsed((v) => !v)}
+              aria-expanded={!projectsCollapsed}
+              className="flex flex-1 cursor-pointer items-center gap-1 rounded px-2 py-0.5 hover:text-foreground"
+            >
+              <Icon
+                d="M9 18l6-6-6-6"
+                className={`h-3 w-3 shrink-0 transition-transform duration-150 ${
+                  projectsCollapsed ? "" : "rotate-90"
+                }`}
+              />
+              <span>Task Boards</span>
+            </button>
             <Link
               href={`${base}/projects`}
               aria-label="All task boards"
@@ -464,6 +477,7 @@ export function Sidebar({
               <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
             </Link>
           </div>
+          {!projectsCollapsed && (
           <div className="space-y-0.5">
             {projects.length === 0 && (
               <p className="px-3 py-1 text-xs text-muted/60">No boards yet</p>
@@ -505,6 +519,7 @@ export function Sidebar({
               );
             })}
           </div>
+          )}
         </div>
         {/* Direct messages - global (Slack model): everyone you share ANY
             workspace with; the same threads no matter the workspace. Framed

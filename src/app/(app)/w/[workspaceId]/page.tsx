@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getMyWorkspaces, getProfile } from "@/lib/auth";
+import { getMyWorkspaces, getProfile, requireUser } from "@/lib/auth";
 import {
   getMyOpenTasksAcrossWorkspaces,
   getProjects,
@@ -121,6 +121,7 @@ export default async function WorkspaceDashboard({
   params,
 }: PageProps<"/w/[workspaceId]">) {
   const { workspaceId } = await params;
+  const user = await requireUser();
   const supabase = await createClient();
 
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -154,11 +155,16 @@ export default async function WorkspaceDashboard({
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null),
+    // Only count invites THIS user sent - the dashboard chip is a personal
+    // reminder to follow up, not a workspace-wide status line. Non-inviters
+    // couldn't act on the invite anyway (the members page RLS hides pending
+    // invites they don't own), so we'd just be linking them to an empty list.
     supabase
       .from("invites")
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
-      .eq("status", "pending"),
+      .eq("status", "pending")
+      .eq("invited_by", user.id),
     supabase
       .from("tasks")
       .select("id, projects!inner(workspace_id)", {

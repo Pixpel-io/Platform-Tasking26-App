@@ -70,7 +70,14 @@ export function useWorkspaceUnreads(
           },
           () => void recount(),
         )
-        .subscribe();
+        .subscribe((status) => {
+          // Any INSERT that landed between the server-rendered seed and the
+          // subscription going live would be silently missed - the SQA
+          // reported this as "another workspace got a notification but no
+          // badge showed". A recount the moment we're SUBSCRIBED closes
+          // that gap and also self-heals after a reconnect.
+          if (status === "SUBSCRIBED") void recount();
+        });
     });
 
     return () => {

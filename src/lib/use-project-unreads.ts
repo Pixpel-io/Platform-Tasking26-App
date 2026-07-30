@@ -80,7 +80,12 @@ export function useProjectUnreads(
           },
           () => void recount(),
         )
-        .subscribe();
+        .subscribe((status) => {
+          // Recount on SUBSCRIBED so anything that inserted between the
+          // server-rendered seed and the subscription going live is picked
+          // up (and to self-heal after a reconnect).
+          if (status === "SUBSCRIBED") void recount();
+        });
     });
 
     return () => {
