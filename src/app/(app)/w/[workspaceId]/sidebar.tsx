@@ -29,7 +29,7 @@ import { hideDmContact, openDirectMessage } from "./chat-actions";
 import { SidebarRowMeta } from "./chat/typing";
 import { CreateChannelDialog } from "./create-channel-dialog";
 import { DmInviteDialog } from "./dm-invite-dialog";
-import { WorkspaceSplash } from "./workspace-loader";
+import { TaskingSpinner } from "./workspace-loader";
 
 function Icon({ d, className = "h-4 w-4 shrink-0" }: { d: string; className?: string }) {
   return (
@@ -105,11 +105,19 @@ export function Sidebar({
   useHiddenContacts(userId);
   useDmRoster(userId);
   useProjectsLive(workspaceId);
+
+  // Prefetch every other workspace the user belongs to as soon as the shell
+  // mounts. Next caches the RSC payload, so clicking a workspace in the
+  // switcher navigates instantly instead of blocking on the first fetch -
+  // the reason we used to show a full-screen splash on switch.
+  useEffect(() => {
+    for (const w of workspaces) {
+      if (w.workspace_id === workspaceId) continue;
+      router.prefetch(`/w/${w.workspace_id}`);
+    }
+  }, [workspaces, workspaceId, router]);
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  // When switching workspaces we show a branded full-screen splash, then push
-  // the route. The whole layout remounts on arrival, tearing the splash down.
-  const [switchingTo, setSwitchingTo] =
-    useState<MembershipWithWorkspace | null>(null);
+  const [switching, setSwitching] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [dmInviteOpen, setDmInviteOpen] = useState(false);
   // Contact pending removal from the DM list (confirm before hiding).
@@ -254,12 +262,25 @@ export function Sidebar({
               return (
                 <button
                   key={w.workspace_id}
+                  // Warm the cache the moment a user's pointer / focus lands
+                  // on the row - guarantees the RSC payload is fresh even if
+                  // the initial mount-time prefetch went stale.
+                  onMouseEnter={() =>
+                    !isCurrent && router.prefetch(`/w/${w.workspace_id}`)
+                  }
+                  onFocus={() =>
+                    !isCurrent && router.prefetch(`/w/${w.workspace_id}`)
+                  }
                   onClick={() => {
                     setSwitcherOpen(false);
                     if (isCurrent) return;
-                    setSwitchingTo(w);
-                    // Let the splash paint before the (blocking) route push.
-                    startTransition(() => router.push(`/w/${w.workspace_id}`));
+                    // Flash the branded spinner while the prefetched route
+                    // commits - usually invisible-fast, but on a cold cache
+                    // (long idle) the ring confirms something's happening.
+                    // The new workspace layout remount tears down this
+                    // sidebar (and the spinner) automatically.
+                    setSwitching(true);
+                    router.push(`/w/${w.workspace_id}`);
                   }}
                   className={`group/ws flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition-all duration-150 ${
                     isCurrent
@@ -735,13 +756,7 @@ export function Sidebar({
         />
       )}
 
-      {switchingTo && (
-        <WorkspaceSplash
-          name={switchingTo.workspaces?.name ?? "Workspace"}
-          accent={switchingTo.workspaces?.color ?? "#4f46e5"}
-          portal
-        />
-      )}
+      {switching && <TaskingSpinner portal />}
     </aside>
   );
 }

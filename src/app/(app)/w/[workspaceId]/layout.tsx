@@ -24,8 +24,8 @@ import { Sidebar } from "./sidebar";
 import { AppShell } from "./app-shell";
 import { NotificationBell } from "./notification-bell";
 import { HeaderSearch } from "./header-search";
-import { WorkspaceLoader } from "./workspace-loader";
 import { CleotildaPanel } from "./cleotilda-panel";
+import { WorkspaceLoader } from "./workspace-loader";
 
 export default async function WorkspaceLayout({
   children,
@@ -86,7 +86,7 @@ export default async function WorkspaceLayout({
         meName={profile?.full_name ?? profile?.email ?? "Someone"}
       >
       <ProfileCardProvider workspaceId={workspaceId} meId={user.id}>
-      <WorkspaceLoader name={workspaceName} accent={accent} />
+      <WorkspaceLoader />
       <div
         className="flex h-dvh overflow-hidden"
         style={{ "--primary": accent } as React.CSSProperties}

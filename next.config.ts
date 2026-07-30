@@ -5,10 +5,11 @@ const nextConfig: NextConfig = {
     // Client-side page cache (Slack-style instant room switching): a chat you
     // visited in the last 30s re-opens instantly from cache while realtime
     // reconciles anything missed. Fully-prefetched pages (sidebar links use
-    // prefetch={true}) stay warm for 3 minutes.
+    // prefetch={true}) stay warm for a long time - workspace switches should
+    // feel instant even after a couple of minutes idle.
     staleTimes: {
-      dynamic: 30,
-      static: 180,
+      dynamic: 120,
+      static: 600,
     },
   },
 };
