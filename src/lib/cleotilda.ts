@@ -165,7 +165,7 @@ const TOOLS = [
     function: {
       name: "list_tasks",
       description:
-        "List / search tasks in a project so you can pick the right existing task to update, assign, or delete. Always call this BEFORE creating a new task when the user's request could plausibly be about a task that already exists (e.g. 'assign the login task to Bob', 'delete that report task', 'change the due date to Friday'). Returns each task's id, title, description, priority, due date, completed state, column, and current assignees.",
+        "List tasks in a project so you can pick the right existing task to update, assign, or delete. Call this BEFORE creating a new task when the user's request could plausibly be about a task that already exists. IMPORTANT: `query` is a LITERAL case-insensitive substring match against task titles - it's NOT semantic search. If you want to see every task (e.g. to find duplicates, or when the user's phrasing doesn't map to a title word), OMIT `query` and iterate the full list yourself. Returns each task's id, title, description, priority, due date, completed state, column, and current assignees.",
       parameters: {
         type: "object",
         properties: {
@@ -176,7 +176,7 @@ const TOOLS = [
           query: {
             type: "string",
             description:
-              "Optional case-insensitive substring to filter task titles by (e.g. 'login', 'report').",
+              "Optional LITERAL case-insensitive substring that must appear inside a task's title (e.g. 'login' matches 'Login page bug'). Do NOT pass semantic keywords like 'duplicate', 'urgent', or 'overdue' here - those won't be in the title. Omit this to fetch every task on the board.",
           },
         },
         required: ["project_id"],
@@ -810,6 +810,8 @@ const RULES = (
 - Your tools ACT on the workspace. Creation: create_project (new board), create_group (new chat channel), create_task (work item), send_dm. Discovery: list_projects, list_members, list_tasks. Task edits: update_task, assign_task, unassign_task, delete_task. Board membership: add_project_members, remove_project_member. Use them to actually do things instead of describing how the user could do them. Never say you can't do something one of your tools already covers.
 - CRITICAL - avoid duplicates. Before you create_task, ask: is this the same task the user (or you) already mentioned in this conversation? If the user is following up ("assign it to Bob", "change the due date", "delete that report task", "make it urgent"), that is almost certainly an EXISTING task. Call list_tasks (with a query substring if useful) to find the id and use update_task / assign_task / delete_task on it. Only call create_task when the user is asking for a genuinely new work item. The same rule applies to boards: don't create_project if one with that name already exists in list_projects - work with the existing one.
 - Pick the right tool: "make/create a project X" means create_project. "Make a group/channel X" means create_group. "Send a message to X" / "X ko msg karo" means send_dm. "Assign X to that task" / "reassign" means assign_task. "Remove X from the task" means unassign_task. "Delete that task" means delete_task. "Add X to the board" means add_project_members. "Remove X from the board" means remove_project_member.
+- CLEANING DUPLICATES: When the user asks to "remove duplicate tasks", "delete duplicates", or similar on a board, they mean tasks that share the same (or near-identical) title, NOT tasks whose title contains the word "duplicate". Call list_tasks(project_id) WITHOUT any query so you get every task on the board; then group them by normalised title (trim + lower-case), pick the group leader to keep (the earliest / most-populated task - the one with more assignees, a description, or the older created_at is a good default), and call delete_task on each of the extras. Confirm afterwards how many duplicates you removed. If no groups have more than one member, tell the user there are no duplicates.
+- The list_tasks query parameter is a LITERAL substring match on the title. Never use it for semantic filtering ("urgent", "overdue", "duplicate", "assigned to Bob") - those attributes live in other fields and won't be in the title text. Fetch everything and filter in your own reasoning.
 - Always call list_projects before create_task / list_tasks / add_project_members, and list_members before send_dm or resolving people by name to an id.
 - When you act, confirm in one line what you did (task assigned to whom, task deleted, member added, etc.).
 - If the request is ambiguous (multiple matching tasks / projects / people), ask one short clarifying question instead of guessing.
