@@ -16,7 +16,7 @@
 //   6. Bump ANDROID_APK_META.version + releasedAt + whatsNew, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.4/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.5/tasking-app.apk';
 
 // Displayed size + release info on the download page. Keep updated when a
 // new build lands so users see a fresh "Released N days ago" and a
@@ -29,24 +29,20 @@ export const ANDROID_APK_URL =
 //   whatsNew:   Short bullet-list of user-visible changes in THIS release.
 //               Rendered as a collapsible "What's new" panel on /download.
 export const ANDROID_APK_META = {
-  version: '1.0.4',
-  releasedAt: '2026-07-24T12:30:00Z',
+  version: '1.0.5',
+  releasedAt: '2026-07-24T14:30:00Z',
   size: '~109 MB',
   minAndroid: 'Android 6.0+',
   whatsNew: [
-    'App renamed to just "Tasking" (launcher, splash, all branding)',
-    'Runtime-permission bootstrap on first sign-in — notifications, camera, microphone, and photo library prompts fire up front instead of hiding in App Info',
-    'Unread badges clear the instant you tap into a DM or channel (no more 2-second wait)',
-    'Cross-device read sync — reading a room on the web instantly clears the badge on mobile, and vice versa',
-    'Attach a cover image while CREATING a task on the board (small image button in the add-task row)',
-    'Cleotilda can act on its own UI — say "hide your floating icon" in any chat or the assistant panel and it toggles instantly',
-    'New Notifications screen with filter tabs — All / Unread / I was mentioned / Assigned to me / Task updates, each with live count badges',
-    'Dashboard cleaned up — Boards tile + list removed (dedicated Boards tab), workspace name and dropdown chevron sit tightly together',
-    'Live "N teammates online right now" pill under the Home hero, with a pulsing green dot that updates as people connect/disconnect',
-    'Compact chat composer — reduced empty space above the gesture-nav bar',
-    'Performance pass — trimmed realtime refetch surface (Home, Chat reactions, Board join tables), single-pass Notification counts, filtered Notifications subscription, memoized channel-icon lookup',
-    'Cleotilda command parser hardened — imperative-only patterns so narrative text no longer accidentally toggles the FAB',
-    'Cached image loading in Chat — no more spinner flash when switching between DMs/groups',
+    'Tasking notification icon now shows properly in the Android notification tray (was blank before)',
+    'WhatsApp-style timestamps everywhere — same-day → "3:14 PM", yesterday → "Yesterday 3:14 PM", within a week → "Mon 3:14 PM", older → "Jul 24, 3:14 PM"',
+    'Cold-start no longer briefly opens Boards then jumps to Notifications — stale push responses on Android are correctly ignored',
+    'Chat rooms always land at the newest message on open (was parking in the middle of long histories)',
+    'Removed the redundant "Online" / "Offline" text next to DM contacts — the presence dot on each avatar already tells the story',
+    'Notification filter pills no longer stretch vertically during the loading state',
+    'Home hero is more compact — the "New group" and "New DM" pills were duplicating the section-partition + buttons and have been removed',
+    'Notifications list virtualized (FlatList) so long inboxes scroll smoothly on mid-range Android',
+    'Presence heartbeat no longer cascades a re-render across every online-status subscriber — big smoothness win when many rows are visible',
   ],
 } as const;
 
