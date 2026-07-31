@@ -16,7 +16,7 @@
 //   6. Bump ANDROID_APK_META.version + releasedAt + whatsNew, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.5/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.6/tasking-app.apk';
 
 // Displayed size + release info on the download page. Keep updated when a
 // new build lands so users see a fresh "Released N days ago" and a
@@ -29,20 +29,25 @@ export const ANDROID_APK_URL =
 //   whatsNew:   Short bullet-list of user-visible changes in THIS release.
 //               Rendered as a collapsible "What's new" panel on /download.
 export const ANDROID_APK_META = {
-  version: '1.0.5',
-  releasedAt: '2026-07-24T14:30:00Z',
+  version: '1.0.6',
+  releasedAt: '2026-07-31T10:40:00Z',
   size: '~109 MB',
   minAndroid: 'Android 6.0+',
   whatsNew: [
-    'Tasking notification icon now shows properly in the Android notification tray (was blank before)',
-    'WhatsApp-style timestamps everywhere — same-day → "3:14 PM", yesterday → "Yesterday 3:14 PM", within a week → "Mon 3:14 PM", older → "Jul 24, 3:14 PM"',
-    'Cold-start no longer briefly opens Boards then jumps to Notifications — stale push responses on Android are correctly ignored',
-    'Chat rooms always land at the newest message on open (was parking in the middle of long histories)',
-    'Removed the redundant "Online" / "Offline" text next to DM contacts — the presence dot on each avatar already tells the story',
-    'Notification filter pills no longer stretch vertically during the loading state',
-    'Home hero is more compact — the "New group" and "New DM" pills were duplicating the section-partition + buttons and have been removed',
-    'Notifications list virtualized (FlatList) so long inboxes scroll smoothly on mid-range Android',
-    'Presence heartbeat no longer cascades a re-render across every online-status subscriber — big smoothness win when many rows are visible',
+    'Home header redesigned Slack / Linear-style — half the vertical space, more room for your DM and channel list',
+    'WhatsApp-style row previews on Home: every DM and group now shows its latest message body and time next to the avatar (with "You: " prefix when you sent it, 📷/🎤/📎 for attachment-only messages, and bold styling for unread rooms)',
+    'Slack-style message cache — switching to a previously-visited DM or channel now paints the history instantly, no loading spinner, with a silent background refresh for anything new',
+    'Persistent upload outbox — image / voice / file sends survive an app close mid-upload. On next launch the outbox drains automatically and your message posts',
+    'Board vertical scrolling fixed — you can finally scroll up and down through the task list on the Monday-style board',
+    'Chat rooms open at the newest message reliably now — added a 1.2 s pin-to-bottom window with multi-frame safety scrolls to defeat FlatList\'s late layout shifts',
+    'Duplicate "YESTERDAY" (or any date) separators no longer appear after a chat has been left open across midnight',
+    'Cold-start no longer briefly opens Boards then jumps to Notifications',
+    'Removed the redundant "Online" / "Offline" subtitle next to DM contacts — the presence dot already tells the story',
+    'Notification filter pills no longer stretch vertically during loading',
+    'Notifications list virtualized for smooth long-inbox scrolling',
+    'Presence heartbeat no longer cascades a re-render across every online-status subscriber',
+    'Tasking notification icon in the Android tray (was blank before)',
+    'WhatsApp-style timestamps everywhere — 3:14 PM / Yesterday 3:14 PM / Mon 3:14 PM / Jul 24, 3:14 PM',
   ],
 } as const;
 
