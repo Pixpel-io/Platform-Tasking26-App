@@ -315,18 +315,6 @@ export function Composer({
     });
   }
 
-  // Code: a multi-line/empty selection uses a fenced ```block```; a single-line
-  // selection uses `inline`.
-  function wrapCode() {
-    const el = taRef.current;
-    const start = el?.selectionStart ?? value.length;
-    const end = el?.selectionEnd ?? value.length;
-    const selected = value.slice(start, end);
-    const block = selected.includes("\n") || selected.length === 0;
-    if (block) wrapSelection("```\n", "\n```");
-    else wrapSelection("`", "`");
-  }
-
   // Prefix each selected line (or the current line) with a marker, used for
   // quotes ("> ") and lists ("- ", "1. ").
   function prefixLines(makePrefix: (lineIndex: number) => string) {

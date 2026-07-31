@@ -37,12 +37,17 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
   useEffect(() => {
     if (!projectId) return;
     const supabase = createClient();
+    const pendingTaskIds = new Set<string>();
+    let refetchTimer: ReturnType<typeof setTimeout> | null = null;
 
     function flatten(cols: BoardColumn[]): {
       columns: KanbanColumn[];
       tasks: TaskWithRelations[];
     } {
-      const columns = cols.map(({ tasks: _tasks, ...col }) => col as KanbanColumn);
+      const columns = cols.map(({ tasks, ...col }) => {
+        void tasks;
+        return col as KanbanColumn;
+      });
       const tasks = cols.flatMap((c) => c.tasks);
       return { columns, tasks };
     }
@@ -72,6 +77,17 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
       });
     }
 
+    function queueTaskRefetch(id: string) {
+      pendingTaskIds.add(id);
+      if (refetchTimer) return;
+      refetchTimer = setTimeout(() => {
+        refetchTimer = null;
+        const ids = [...pendingTaskIds];
+        pendingTaskIds.clear();
+        ids.forEach((taskId) => void refetchTask(taskId));
+      }, 80);
+    }
+
     const channel = supabase
       .channel(`board:${projectId}`)
       .on(
@@ -86,7 +102,7 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
           const id =
             (payload.new as { id?: string })?.id ??
             (payload.old as { id?: string })?.id;
-          if (id) void refetchTask(id);
+          if (id) queueTaskRefetch(id);
         },
       )
       // Assignees live in their own table, so adding/removing a person never
@@ -100,7 +116,7 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
             (payload.new as { task_id?: string })?.task_id ??
             (payload.old as { task_id?: string })?.task_id;
           if (taskId && taskIdsRef.current.has(taskId)) {
-            void refetchTask(taskId);
+            queueTaskRefetch(taskId);
           }
         },
       )
@@ -114,13 +130,14 @@ export function useBoard(projectId: string, initial: BoardColumn[]) {
             (payload.new as { task_id?: string })?.task_id ??
             (payload.old as { task_id?: string })?.task_id;
           if (taskId && taskIdsRef.current.has(taskId)) {
-            void refetchTask(taskId);
+            queueTaskRefetch(taskId);
           }
         },
       )
       .subscribe();
 
     return () => {
+      if (refetchTimer) clearTimeout(refetchTimer);
       supabase.removeChannel(channel);
     };
   }, [projectId]);

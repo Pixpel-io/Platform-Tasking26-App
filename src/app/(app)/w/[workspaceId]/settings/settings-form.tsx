@@ -132,7 +132,7 @@ export function SettingsForm({
                 )}
               </div>
               <p className="mt-2 text-xs text-muted">
-                PNG, JPG, WebP, or GIF up to 5MB. You'll get to crop it before
+                PNG, JPG, WebP, or GIF up to 5MB. You&apos;ll get to crop it before
                 it saves.
               </p>
             </div>

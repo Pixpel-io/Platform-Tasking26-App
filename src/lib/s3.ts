@@ -75,6 +75,8 @@ export function validateUpload(input: {
 // -- Presigned POST (upload) --------------------------------------------------
 
 export async function presignUpload(input: {
+  userId: string;
+  workspaceId: string;
   fileName: string;
   fileType: string;
   fileSizeBytes: number;
@@ -84,7 +86,10 @@ export async function presignUpload(input: {
 
   // Generate unique key for the file. UUID prevents collisions and the fixed
   // "uploads/" prefix means callers can never choose (or escape) the key.
-  const key = `uploads/${uuidv4()}.${safeExtension(input.fileName, fileType)}`;
+  // Scope every new object to its uploader and workspace. This lets message
+  // actions reject a path borrowed from a different workspace before it is
+  // persisted as an attachment.
+  const key = `uploads/${input.workspaceId}/${input.userId}/${uuidv4()}.${safeExtension(input.fileName, fileType)}`;
   const maxSizeInBytes = fileSizeInBytes;
 
   // Create presigned POST with conditions

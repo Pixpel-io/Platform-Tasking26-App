@@ -43,6 +43,11 @@ export function useChatMessages(
     });
 
     function wire(supabase: Awaited<ReturnType<typeof getRealtimeClient>>) {
+      // Reactions and edits can arrive in bursts. Coalesce them so a busy room
+      // does not issue one row fetch and one React render per realtime event.
+      const pendingIds = new Set<string>();
+      let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+
       async function refetchOne(id: string) {
       const { data } = await supabase
         .from("messages")
@@ -63,6 +68,17 @@ export function useChatMessages(
       });
     }
 
+    function queueRefetch(id: string) {
+      pendingIds.add(id);
+      if (refetchTimer) return;
+      refetchTimer = setTimeout(() => {
+        refetchTimer = null;
+        const ids = [...pendingIds];
+        pendingIds.clear();
+        ids.forEach((messageId) => void refetchOne(messageId));
+      }, 80);
+    }
+
     const channel = supabase
       .channel(`chat:${column}:${targetKey}`)
       .on(
@@ -77,7 +93,7 @@ export function useChatMessages(
           const id =
             (payload.new as { id?: string })?.id ??
             (payload.old as { id?: string })?.id;
-          if (id) void refetchOne(id);
+          if (id) queueRefetch(id);
         },
       )
       .on(
@@ -88,7 +104,7 @@ export function useChatMessages(
             (payload.new as { message_id?: string })?.message_id ??
             (payload.old as { message_id?: string })?.message_id;
           if (mid && messagesRef.current.some((m) => m.id === mid)) {
-            void refetchOne(mid);
+            queueRefetch(mid);
           }
         },
       )
@@ -126,6 +142,7 @@ export function useChatMessages(
     }
 
       return () => {
+        if (refetchTimer) clearTimeout(refetchTimer);
         supabase.removeChannel(channel);
       };
     }

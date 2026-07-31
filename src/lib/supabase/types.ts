@@ -1226,6 +1226,10 @@ export interface Database {
         };
         Returns: undefined;
       };
+      set_message_pin: {
+        Args: { p_message_id: string; p_pinned: boolean };
+        Returns: undefined;
+      };
       set_workspace_member_role: {
         Args: {
           p_workspace_id: string;

@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import type { PriorityLevel } from "@/lib/supabase/types";
+import { isS3Path, S3_PATH_PREFIX } from "@/lib/s3-shared";
 
 type Result = { error?: string };
+const OWNED_S3_PATH_RE = /^s3:uploads\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i;
 
 // Same shape as chat's PendingAttachment (chat-actions.ts): the client has
 // already uploaded each file to storage and hands us the metadata + storage
@@ -297,6 +299,26 @@ export async function addComment(
     return { error: "Add a message or attach a file." };
   }
   const supabase = await createClient();
+  const { data: taskForWorkspace } = await supabase
+    .from("tasks")
+    .select("projects(workspace_id)")
+    .eq("id", taskId)
+    .single();
+  const workspaceId = (taskForWorkspace as { projects: { workspace_id: string } | null } | null)
+    ?.projects?.workspace_id;
+  if (
+    !workspaceId ||
+    attachments.some(
+      (attachment) =>
+        isS3Path(attachment.storagePath) &&
+        (!OWNED_S3_PATH_RE.test(attachment.storagePath) ||
+          !attachment.storagePath.startsWith(
+            `${S3_PATH_PREFIX}uploads/${workspaceId}/${user.id}/`,
+          )),
+    )
+  ) {
+    return { error: "One or more attachments are not owned by this workspace." };
+  }
   const { data: inserted, error } = await supabase
     .from("task_comments")
     .insert({ task_id: taskId, user_id: user.id, body: trimmed })

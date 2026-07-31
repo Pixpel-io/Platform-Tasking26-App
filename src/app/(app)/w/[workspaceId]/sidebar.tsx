@@ -106,7 +106,7 @@ export function Sidebar({
   useGroupMembership(userId);
   useHiddenContacts(userId);
   useDmRoster(userId);
-  useProjectsLive(workspaceId);
+  useProjectsLive(workspaceId, userId);
   useWorkspacesLive(userId);
   useChannelsLive(workspaceId);
 

@@ -28,7 +28,7 @@ export async function createUploadUrl(input: {
   fileType: string;
   fileSizeBytes: number;
 }): Promise<PresignResult> {
-  await requireUser();
+  const user = await requireUser();
 
   // Composer falls back to Supabase Storage when S3 isn't configured.
   if (!s3Enabled()) return { disabled: true };
@@ -47,6 +47,8 @@ export async function createUploadUrl(input: {
 
   try {
     return await presignUpload({
+      userId: user.id,
+      workspaceId: input.workspaceId,
       fileName: input.fileName,
       fileType: input.fileType,
       fileSizeBytes: input.fileSizeBytes,
@@ -54,6 +56,28 @@ export async function createUploadUrl(input: {
   } catch {
     return { error: "Could not prepare the upload. Try again." };
   }
+}
+
+const S3_KEY_RE = /^uploads\/(?:[0-9a-f-]{36}\/[0-9a-f-]{36}\/)?[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i;
+
+async function accessibleS3Paths(storagePaths: string[]): Promise<Set<string>> {
+  const supabase = await createClient();
+  const paths = [...new Set(storagePaths)].filter((path) => {
+    const key = path.startsWith(S3_PATH_PREFIX) ? path.slice(S3_PATH_PREFIX.length) : "";
+    return S3_KEY_RE.test(key);
+  });
+  if (paths.length === 0) return new Set();
+
+  // RLS on both tables proves the current user can read the parent message or
+  // task comment. Never sign a key merely because it has an opaque UUID.
+  const [{ data: messageRows }, { data: commentRows }] = await Promise.all([
+    supabase.from("message_attachments").select("storage_path").in("storage_path", paths),
+    supabase.from("task_comment_attachments").select("storage_path").in("storage_path", paths),
+  ]);
+  return new Set([
+    ...(messageRows ?? []).map((row) => row.storage_path),
+    ...(commentRows ?? []).map((row) => row.storage_path),
+  ]);
 }
 
 // Step 3 (read side): short-lived download URL for an S3-backed attachment.
@@ -70,10 +94,14 @@ export async function getS3DownloadUrl(
     return { error: "Not an S3 attachment." };
   }
   const key = storagePath.slice(S3_PATH_PREFIX.length);
-  if (!/^uploads\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i.test(key)) {
+  if (!S3_KEY_RE.test(key)) {
     return { error: "Invalid attachment key." };
   }
   if (!s3Enabled()) return { error: "S3 is not configured." };
+
+  if (!(await accessibleS3Paths([storagePath])).has(storagePath)) {
+    return { error: "You don't have access to this attachment." };
+  }
 
   try {
     return { url: await presignDownload(key, opts) };
@@ -97,12 +125,15 @@ export async function getS3DownloadUrls(
   if (!s3Enabled()) return { urls: {}, error: "S3 is not configured." };
 
   const urls: Record<string, string> = {};
+  // Keep this action bounded even if called outside the UI.
+  const requested = [...new Set(storagePaths)].slice(0, 100);
+  const allowed = await accessibleS3Paths(requested);
   await Promise.all(
     // De-dupe so the same file signed twice in one batch costs one signature.
-    [...new Set(storagePaths)].map(async (storagePath) => {
+    requested.map(async (storagePath) => {
       if (!storagePath.startsWith(S3_PATH_PREFIX)) return;
       const key = storagePath.slice(S3_PATH_PREFIX.length);
-      if (!/^uploads\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i.test(key)) return;
+      if (!S3_KEY_RE.test(key) || !allowed.has(storagePath)) return;
       try {
         urls[storagePath] = await presignDownload(key);
       } catch {

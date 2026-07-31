@@ -10,6 +10,13 @@ import {
   type FormState,
 } from "@/lib/validation";
 
+function safeRedirectPath(value: FormDataEntryValue | null): string {
+  if (typeof value !== "string") return "/";
+  // Server Actions can be invoked without the rendered form, so do not trust
+  // the hidden input. Only local, absolute paths are valid destinations.
+  return value.startsWith("/") && !value.startsWith("//") ? value : "/";
+}
+
 export async function signup(
   _prev: FormState,
   formData: FormData,
@@ -45,10 +52,7 @@ export async function signup(
     if (signInError) return { error: signInError.message };
   }
 
-  const redirectedFrom = formData.get("redirectedFrom");
-  redirect(
-    typeof redirectedFrom === "string" && redirectedFrom ? redirectedFrom : "/",
-  );
+  redirect(safeRedirectPath(formData.get("redirectedFrom")));
 }
 
 export async function login(
@@ -68,8 +72,7 @@ export async function login(
 
   if (error) return { error: error.message };
 
-  const redirectedFrom = formData.get("redirectedFrom");
-  redirect(typeof redirectedFrom === "string" && redirectedFrom ? redirectedFrom : "/");
+  redirect(safeRedirectPath(formData.get("redirectedFrom")));
 }
 
 export async function updatePassword(

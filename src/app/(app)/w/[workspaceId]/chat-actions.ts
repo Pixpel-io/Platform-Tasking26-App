@@ -248,6 +248,7 @@ export async function openDirectMessage(
 // -- Messages ----------------------------------------------------------------
 
 const MENTION_RE = /@([a-zA-Z0-9._-]+)/g;
+const OWNED_S3_PATH_RE = /^s3:uploads\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.[a-z0-9]{1,8}$/i;
 
 export type PendingAttachment = {
   storagePath: string;
@@ -281,6 +282,19 @@ export async function sendMessage(args: {
     return { error: "Message is empty." };
   }
   if (body.length > 8000) return { error: "Message is too long." };
+  if (
+    attachments.some(
+      (attachment) =>
+        isS3Path(attachment.storagePath) &&
+        (!args.workspaceId ||
+          !OWNED_S3_PATH_RE.test(attachment.storagePath) ||
+          !attachment.storagePath.startsWith(
+            `${S3_PATH_PREFIX}uploads/${args.workspaceId}/${user.id}/`,
+          )),
+    )
+  ) {
+    return { error: "One or more attachments are not owned by this workspace." };
+  }
 
   const supabase = await createClient();
   const { data: message, error } = await supabase
@@ -619,15 +633,12 @@ export async function togglePin(
   messageId: string,
   pinned: boolean,
 ): Promise<ChatResult> {
-  const user = await requireUser();
+  await requireUser();
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("messages")
-    .update({
-      pinned_at: pinned ? new Date().toISOString() : null,
-      pinned_by: pinned ? user.id : null,
-    })
-    .eq("id", messageId);
+  const { error } = await supabase.rpc("set_message_pin", {
+    p_message_id: messageId,
+    p_pinned: pinned,
+  });
   if (error) return { error: error.message };
   return {};
 }

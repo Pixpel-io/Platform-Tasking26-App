@@ -17,6 +17,14 @@ export function useChannelsLive(workspaceId: string) {
     let channel: RealtimeChannel | null = null;
     let client: Awaited<ReturnType<typeof getRealtimeClient>> | null = null;
     let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        router.refresh();
+      }, 150);
+    };
 
     void getRealtimeClient().then((supabase) => {
       if (cancelled) return;
@@ -31,13 +39,14 @@ export function useChannelsLive(workspaceId: string) {
             table: "channels",
             filter: `workspace_id=eq.${workspaceId}`,
           },
-          () => router.refresh(),
+          scheduleRefresh,
         )
         .subscribe();
     });
 
     return () => {
       cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
       if (channel && client) void client.removeChannel(channel);
     };
   }, [workspaceId, router]);
