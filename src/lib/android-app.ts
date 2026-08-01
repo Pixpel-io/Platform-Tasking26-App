@@ -16,7 +16,7 @@
 //   6. Bump ANDROID_APK_META.version + releasedAt + whatsNew, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.7/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.8/tasking-app.apk';
 
 // Displayed size + release info on the download page. Keep updated when a
 // new build lands so users see a fresh "Released N days ago" and a
@@ -29,16 +29,15 @@ export const ANDROID_APK_URL =
 //   whatsNew:   Short bullet-list of user-visible changes in THIS release.
 //               Rendered as a collapsible "What's new" panel on /download.
 export const ANDROID_APK_META = {
-  version: '1.0.7',
-  releasedAt: '2026-08-01T05:15:00Z',
+  version: '1.0.8',
+  releasedAt: '2026-08-01T06:00:00Z',
   size: '~117 MB',
   minAndroid: 'Android 6.0+',
   whatsNew: [
-    'Upgraded to Expo SDK 57 (React Native 0.86, React 19.2) — foundation refresh for the whole app',
-    'All Expo modules bumped in lockstep: notifications, camera, image-picker, secure-store, audio, updates, splash-screen, and friends',
-    'react-native-screens 4.16 → 4.26 and safe-area-context 5.6 → 5.7 for smoother navigation transitions and cleaner insets on newer Android gesture-nav',
-    'Small screen-level polish shipped alongside the SDK bump across AttachmentImage, AudioMessage, Cleotilda floating button, board members manager, board screen, chat room, and QR scanner',
-    'Foundation upgrade also unlocks the latest security patches and native perf improvements from the new RN release',
+    'Notifications screen refreshed — proper rounded filter pills (the previous vertically-stretched look is gone), solid accent fill on the active tab, and an accent stripe on every unread row for a WhatsApp-fast unread scan',
+    'Header now shows an "N unread of M" subline and a compact "Read all" pill with a check-check icon',
+    'Notification rows: bigger avatars, hairline dividers between items, right-aligned time on the context line, bold title on unread',
+    'Theme flips now reach every last chip — color-tone maps for notification icons, dashboard activity, task priority, projects, and calendar were resolving at import time and would keep the pre-flip palette; converted to render-time lookups so a dark/light toggle updates the whole tree consistently',
   ],
 } as const;
 
