@@ -15,6 +15,8 @@ function errorResponse(error: unknown, status = 400) {
 }
 
 async function parseInput(request: Request): Promise<MailAccountInput> {
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > 32 * 1024) throw new Error("Mail settings request is too large.");
   const value = (await request.json()) as Partial<MailAccountInput>;
   const input: MailAccountInput = {
     email: String(value.email ?? "").trim().toLowerCase(),
@@ -32,8 +34,24 @@ async function parseInput(request: Request): Promise<MailAccountInput> {
   if (!input.imapHost || !input.smtpHost || !input.username || !input.password) {
     throw new Error("IMAP, SMTP, username and password are required.");
   }
+  if (
+    input.email.length > 320 ||
+    input.displayName!.length > 200 ||
+    input.imapHost.length > 253 ||
+    input.smtpHost.length > 253 ||
+    input.username.length > 320 ||
+    input.password.length > 2048
+  ) {
+    throw new Error("One or more mail settings are too long.");
+  }
   if (![input.imapPort, input.smtpPort].every((port) => Number.isInteger(port) && port > 0 && port <= 65535)) {
     throw new Error("Enter valid IMAP and SMTP ports.");
+  }
+  if (![143, 993].includes(input.imapPort)) {
+    throw new Error("IMAP port must be 143 or 993.");
+  }
+  if (![465, 587, 2525].includes(input.smtpPort)) {
+    throw new Error("SMTP port must be 465, 587 or 2525.");
   }
   return input;
 }
@@ -87,4 +105,3 @@ export async function DELETE(request: Request) {
     return errorResponse(error);
   }
 }
-

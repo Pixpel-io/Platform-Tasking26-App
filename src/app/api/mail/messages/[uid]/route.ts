@@ -15,7 +15,7 @@ export async function GET(
     const message = await readMail(
       user.id,
       parsedUid,
-      new URL(request.url).searchParams.get("folder") || "INBOX",
+      "INBOX",
     );
     return Response.json({ message });
   } catch (error) {

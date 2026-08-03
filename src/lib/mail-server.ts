@@ -91,23 +91,42 @@ export async function getMailAccount(userId: string): Promise<StoredMailAccount 
   return (data as unknown as StoredMailAccount | null) ?? null;
 }
 
-function imapClient(account: StoredMailAccount | MailAccountInput, password: string) {
+type MailEndpoint = { address: string; servername: string };
+
+function imapClient(
+  account: StoredMailAccount | MailAccountInput,
+  password: string,
+  endpoint: MailEndpoint,
+) {
   const stored = "imap_host" in account;
   return new ImapFlow({
-    host: stored ? account.imap_host : account.imapHost,
+    host: endpoint.address,
+    servername: endpoint.servername,
     port: stored ? account.imap_port : account.imapPort,
     secure: stored ? account.imap_secure : account.imapSecure,
     auth: { user: stored ? account.username : account.username, pass: password },
     logger: false,
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
+    maxLiteralSize: 20 * 1024 * 1024,
+    maxLineLength: 1024 * 1024,
   });
 }
 
-function smtpTransport(account: StoredMailAccount | MailAccountInput, password: string) {
+function smtpTransport(
+  account: StoredMailAccount | MailAccountInput,
+  password: string,
+  endpoint: MailEndpoint,
+) {
   const stored = "smtp_host" in account;
+  const secure = stored ? account.smtp_secure : account.smtpSecure;
   return nodemailer.createTransport({
-    host: stored ? account.smtp_host : account.smtpHost,
+    host: endpoint.address,
     port: stored ? account.smtp_port : account.smtpPort,
-    secure: stored ? account.smtp_secure : account.smtpSecure,
+    secure,
+    requireTLS: !secure,
+    tls: { servername: endpoint.servername, minVersion: "TLSv1.2" },
     auth: { user: account.username, pass: password },
     connectionTimeout: 15_000,
     greetingTimeout: 15_000,
@@ -126,7 +145,7 @@ function isPrivateAddress(address: string): boolean {
     (parts[0] === 192 && parts[1] === 168);
 }
 
-async function assertPublicMailHost(host: string) {
+async function resolvePublicMailHost(host: string): Promise<MailEndpoint> {
   const normalized = host.trim().toLowerCase().replace(/\.$/, "");
   if (!normalized || normalized === "localhost" || normalized.endsWith(".local")) {
     throw new Error("Private or local mail servers are not allowed.");
@@ -137,18 +156,27 @@ async function assertPublicMailHost(host: string) {
   if (addresses.length === 0 || addresses.some(({ address }) => isPrivateAddress(address))) {
     throw new Error("Mail server must resolve only to public IP addresses.");
   }
+  // Connect to the already-validated address instead of resolving the host a
+  // second time inside the mail library (which would permit DNS rebinding).
+  return { address: addresses[0].address, servername: normalized };
 }
 
 export async function verifyMailConnection(input: MailAccountInput) {
-  await Promise.all([
-    assertPublicMailHost(input.imapHost),
-    assertPublicMailHost(input.smtpHost),
+  const [imapEndpoint, smtpEndpoint] = await Promise.all([
+    resolvePublicMailHost(input.imapHost),
+    resolvePublicMailHost(input.smtpHost),
   ]);
-  const imap = imapClient(input, input.password);
+  const imap = imapClient(input, input.password, imapEndpoint);
+  const smtp = smtpTransport(input, input.password, smtpEndpoint);
   try {
-    await Promise.all([imap.connect(), smtpTransport(input, input.password).verify()]);
+    const results = await Promise.allSettled([imap.connect(), smtp.verify()]);
+    const failed = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failed) throw failed.reason;
   } finally {
     if (imap.usable) await imap.logout().catch(() => undefined);
+    smtp.close();
   }
 }
 
@@ -168,7 +196,7 @@ export async function saveMailAccount(userId: string, input: MailAccountInput) {
       username: input.username.trim(),
       encrypted_password: encrypt(input.password),
     },
-    { onConflict: "user_id,email" },
+    { onConflict: "user_id" },
   );
   if (error) throw error;
 }
@@ -181,14 +209,17 @@ export async function deleteMailAccount(userId: string) {
 export async function listMail(userId: string, folder = "INBOX", limit = 30) {
   const account = await getMailAccount(userId);
   if (!account) throw new Error("Connect an email account first.");
-  await assertPublicMailHost(account.imap_host);
-  const client = imapClient(account, decrypt(account.encrypted_password));
+  const endpoint = await resolvePublicMailHost(account.imap_host);
+  const client = imapClient(account, decrypt(account.encrypted_password), endpoint);
   try {
     await client.connect();
     await client.mailboxOpen(folder, { readOnly: true });
     const uids = await client.search({ all: true }, { uid: true });
     if (!uids) return [];
-    const selected = uids.slice(-Math.min(Math.max(limit, 1), 100));
+    const safeLimit = Number.isFinite(limit)
+      ? Math.min(Math.max(Math.trunc(limit), 1), 100)
+      : 30;
+    const selected = uids.slice(-safeLimit);
     if (selected.length === 0) return [];
     const rows = await client.fetchAll(selected, {
       uid: true,
@@ -215,11 +246,16 @@ export async function listMail(userId: string, folder = "INBOX", limit = 30) {
 export async function readMail(userId: string, uid: number, folder = "INBOX") {
   const account = await getMailAccount(userId);
   if (!account) throw new Error("Connect an email account first.");
-  await assertPublicMailHost(account.imap_host);
-  const client = imapClient(account, decrypt(account.encrypted_password));
+  const endpoint = await resolvePublicMailHost(account.imap_host);
+  const client = imapClient(account, decrypt(account.encrypted_password), endpoint);
   try {
     await client.connect();
     await client.mailboxOpen(folder);
+    const metadata = await client.fetchOne(uid, { size: true }, { uid: true });
+    if (!metadata) throw new Error("Email not found.");
+    if ((metadata.size ?? 0) > 20 * 1024 * 1024) {
+      throw new Error("This email is larger than the 20 MB safe viewing limit.");
+    }
     const row = await client.fetchOne(uid, { source: true }, { uid: true });
     if (!row || !row.source) throw new Error("Email not found.");
     await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
@@ -247,13 +283,22 @@ export async function readMail(userId: string, uid: number, folder = "INBOX") {
 export async function sendMail(userId: string, input: { to: string; cc?: string; subject: string; text: string }) {
   const account = await getMailAccount(userId);
   if (!account) throw new Error("Connect an email account first.");
-  await assertPublicMailHost(account.smtp_host);
-  const info = await smtpTransport(account, decrypt(account.encrypted_password)).sendMail({
-    from: account.display_name ? `"${account.display_name.replace(/"/g, "")}" <${account.email}>` : account.email,
-    to: input.to,
-    cc: input.cc || undefined,
-    subject: input.subject,
-    text: input.text,
-  });
-  return { messageId: info.messageId };
+  const endpoint = await resolvePublicMailHost(account.smtp_host);
+  const transport = smtpTransport(
+    account,
+    decrypt(account.encrypted_password),
+    endpoint,
+  );
+  try {
+    const info = await transport.sendMail({
+      from: account.display_name ? `"${account.display_name.replace(/"/g, "")}" <${account.email}>` : account.email,
+      to: input.to,
+      cc: input.cc || undefined,
+      subject: input.subject,
+      text: input.text,
+    });
+    return { messageId: info.messageId };
+  } finally {
+    transport.close();
+  }
 }

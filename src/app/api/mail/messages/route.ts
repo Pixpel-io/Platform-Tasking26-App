@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const messages = await listMail(
       user.id,
-      url.searchParams.get("folder") || "INBOX",
+      "INBOX",
       Number(url.searchParams.get("limit") || 30),
     );
     return Response.json({ messages });
@@ -25,9 +25,20 @@ export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    const contentLength = Number(request.headers.get("content-length") || 0);
+    if (contentLength > 1024 * 1024) throw new Error("Email is too large to send.");
     const body = (await request.json()) as { to?: string; cc?: string; subject?: string; text?: string };
     if (!body.to?.trim() || !body.subject?.trim() || !body.text?.trim()) {
       throw new Error("Recipient, subject and message are required.");
+    }
+    if (
+      body.to.length > 2000 ||
+      (body.cc?.length ?? 0) > 2000 ||
+      body.subject.length > 998 ||
+      body.text.length > 900_000 ||
+      /[\r\n]/.test(body.subject)
+    ) {
+      throw new Error("Email fields exceed the allowed size.");
     }
     const result = await sendMail(user.id, {
       to: body.to.trim(),
@@ -43,4 +54,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
