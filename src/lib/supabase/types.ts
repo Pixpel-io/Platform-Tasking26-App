@@ -67,6 +67,54 @@ export type Notification =
 export interface Database {
   public: {
     Tables: {
+      user_mail_accounts: {
+        Row: {
+          id: string;
+          user_id: string;
+          email: string;
+          display_name: string | null;
+          imap_host: string;
+          imap_port: number;
+          imap_secure: boolean;
+          smtp_host: string;
+          smtp_port: number;
+          smtp_secure: boolean;
+          username: string;
+          encrypted_password: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          email: string;
+          display_name?: string | null;
+          imap_host: string;
+          imap_port: number;
+          imap_secure?: boolean;
+          smtp_host: string;
+          smtp_port: number;
+          smtp_secure?: boolean;
+          username: string;
+          encrypted_password: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          email?: string;
+          display_name?: string | null;
+          imap_host?: string;
+          imap_port?: number;
+          imap_secure?: boolean;
+          smtp_host?: string;
+          smtp_port?: number;
+          smtp_secure?: boolean;
+          username?: string;
+          encrypted_password?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
