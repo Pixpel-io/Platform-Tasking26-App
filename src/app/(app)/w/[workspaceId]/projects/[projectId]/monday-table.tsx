@@ -820,7 +820,7 @@ function TaskRow({
               className={`relative grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md transition-all hover:bg-primary/10 hover:text-primary focus-visible:opacity-100 ${
                 updates > 0
                   ? "text-primary opacity-100"
-                  : "text-muted opacity-0 group-hover/row:opacity-100"
+                  : "text-muted opacity-100 lg:opacity-0 lg:group-hover/row:opacity-100"
               }`}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -848,8 +848,8 @@ function TaskRow({
           disabled={deleting}
           aria-label={`Delete ${task.title}`}
           title="Delete task"
-          className={`grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-all hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover/row:opacity-100 ${
-            deleting ? "opacity-100" : "opacity-0"
+          className={`grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-all hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 ${
+            deleting ? "opacity-100" : "opacity-100 lg:opacity-0 lg:group-hover/row:opacity-100"
           }`}
         >
           {deleting ? (

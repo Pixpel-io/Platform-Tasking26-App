@@ -172,7 +172,7 @@ export default async function SearchPage({
                   href={href}
                   className="block rounded-xl border border-border bg-surface p-4 hover:bg-surface-2"
                 >
-                  <div className="mb-1 flex items-center gap-2 text-xs text-muted">
+                  <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
                     <span className="font-medium text-foreground">
                       {m.profiles?.full_name ?? m.profiles?.email ?? "Unknown"}
                     </span>

@@ -175,7 +175,7 @@ export function AttachmentView({ attachment }: { attachment: ViewableAttachment 
       }}
       aria-label={`Download ${attachment.file_name}`}
       title="Download"
-      className="absolute right-2 top-2 z-10 grid h-8 w-8 cursor-pointer place-items-center rounded-lg bg-black/60 text-white opacity-0 shadow-md backdrop-blur-sm transition-opacity hover:bg-black/80 focus-visible:opacity-100 group-hover/att:opacity-100"
+      className="absolute right-2 top-2 z-10 grid h-8 w-8 cursor-pointer place-items-center rounded-lg bg-black/60 text-white opacity-100 shadow-md backdrop-blur-sm transition-opacity hover:bg-black/80 focus-visible:opacity-100 md:opacity-0 md:group-hover/att:opacity-100"
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
@@ -211,7 +211,7 @@ export function AttachmentView({ attachment }: { attachment: ViewableAttachment 
                 the moment it decodes - no spinner, no pop-in. */}
             <div
               className={`relative overflow-hidden rounded-lg border border-border bg-surface-2 ${
-                box ? "h-full w-full" : "h-40 w-64"
+                box ? "h-full w-full" : "h-40 w-64 max-w-full"
               }`}
             >
               {bubbleSrc && (
@@ -351,7 +351,7 @@ export function AttachmentView({ attachment }: { attachment: ViewableAttachment 
     ) : (
       <div
         className={`rounded-lg border border-border bg-surface-2 ${
-          box ? "" : "h-40 w-64"
+          box ? "" : "h-40 w-64 max-w-full"
         }`}
         style={box ? { width: box.width, height: box.height, maxWidth: "100%" } : undefined}
       />
@@ -366,7 +366,7 @@ export function AttachmentView({ attachment }: { attachment: ViewableAttachment 
         onDownload={() => void downloadAttachment(attachment)}
       />
     ) : (
-      <div className="h-12 w-72 rounded-2xl border border-border bg-surface-2" />
+      <div className="h-12 w-72 max-w-full rounded-2xl border border-border bg-surface-2" />
     );
   }
 
@@ -408,7 +408,7 @@ export function AttachmentView({ attachment }: { attachment: ViewableAttachment 
           onClick={() => void downloadAttachment(attachment)}
           aria-label={`Download ${attachment.file_name}`}
           title="Download"
-          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all hover:bg-primary/10 hover:text-primary focus-visible:opacity-100 group-hover/att:opacity-100"
+          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 cursor-pointer place-items-center rounded-lg text-muted opacity-100 transition-all hover:bg-primary/10 hover:text-primary focus-visible:opacity-100 md:opacity-0 md:group-hover/att:opacity-100"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
@@ -745,7 +745,7 @@ function VoicePlayer({
         onClick={onDownload}
         aria-label="Download voice message"
         title="Download"
-        className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-muted opacity-0 transition-all hover:bg-surface-2 hover:text-foreground focus-visible:opacity-100 group-hover/att:opacity-100"
+        className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-lg text-muted opacity-100 transition-all hover:bg-surface-2 hover:text-foreground focus-visible:opacity-100 md:opacity-0 md:group-hover/att:opacity-100"
       >
         <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />

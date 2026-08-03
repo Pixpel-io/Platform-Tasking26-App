@@ -57,7 +57,7 @@ export default async function SettingsMembersPage({
       <SettingsTabs base={`/w/${workspaceId}/settings`} />
 
       {canManage && (
-        <div className="mb-8 rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <div className="mb-8 rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <h2 className="mb-3 text-sm font-semibold text-foreground">
             Invite by email
           </h2>

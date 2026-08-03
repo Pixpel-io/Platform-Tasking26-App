@@ -252,7 +252,7 @@ export default async function WorkspaceDashboard({
     <div className="aurora-bg min-h-full">
       <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
         <header className="mb-8 animate-fade-in-up">
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Welcome back, <span className="gradient-text">{firstName}</span>
           </h1>
           <p className="mt-1 text-muted">
@@ -342,7 +342,7 @@ export default async function WorkspaceDashboard({
       </div>
 
       <div className="mt-8 grid animate-fade-in-up gap-6 lg:grid-cols-3">
-        <section className="rounded-2xl border border-border bg-surface shadow-sm p-6 lg:col-span-2">
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6 lg:col-span-2">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-foreground">
               Recent activity

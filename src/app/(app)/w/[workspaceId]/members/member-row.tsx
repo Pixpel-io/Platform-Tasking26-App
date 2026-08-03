@@ -119,12 +119,12 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
   }
 
   return (
-    <li className="group flex items-center justify-between px-5 py-3 transition-colors duration-150 hover:bg-surface-2/50">
+    <li className="group flex flex-col items-stretch gap-3 px-3 py-3 transition-colors duration-150 hover:bg-surface-2/50 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <button
         type="button"
         onClick={() => profile && openProfile(profile)}
         disabled={!profile}
-        className="flex items-center gap-3 text-left disabled:cursor-default"
+        className="flex min-w-0 items-center gap-3 text-left disabled:cursor-default"
       >
         <span className="relative">
           <Avatar
@@ -139,18 +139,18 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
             title={online ? "Online" : "Offline"}
           />
         </span>
-        <div>
-          <p className="text-sm font-medium text-foreground">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-foreground">
             {name}
             {isSelf && <span className="ml-1 text-xs text-muted">(you)</span>}
           </p>
-          <p className="text-xs text-muted">{profile?.email}</p>
+          <p className="truncate text-xs text-muted">{profile?.email}</p>
           {error && <p className="mt-0.5 text-xs text-danger">{error}</p>}
         </div>
       </button>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
         {confirming ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <span className="text-xs text-muted">Remove?</span>
             <button
               onClick={handleRemove}

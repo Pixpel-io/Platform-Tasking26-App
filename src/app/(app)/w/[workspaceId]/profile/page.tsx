@@ -40,7 +40,7 @@ export default async function ProfilePage() {
           This is how teammates see you across the workspace.
         </p>
       </header>
-      <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <div className="rounded-xl border border-border bg-surface p-4 shadow-sm sm:p-6">
         <ProfileForm profile={profile} />
       </div>
       <PasswordChangeCard

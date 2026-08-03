@@ -642,7 +642,7 @@ export function Sidebar({
                       }}
                       aria-label={`Remove ${label} from your DMs`}
                       title="Remove from your DMs (they can still message you)"
-                      className="grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-md text-muted opacity-0 transition-all hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 group-hover/dmrow:opacity-100"
+                      className="grid h-5 w-5 shrink-0 cursor-pointer place-items-center rounded-md text-muted opacity-100 transition-all hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 lg:opacity-0 lg:group-hover/dmrow:opacity-100"
                     >
                       <Icon d="M18 6 6 18M6 6l12 12" className="h-3 w-3" />
                     </span>

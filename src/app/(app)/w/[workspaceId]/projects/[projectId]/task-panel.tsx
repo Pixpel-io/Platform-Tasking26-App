@@ -156,7 +156,7 @@ export function TaskPanel({
       onClick={onClose}
     >
       <div
-        className="flex h-full w-full max-w-2xl flex-col bg-surface shadow-2xl"
+        className="flex h-full w-full max-w-2xl flex-col overflow-hidden bg-surface shadow-2xl sm:h-[calc(100%_-_1rem)] sm:self-center sm:rounded-l-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {loading || !task ? (
@@ -209,7 +209,7 @@ function TaskBody({
   return (
     <>
       {/* Header: close + editable title, Monday-style */}
-      <div className="shrink-0 border-b border-border px-5 pt-4">
+      <div className="shrink-0 border-b border-border px-3 pt-3 sm:px-5 sm:pt-4">
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
@@ -726,7 +726,7 @@ function DetailsTab({
     <div className="flex-1 overflow-y-auto">
       <div className="space-y-6 p-5">
         {/* Meta grid: priority + due date */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
               Priority

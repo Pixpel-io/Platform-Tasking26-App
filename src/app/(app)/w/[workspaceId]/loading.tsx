@@ -5,8 +5,8 @@ export default function Loading() {
     <div className="min-h-full">
       <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
         <div className="mb-8 space-y-2">
-          <span className="block h-8 w-64 shimmer rounded bg-surface-2" />
-          <span className="block h-4 w-80 shimmer rounded bg-surface-2" />
+          <span className="block h-8 w-64 max-w-full shimmer rounded bg-surface-2" />
+          <span className="block h-4 w-80 max-w-full shimmer rounded bg-surface-2" />
         </div>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (

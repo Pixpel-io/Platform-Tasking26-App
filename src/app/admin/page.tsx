@@ -103,9 +103,9 @@ export default async function AdminPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-5xl space-y-5 px-3 py-5 sm:space-y-8 sm:px-6 sm:py-8">
         {/* Pending requests */}
-        <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <div className="mb-4 flex items-center gap-2">
             <h2 className="text-lg font-semibold text-foreground">
               Workspace requests
@@ -120,7 +120,7 @@ export default async function AdminPage() {
         </section>
 
         {/* Creator allowlist */}
-        <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-foreground">
             Workspace creators
           </h2>
@@ -132,7 +132,7 @@ export default async function AdminPage() {
         </section>
 
         {/* Super admins (read-only, managed in the database) */}
-        <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-foreground">Super admins</h2>
           <p className="mt-1 text-sm text-muted">
             Full platform authority. Managed via the app_admins table.
@@ -150,7 +150,7 @@ export default async function AdminPage() {
         </section>
 
         {/* All workspaces */}
-        <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
+        <section className="rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-foreground">
             All workspaces{" "}
             <span className="text-sm font-normal text-muted">
