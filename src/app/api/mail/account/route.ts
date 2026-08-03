@@ -1,6 +1,7 @@
 import {
   deleteMailAccount,
-  getMailAccount,
+  enforceMailRateLimit,
+  listMailAccounts,
   requestUser,
   saveMailAccount,
   verifyMailConnection,
@@ -12,6 +13,21 @@ export const runtime = "nodejs";
 function errorResponse(error: unknown, status = 400) {
   const message = error instanceof Error ? error.message : "Mail operation failed.";
   return Response.json({ error: message }, { status });
+}
+
+function publicAccount(account: Awaited<ReturnType<typeof listMailAccounts>>[number]) {
+  return {
+    id: account.id,
+    email: account.email,
+    displayName: account.display_name,
+    imapHost: account.imap_host,
+    imapPort: account.imap_port,
+    imapSecure: account.imap_secure,
+    smtpHost: account.smtp_host,
+    smtpPort: account.smtp_port,
+    smtpSecure: account.smtp_secure,
+    username: account.username,
+  };
 }
 
 async function parseInput(request: Request): Promise<MailAccountInput> {
@@ -60,22 +76,8 @@ export async function GET(request: Request) {
   const user = await requestUser(request);
   if (!user) return errorResponse(new Error("Unauthorized"), 401);
   try {
-    const account = await getMailAccount(user.id);
-    return Response.json({
-      account: account
-        ? {
-            email: account.email,
-            displayName: account.display_name,
-            imapHost: account.imap_host,
-            imapPort: account.imap_port,
-            imapSecure: account.imap_secure,
-            smtpHost: account.smtp_host,
-            smtpPort: account.smtp_port,
-            smtpSecure: account.smtp_secure,
-            username: account.username,
-          }
-        : null,
-    });
+    const accounts = await listMailAccounts(user.id);
+    return Response.json({ accounts: accounts.map(publicAccount) });
   } catch (error) {
     return errorResponse(error);
   }
@@ -85,11 +87,15 @@ export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return errorResponse(new Error("Unauthorized"), 401);
   try {
+    await enforceMailRateLimit(user.id, "account");
     const input = await parseInput(request);
     const testOnly = new URL(request.url).searchParams.get("test") === "1";
-    if (testOnly) await verifyMailConnection(input);
-    else await saveMailAccount(user.id, input);
-    return Response.json({ ok: true });
+    if (testOnly) {
+      await verifyMailConnection(input);
+      return Response.json({ ok: true });
+    }
+    const account = await saveMailAccount(user.id, input);
+    return Response.json({ ok: true, account: publicAccount(account) });
   } catch (error) {
     return errorResponse(error);
   }
@@ -99,7 +105,10 @@ export async function DELETE(request: Request) {
   const user = await requestUser(request);
   if (!user) return errorResponse(new Error("Unauthorized"), 401);
   try {
-    await deleteMailAccount(user.id);
+    await enforceMailRateLimit(user.id, "account");
+    const accountId = new URL(request.url).searchParams.get("accountId")?.trim();
+    if (!accountId) throw new Error("Choose a mailbox to disconnect.");
+    await deleteMailAccount(user.id, accountId);
     return Response.json({ ok: true });
   } catch (error) {
     return errorResponse(error);

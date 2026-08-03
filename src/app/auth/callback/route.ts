@@ -2,6 +2,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 
+function safeRedirectPath(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  try {
+    const parsed = new URL(value, "http://local");
+    return parsed.origin === "http://local" ? `${parsed.pathname}${parsed.search}${parsed.hash}` : "/";
+  } catch {
+    return "/";
+  }
+}
+
 // Handles the redirect from email verification, OAuth, and password-reset
 // links. Establishes a session, then forwards to `next`.
 //
@@ -14,7 +24,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/";
+  const next = safeRedirectPath(searchParams.get("next"));
 
   const supabase = await createClient();
 

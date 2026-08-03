@@ -9,6 +9,7 @@ import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { enforceRateLimit } from "@/lib/rate-limit-server";
 
 export type MailAccountInput = {
   email: string;
@@ -81,11 +82,24 @@ function adminMailTable() {
   return createServiceClient().from("user_mail_accounts");
 }
 
-export async function getMailAccount(userId: string): Promise<StoredMailAccount | null> {
+export async function enforceMailRateLimit(userId: string, action: "account" | "inbox" | "read" | "send") {
+  await enforceRateLimit(userId, `mail_${action}`);
+}
+
+export async function listMailAccounts(userId: string): Promise<StoredMailAccount[]> {
   const { data, error } = await adminMailTable()
     .select("*")
     .eq("user_id", userId)
-    .limit(1)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (data as unknown as StoredMailAccount[]) ?? [];
+}
+
+export async function getMailAccount(userId: string, accountId: string): Promise<StoredMailAccount | null> {
+  const { data, error } = await adminMailTable()
+    .select("*")
+    .eq("user_id", userId)
+    .eq("id", accountId)
     .maybeSingle();
   if (error) throw error;
   return (data as unknown as StoredMailAccount | null) ?? null;
@@ -182,7 +196,7 @@ export async function verifyMailConnection(input: MailAccountInput) {
 
 export async function saveMailAccount(userId: string, input: MailAccountInput) {
   await verifyMailConnection(input);
-  const { error } = await adminMailTable().upsert(
+  const { data, error } = await adminMailTable().upsert(
     {
       user_id: userId,
       email: input.email.trim().toLowerCase(),
@@ -196,18 +210,19 @@ export async function saveMailAccount(userId: string, input: MailAccountInput) {
       username: input.username.trim(),
       encrypted_password: encrypt(input.password),
     },
-    { onConflict: "user_id" },
-  );
+    { onConflict: "user_id,email" },
+  ).select("*").single();
+  if (error) throw error;
+  return data as unknown as StoredMailAccount;
+}
+
+export async function deleteMailAccount(userId: string, accountId: string) {
+  const { error } = await adminMailTable().delete().eq("user_id", userId).eq("id", accountId);
   if (error) throw error;
 }
 
-export async function deleteMailAccount(userId: string) {
-  const { error } = await adminMailTable().delete().eq("user_id", userId);
-  if (error) throw error;
-}
-
-export async function listMail(userId: string, folder = "INBOX", limit = 30) {
-  const account = await getMailAccount(userId);
+export async function listMail(userId: string, accountId: string, folder = "INBOX", limit = 30) {
+  const account = await getMailAccount(userId, accountId);
   if (!account) throw new Error("Connect an email account first.");
   const endpoint = await resolvePublicMailHost(account.imap_host);
   const client = imapClient(account, decrypt(account.encrypted_password), endpoint);
@@ -243,8 +258,8 @@ export async function listMail(userId: string, folder = "INBOX", limit = 30) {
   }
 }
 
-export async function readMail(userId: string, uid: number, folder = "INBOX") {
-  const account = await getMailAccount(userId);
+export async function readMail(userId: string, accountId: string, uid: number, folder = "INBOX") {
+  const account = await getMailAccount(userId, accountId);
   if (!account) throw new Error("Connect an email account first.");
   const endpoint = await resolvePublicMailHost(account.imap_host);
   const client = imapClient(account, decrypt(account.encrypted_password), endpoint);
@@ -280,8 +295,8 @@ export async function readMail(userId: string, uid: number, folder = "INBOX") {
   }
 }
 
-export async function sendMail(userId: string, input: { to: string; cc?: string; subject: string; text: string }) {
-  const account = await getMailAccount(userId);
+export async function sendMail(userId: string, accountId: string, input: { to: string; cc?: string; subject: string; text: string }) {
+  const account = await getMailAccount(userId, accountId);
   if (!account) throw new Error("Connect an email account first.");
   const endpoint = await resolvePublicMailHost(account.smtp_host);
   const transport = smtpTransport(

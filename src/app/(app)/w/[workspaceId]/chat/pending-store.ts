@@ -36,7 +36,7 @@ export type PendingFile = {
   previewUrl?: string;
 };
 
-export type PendingStatus = "uploading" | "sending" | "error";
+export type PendingStatus = "uploading" | "sending" | "sent" | "error";
 
 // One outgoing message that hasn't been confirmed by the server yet - files
 // still uploading, or the sendMessage call still in flight. Rendered as a
@@ -56,6 +56,10 @@ export type PendingSend = {
   createdAt: string;
   files: PendingFile[];
   status: PendingStatus;
+  // Server id is retained after insert succeeds. The optimistic row stays
+  // visible until realtime/catch-up renders this exact authoritative row,
+  // preventing a blank frame between the two states.
+  serverId?: string;
   error?: string;
 };
 
@@ -152,8 +156,8 @@ export type EnqueueInput = {
 };
 
 // Start an upload+send in the background. The pending send stays in the store
-// (and shows in the message list) until sendMessage returns; on success it's
-// removed. Runs entirely outside React so unmounting the composer or chat
+// (and shows in the message list) until the authoritative row is visible.
+// Runs entirely outside React so unmounting the composer or chat
 // room can't cancel it.
 export function enqueuePendingSend(input: EnqueueInput): PendingSend {
   const sendId = crypto.randomUUID();
@@ -314,9 +318,13 @@ async function runSend(send: PendingSend, input: EnqueueInput): Promise<void> {
     return;
   }
 
-  // Insert succeeded - drop the pending row. The real message will appear via
-  // realtime (or the initialMessages fetch on a fresh mount).
-  removeSend(send.id);
+  // Insert succeeded, but realtime can trail this response by a frame or two.
+  // Keep the optimistic row until ChatRoom sees the real server id.
+  replaceSend(send.id, (pending) => ({
+    ...pending,
+    status: "sent",
+    serverId: result.id,
+  }));
 }
 
 // -- external actions -------------------------------------------------------
@@ -325,6 +333,7 @@ async function runSend(send: PendingSend, input: EnqueueInput): Promise<void> {
 // matches one of our pending sends (same author + body + close timestamp).
 // Prevents the ghost row from lingering after the real row shows up.
 export function reconcilePendingSend(match: {
+  messageId: string;
   targetKey: string;
   userId: string;
   body: string;
@@ -336,9 +345,11 @@ export function reconcilePendingSend(match: {
   const found = arr.find(
     (p) =>
       p.status !== "error" &&
+      (p.serverId === match.messageId ||
+      (!p.serverId &&
       p.meId === match.userId &&
       p.body === match.body &&
-      Math.abs(new Date(p.createdAt).getTime() - t) < 30_000,
+      Math.abs(new Date(p.createdAt).getTime() - t) < 30_000)),
   );
   if (found) removeSend(found.id);
 }

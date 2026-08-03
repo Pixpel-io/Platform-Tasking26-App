@@ -1,4 +1,4 @@
-import { listMail, requestUser, sendMail } from "@/lib/mail-server";
+import { enforceMailRateLimit, listMail, requestUser, sendMail } from "@/lib/mail-server";
 
 export const runtime = "nodejs";
 
@@ -6,9 +6,13 @@ export async function GET(request: Request) {
   const user = await requestUser(request);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    await enforceMailRateLimit(user.id, "inbox");
     const url = new URL(request.url);
+    const accountId = url.searchParams.get("accountId")?.trim();
+    if (!accountId) throw new Error("Choose a mailbox first.");
     const messages = await listMail(
       user.id,
+      accountId,
       "INBOX",
       Number(url.searchParams.get("limit") || 30),
     );
@@ -25,9 +29,11 @@ export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    await enforceMailRateLimit(user.id, "send");
     const contentLength = Number(request.headers.get("content-length") || 0);
     if (contentLength > 1024 * 1024) throw new Error("Email is too large to send.");
-    const body = (await request.json()) as { to?: string; cc?: string; subject?: string; text?: string };
+    const body = (await request.json()) as { accountId?: string; to?: string; cc?: string; subject?: string; text?: string };
+    if (!body.accountId?.trim()) throw new Error("Choose a sender mailbox first.");
     if (!body.to?.trim() || !body.subject?.trim() || !body.text?.trim()) {
       throw new Error("Recipient, subject and message are required.");
     }
@@ -40,7 +46,7 @@ export async function POST(request: Request) {
     ) {
       throw new Error("Email fields exceed the allowed size.");
     }
-    const result = await sendMail(user.id, {
+    const result = await sendMail(user.id, body.accountId.trim(), {
       to: body.to.trim(),
       cc: body.cc?.trim(),
       subject: body.subject.trim(),

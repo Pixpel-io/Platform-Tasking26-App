@@ -131,6 +131,7 @@ export function ChatRoom({
     for (const m of messages) {
       if (m.user_id !== meId) continue;
       reconcilePendingSend({
+        messageId: m.id,
         targetKey: tk,
         userId: meId,
         body: m.body,
@@ -461,7 +462,7 @@ export function ChatRoom({
             })}
           </div>
         ))}
-        {pendingSends.map((s) => (
+        {pendingSends.filter((send) => !send.serverId || !messages.some((message) => message.id === send.serverId)).map((s) => (
           <PendingMessageRow key={s.id} send={s} />
         ))}
         {cleotildaThinking && <CleotildaThinking />}

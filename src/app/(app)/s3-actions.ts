@@ -13,6 +13,7 @@ import {
   validateUpload,
 } from "@/lib/s3";
 import { S3_PATH_PREFIX } from "@/lib/s3-shared";
+import { enforceRateLimit } from "@/lib/rate-limit-server";
 
 type PresignResult =
   | { url: string; fields: Record<string, string>; key: string; expiresIn: number }
@@ -29,6 +30,11 @@ export async function createUploadUrl(input: {
   fileSizeBytes: number;
 }): Promise<PresignResult> {
   const user = await requireUser();
+  try {
+    await enforceRateLimit(user.id, "upload");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Too many uploads. Try again later." };
+  }
 
   // Composer falls back to Supabase Storage when S3 isn't configured.
   if (!s3Enabled()) return { disabled: true };

@@ -59,6 +59,8 @@ export function PendingMessageRow({ send }: { send: PendingSend }) {
   const statusLabel =
     send.status === "error"
       ? send.error || "Failed to send"
+      : send.status === "sent"
+        ? "Sent"
       : send.status === "sending"
         ? "Sending…"
         : uploadingLabel(send);

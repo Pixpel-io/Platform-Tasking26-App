@@ -1348,6 +1348,15 @@ export interface Database {
         Args: { p_workspace_id: string };
         Returns: undefined;
       };
+      consume_request_rate_limit: {
+        Args: {
+          p_user_id: string;
+          p_action: string;
+          p_window_seconds: number;
+          p_max_requests: number;
+        };
+        Returns: boolean;
+      };
     };
     Enums: {
       workspace_role: WorkspaceRole;

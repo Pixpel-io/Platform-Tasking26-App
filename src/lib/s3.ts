@@ -16,9 +16,10 @@ const config = {
     SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ?? "",
     BUCKET: process.env.AWS_S3_BUCKET ?? "",
   },
-  // Per-file cap for presigned uploads (default 300 MB).
+  // Per-file cap for presigned uploads. Keep the default conservative; larger
+  // deployments can opt in explicitly with S3_MAX_UPLOAD_MB.
   MAX_UPLOAD_BYTES:
-    Number(process.env.S3_MAX_UPLOAD_MB || 300) * 1024 * 1024,
+    Number(process.env.S3_MAX_UPLOAD_MB || 50) * 1024 * 1024,
 };
 
 export function s3Enabled(): boolean {
