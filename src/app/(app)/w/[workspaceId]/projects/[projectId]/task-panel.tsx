@@ -32,7 +32,7 @@ import {
 } from "../task-actions";
 
 const DETAIL_SELECT =
-  "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*)), task_watchers(user_id), task_comments(*, profiles(*), task_comment_attachments(*)), checklists(*, checklist_items(*))";
+  "*, task_assignees(user_id, profiles(*)), task_labels(label_id, labels(*)), task_watchers(user_id), task_attachments(*), task_comments(*, profiles(*), task_comment_attachments(*)), checklists(*, checklist_items(*))";
 
 export function TaskPanel({
   taskId,
@@ -86,6 +86,16 @@ export function TaskPanel({
     const supabase = createClient();
     const channel = supabase
       .channel(`task-panel:${taskId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "task_attachments",
+          filter: `task_id=eq.${taskId}`,
+        },
+        () => void reload(),
+      )
       .on(
         "postgres_changes",
         {
@@ -805,6 +815,35 @@ function DetailsTab({
             className="w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none"
           />
         </div>
+
+        {task.task_attachments?.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+              Attachments
+            </p>
+            <div className="space-y-2">
+              {task.task_attachments.map((attachment) => (
+                <AttachmentView
+                  key={attachment.id}
+                  attachment={{
+                    ...attachment,
+                    thumb_path: null,
+                    kind: attachment.mime_type?.startsWith("image/")
+                      ? "image"
+                      : attachment.mime_type?.startsWith("video/")
+                        ? "video"
+                        : attachment.mime_type?.startsWith("audio/")
+                          ? "voice"
+                          : "file",
+                    width: null,
+                    height: null,
+                    duration_ms: null,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Checklists */}
         <div>

@@ -22,6 +22,7 @@ type RoomTarget = {
   workspaceId: string;
   channelId?: string;
   conversationId?: string;
+  inferredSourceMessageId?: string;
 };
 
 type SbClient = Awaited<ReturnType<typeof createClient>>;
@@ -137,6 +138,11 @@ const TOOLS = [
           project_id: { type: "string", description: "Project id from list_projects" },
           title: { type: "string", description: "Short task title" },
           description: { type: "string", description: "Optional longer detail" },
+          source_message_id: {
+            type: "string",
+            description:
+              "Message id from the recent conversation when this task is based on an issue shared in chat. The complete source message becomes the task description and its attachments are copied to the task.",
+          },
           column_id: {
             type: "string",
             description: "Kanban column id from list_projects; omit for the first column",
@@ -437,9 +443,36 @@ async function runTool(
       return JSON.stringify({ error: "project_id and title are required" });
     }
 
-    // Resolve target column: given one, or the project's first column.
+    // Never trust an id merely because the model supplied it: it must be an
+    // active project in the current workspace and visible to the requester.
+    const { data: project } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", projectId)
+      .eq("workspace_id", target.workspaceId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!project) {
+      return JSON.stringify({
+        error: "project not found in this workspace; call list_projects again",
+      });
+    }
+
+    // Resolve target column: a valid column on this project, or its first.
     let columnId = (input.column_id as string) || null;
-    if (!columnId) {
+    if (columnId) {
+      const { data: requestedColumn } = await supabase
+        .from("kanban_columns")
+        .select("id")
+        .eq("id", columnId)
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (!requestedColumn) {
+        return JSON.stringify({
+          error: "column does not belong to that project; call list_projects again",
+        });
+      }
+    } else {
       const { data: col } = await supabase
         .from("kanban_columns")
         .select("id")
@@ -448,6 +481,9 @@ async function runTool(
         .limit(1)
         .maybeSingle();
       columnId = col?.id ?? null;
+    }
+    if (!columnId) {
+      return JSON.stringify({ error: "project has no kanban column" });
     }
 
     // seq spaces concurrent batch inserts apart so "create 20 tasks" keeps
@@ -475,6 +511,38 @@ async function runTool(
       ? String(input.due_date)
       : null;
 
+    // When a task comes from a channel issue, use the source itself rather
+    // than relying on the model to reproduce (and potentially shorten) it.
+    // The room history only exposes messages the caller can read, so RLS also
+    // protects this lookup.
+    const sourceMessageId = String(
+      input.source_message_id ?? target.inferredSourceMessageId ?? "",
+    ).trim();
+    let sourceDescription: string | null = null;
+    let sourceAttachments: {
+      storage_path: string;
+      file_name: string;
+      mime_type: string | null;
+      size_bytes: number | null;
+    }[] = [];
+    if (sourceMessageId) {
+      const { data: source } = await supabase
+        .from("messages")
+        .select("body, message_attachments(storage_path, file_name, mime_type, size_bytes)")
+        .eq("id", sourceMessageId)
+        .eq(
+          target.channelId ? "channel_id" : "conversation_id",
+          target.channelId ?? target.conversationId ?? "",
+        )
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (source) {
+        sourceDescription = source.body.trim() || null;
+        sourceAttachments =
+          (source.message_attachments as unknown as typeof sourceAttachments) ?? [];
+      }
+    }
+
     // created_by is the requesting user (RLS: created_by = auth.uid()); the
     // task is attributed to whoever asked Cleotilda for it.
     const { data: task, error } = await supabase
@@ -483,7 +551,8 @@ async function runTool(
         project_id: projectId,
         column_id: columnId,
         title,
-        description: String(input.description ?? "") || null,
+        description:
+          sourceDescription ?? (String(input.description ?? "").trim() || null),
         priority,
         due_date: dueDate,
         position,
@@ -494,18 +563,64 @@ async function runTool(
 
     if (error) return JSON.stringify({ error: error.message });
 
-    const assigneeIds = Array.isArray(input.assignee_ids)
-      ? (input.assignee_ids as string[]).slice(0, 10)
+    const requestedAssigneeIds = Array.isArray(input.assignee_ids)
+      ? [...new Set((input.assignee_ids as string[]).filter(Boolean))]
+          .filter((id) => id !== CLEOTILDA_ID)
+          .slice(0, 10)
       : [];
+    let assigneeIds: string[] = [];
+    if (requestedAssigneeIds.length > 0) {
+      const { data: memberships } = await supabase
+        .from("workspace_members")
+        .select("user_id")
+        .eq("workspace_id", target.workspaceId)
+        .is("deleted_at", null)
+        .in("user_id", requestedAssigneeIds);
+      assigneeIds = (memberships ?? []).map((row) => row.user_id);
+    }
+
+    const warnings: string[] = [];
+    if (assigneeIds.length !== requestedAssigneeIds.length) {
+      warnings.push("Some requested assignees were not workspace members and were skipped.");
+    }
     if (assigneeIds.length > 0 && task) {
       // The task_assignees_seat_member trigger (0035) seats each assignee
       // into project_members so their notification opens the board, not 404.
-      await supabase.from("task_assignees").insert(
+      const { error: assigneeError } = await supabase.from("task_assignees").insert(
         assigneeIds.map((uid) => ({ task_id: task.id, user_id: uid })),
       );
+      if (assigneeError) warnings.push(`Assignees could not be added: ${assigneeError.message}`);
     }
 
-    return JSON.stringify({ ok: true, task_id: task?.id, title: task?.title });
+    if (sourceAttachments.length > 0 && task) {
+      const { error: attachmentError } = await supabase
+        .from("task_attachments")
+        .insert(
+          sourceAttachments.map((attachment) => ({
+            task_id: task.id,
+            storage_path: attachment.storage_path,
+            file_name: attachment.file_name,
+            mime_type: attachment.mime_type,
+            size_bytes: attachment.size_bytes,
+            uploaded_by: userId,
+          })),
+        );
+      if (attachmentError) {
+        // The task already exists. Keep ok=true so the model reports the
+        // partial result instead of retrying create_task and making a duplicate.
+        warnings.push(`Attachments could not be copied: ${attachmentError.message}`);
+      }
+    }
+
+    return JSON.stringify({
+      ok: true,
+      task_id: task?.id,
+      title: task?.title,
+      description_copied: sourceDescription != null,
+      attachments_copied: sourceAttachments.length,
+      assignees_added: assigneeIds.length,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
   }
 
   if (name === "list_tasks") {
@@ -820,6 +935,9 @@ const RULES = (
   If no groups have more than one member after this normalisation, tell the user there really are none.
 - The list_tasks query parameter is a LITERAL substring match on the title. Never use it for semantic filtering ("urgent", "overdue", "duplicate", "assigned to Bob") - those attributes live in other fields and won't be in the title text. Fetch everything and filter in your own reasoning.
 - Always call list_projects before create_task / list_tasks / add_project_members, and list_members before send_dm or resolving people by name to an id.
+- When the user asks you to create a task from an issue/message shared earlier in the room, pass that message's [id:...] value as source_message_id. Do not summarize or shorten the issue: the tool will copy the complete message into the description and copy all of its attachments into the task.
+- TASK QUALITY: Create a concise, action-oriented title that states the actual work. Preserve every user-provided requirement in description; never replace details with a one-line summary. Do not invent requirements, dates, priority, assignees, or completion. Use the user's explicit project/column when given. If no project is named and exactly one project exists, use it; if several exist, ask which one. Resolve named assignees through list_members. For a new task, perform all requested fields in the same create_task call rather than creating an incomplete task and patching it later.
+- TOOL RESULTS: Read every tool result. If it contains warnings, clearly tell the user what succeeded and what did not. Never retry create_task after it returned ok=true, even if it has warnings, because the task already exists.
 - When you act, confirm in one line what you did (task assigned to whom, task deleted, member added, etc.).
 - If the request is ambiguous (multiple matching tasks / projects / people), ask one short clarifying question instead of guessing.
 - Today's date is ${today}. Resolve relative dates like "tomorrow" or "Friday" to YYYY-MM-DD yourself.
@@ -950,7 +1068,7 @@ export async function respondAsCleotilda(args: {
     // Recent room context so follow-ups ("make a task for that") make sense.
     let historyQuery = supabase
       .from("messages")
-      .select("body, user_id, kind, sender:profiles!messages_user_id_fkey(full_name)")
+      .select("id, body, user_id, kind, message_attachments(id, file_name, kind), sender:profiles!messages_user_id_fkey(full_name)")
       .is("parent_id", null)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
@@ -961,12 +1079,14 @@ export async function respondAsCleotilda(args: {
     const { data: history } = await historyQuery;
 
     type HistoryRow = {
+      id: string;
       body: string;
       user_id: string;
       kind: string;
+      message_attachments: { id: string; file_name: string; kind: string }[];
       sender: { full_name: string | null } | null;
     };
-    const transcript = ((history as HistoryRow[] | null) ?? [])
+    const transcript = [...((history as HistoryRow[] | null) ?? [])]
       .reverse()
       .filter((m) => m.kind === "user")
       .map((m) => {
@@ -974,9 +1094,45 @@ export async function respondAsCleotilda(args: {
           m.user_id === CLEOTILDA_ID
             ? "Cleotilda"
             : (m.sender?.full_name ?? "Someone");
-        return `${who}: ${m.body}`;
+        const attachments = m.message_attachments?.length
+          ? ` [attachments: ${m.message_attachments.map((a) => `${a.kind}:${a.file_name}`).join(", ")}]`
+          : "";
+        return `[id:${m.id}] ${who}: ${m.body}${attachments}`;
       })
       .join("\n");
+
+    // Referential requests such as "make a task for the issue above" should
+    // still work if the model forgets source_message_id. Infer only when the
+    // wording clearly points backwards; ordinary "create a task" requests
+    // must not accidentally absorb an unrelated chat message.
+    const refersToEarlierMessage =
+      (/\b(?:this|that|above|earlier|previous|shared|yeh?|upar|pehle)\b/i.test(
+        args.prompt,
+      ) ||
+        /\bjo\b.*\b(?:share(?:d)?|bhej[ai])\b/i.test(args.prompt) ||
+        /\b(?:screenshot|image|photo)\s+(?:wali|wala|above|shared)\b/i.test(
+          args.prompt,
+        )) &&
+      /\b(?:task|ticket|issue|bug|kaam)\b/i.test(args.prompt);
+    const chronologicalHistory = [
+      ...((history as HistoryRow[] | null) ?? []),
+    ].reverse();
+    const currentIndex = chronologicalHistory.findLastIndex(
+      (message) => message.user_id === args.userId && message.body === args.prompt,
+    );
+    const inferredSource = refersToEarlierMessage
+      ? chronologicalHistory
+          .slice(0, currentIndex >= 0 ? currentIndex : undefined)
+          .reverse()
+          .find(
+            (message) =>
+              message.user_id !== CLEOTILDA_ID && message.body.trim().length > 0,
+          )
+      : undefined;
+    const toolTarget: RoomTarget = {
+      ...args.target,
+      inferredSourceMessageId: inferredSource?.id,
+    };
 
     const today = new Date().toISOString().slice(0, 10);
 
@@ -1029,7 +1185,7 @@ ${RULES(today)}`;
                 })
               : await runTool(
                   supabase,
-                  args.target,
+                  toolTarget,
                   args.userId,
                   tc.function.name,
                   input,

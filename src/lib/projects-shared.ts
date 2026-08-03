@@ -12,6 +12,7 @@ import type {
   Task,
   TaskComment,
   TaskCommentAttachment,
+  TaskAttachment,
 } from "@/lib/supabase/types";
 
 export type TaskWithRelations = Task & {
@@ -37,6 +38,7 @@ export type TaskCommentWithRelations = TaskComment & {
 
 export type TaskDetail = TaskWithRelations & {
   task_comments: TaskCommentWithRelations[];
+  task_attachments: TaskAttachment[];
   checklists: ChecklistWithItems[];
   task_watchers: { user_id: string }[];
 };
