@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { requireUser } from "@/lib/auth";
 import { generateLinkCode } from "@/lib/telegram";
 
@@ -48,11 +49,11 @@ export async function getTelegramStatus(): Promise<{
 // Generate (or rotate) a Telegram link code for the current user. Codes expire
 // after 30 minutes; if a fresh unclaimed code exists we return it rather than
 // churning through codes when the user just re-opens the settings page.
-export async function generateTelegramLinkCode(): Promise<
+export async function generateTelegramLinkCode(forceRotate = false): Promise<
   { code: string; expiresAt: string } | Result
 > {
   const user = await requireUser();
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: existing } = await supabase
     .from("user_notification_channels")
@@ -72,6 +73,7 @@ export async function generateTelegramLinkCode(): Promise<
     // Reuse a live code if it isn't expired yet - prevents thrash when the
     // user re-opens the settings page or hits refresh.
     if (
+      !forceRotate &&
       existing.link_code &&
       existing.link_code_expires_at &&
       new Date(existing.link_code_expires_at) > new Date()
@@ -81,7 +83,8 @@ export async function generateTelegramLinkCode(): Promise<
     const { error } = await supabase
       .from("user_notification_channels")
       .update({ link_code: code, link_code_expires_at: expiresAt })
-      .eq("id", existing.id);
+      .eq("id", existing.id)
+      .eq("user_id", user.id);
     if (error) return { error: error.message };
     return { code, expiresAt };
   }
@@ -104,7 +107,7 @@ export async function disconnectTelegram(
   workspaceId: string,
 ): Promise<Result> {
   const user = await requireUser();
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { error } = await supabase
     .from("user_notification_channels")
     .delete()
@@ -129,7 +132,7 @@ export async function setTelegramPreference(
   value: boolean,
 ): Promise<Result> {
   const user = await requireUser();
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const patch: Partial<Record<ChannelPrefKey, boolean>> = { [key]: value };
   const { error } = await supabase
     .from("user_notification_channels")

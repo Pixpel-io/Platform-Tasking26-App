@@ -19,7 +19,7 @@ import {
   shouldForwardToChannel,
   type FanoutNotification,
 } from "@/lib/notifications-telegram";
-import { sendTelegramMessage } from "@/lib/telegram";
+import { safeSecretEqual, sendTelegramMessage } from "@/lib/telegram";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,15 +32,19 @@ type WebhookPayload = {
 
 export async function POST(req: Request) {
   const expected = process.env.FANOUT_SECRET;
-  if (!expected) {
+  if (!expected || expected.length < 32) {
     return NextResponse.json(
       { error: "FANOUT_SECRET not configured" },
       { status: 500 },
     );
   }
   const secret = req.headers.get("x-fanout-secret");
-  if (secret !== expected) {
+  if (!safeSecretEqual(secret, expected)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > 64 * 1024) {
+    return NextResponse.json({ error: "payload too large" }, { status: 413 });
   }
   if (!process.env.TELEGRAM_BOT_TOKEN) {
     // Nothing to do without the bot token; return 2xx so Supabase doesn't
@@ -91,6 +95,7 @@ export async function POST(req: Request) {
       "id, type, title, body, workspace_id, channel_id, conversation_id, project_id, task_id, actor_id, workspace:workspaces(name), channel:channels(name), actor:profiles!notifications_actor_id_fkey(full_name, email)",
     )
     .eq("id", notificationId)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (nErr || !notification) {
@@ -98,7 +103,7 @@ export async function POST(req: Request) {
   }
   const typed = notification as unknown as FanoutNotification;
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://taskinglife.io").replace(/\/$/, "");
   const message = formatNotificationForTelegram(typed, siteUrl);
 
   // Deliver in parallel - one bad channel shouldn't hold up the others.
@@ -112,18 +117,42 @@ export async function POST(req: Request) {
         task_events_enabled: ch.task_events_enabled,
       };
       if (!shouldForwardToChannel(typed, prefs)) return { skipped: true };
+      const { data: claimed, error: claimError } = await supabase.rpc(
+        "claim_notification_channel_delivery",
+        {
+          p_notification_id: notificationId,
+          p_channel_id: ch.id,
+          p_limit: 30,
+        },
+      );
+      if (claimError) throw claimError;
+      if (!claimed) return { skipped: true };
       try {
         await sendTelegramMessage({
           chatId: ch.external_id,
           text: message.text,
           action: message.action,
         });
-        await supabase
-          .from("user_notification_channels")
-          .update({ last_sent_at: new Date().toISOString() })
-          .eq("id", ch.id);
+        const sentAt = new Date().toISOString();
+        await Promise.all([
+          supabase
+            .from("user_notification_channels")
+            .update({ last_sent_at: sentAt })
+            .eq("id", ch.id),
+          supabase
+            .from("notification_channel_deliveries")
+            .update({ status: "sent", sent_at: sentAt })
+            .eq("notification_id", notificationId)
+            .eq("channel_id", ch.id),
+        ]);
         return { sent: true };
       } catch (err) {
+        // Release the reservation so a signed webhook retry can try again.
+        await supabase
+          .from("notification_channel_deliveries")
+          .delete()
+          .eq("notification_id", notificationId)
+          .eq("channel_id", ch.id);
         const e = err as { telegramCode?: number };
         // 403 = user blocked the bot. Disable delivery so we stop hammering.
         if (e.telegramCode === 403) {
@@ -144,7 +173,15 @@ export async function POST(req: Request) {
     }),
   );
 
-  const sent = results.filter((r) => r.status === "fulfilled").length;
+  const sent = results.filter(
+    (r) => r.status === "fulfilled" && r.value && "sent" in r.value,
+  ).length;
+  const skipped = results.filter(
+    (r) => r.status === "fulfilled" && r.value && "skipped" in r.value,
+  ).length;
   const failed = results.filter((r) => r.status === "rejected").length;
-  return NextResponse.json({ ok: true, sent, failed });
+  return NextResponse.json(
+    { ok: failed === 0, sent, skipped, failed },
+    { status: failed > 0 ? 502 : 200 },
+  );
 }

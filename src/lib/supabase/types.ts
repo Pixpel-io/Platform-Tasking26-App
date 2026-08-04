@@ -128,7 +128,9 @@ export interface Database {
           dms_enabled: boolean;
           group_messages_enabled: boolean;
           task_events_enabled: boolean;
-          last_sent_at: string | null;
+            last_sent_at: string | null;
+            delivery_window_started_at: string | null;
+            delivery_window_count: number;
           created_at: string;
           updated_at: string;
         };
@@ -144,7 +146,9 @@ export interface Database {
           dms_enabled?: boolean;
           group_messages_enabled?: boolean;
           task_events_enabled?: boolean;
-          last_sent_at?: string | null;
+            last_sent_at?: string | null;
+            delivery_window_started_at?: string | null;
+            delivery_window_count?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -157,12 +161,37 @@ export interface Database {
           dms_enabled?: boolean;
           group_messages_enabled?: boolean;
           task_events_enabled?: boolean;
-          last_sent_at?: string | null;
+            last_sent_at?: string | null;
+            delivery_window_started_at?: string | null;
+            delivery_window_count?: number;
           updated_at?: string;
         };
-        Relationships: [];
-      };
-      profiles: {
+          Relationships: [];
+        };
+        notification_channel_deliveries: {
+          Row: {
+            id: string;
+            notification_id: string;
+            channel_id: string;
+            status: "pending" | "sent";
+            created_at: string;
+            sent_at: string | null;
+          };
+          Insert: {
+            id?: string;
+            notification_id: string;
+            channel_id: string;
+            status?: "pending" | "sent";
+            created_at?: string;
+            sent_at?: string | null;
+          };
+          Update: {
+            status?: "pending" | "sent";
+            sent_at?: string | null;
+          };
+          Relationships: [];
+        };
+        profiles: {
         Row: {
           id: string;
           email: string;
@@ -1209,6 +1238,14 @@ export interface Database {
       [_ in never]: never;
     };
     Functions: {
+      claim_notification_channel_delivery: {
+        Args: {
+          p_notification_id: string;
+          p_channel_id: string;
+          p_limit?: number;
+        };
+        Returns: boolean;
+      };
       create_workspace: {
         Args: {
           p_workspace_name: string;

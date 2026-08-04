@@ -11,7 +11,7 @@ const geistMono = Geist_Mono({
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
-  "http://localhost:3000";
+  "https://taskinglife.io";
 
 const TITLE = "Tasking - Team Collaboration";
 const DESCRIPTION =

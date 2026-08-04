@@ -1,4 +1,20 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans, Source_Serif_4 } from "next/font/google";
+import "./landing.css";
+
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
+const legalSerif = Source_Serif_4({
+  variable: "--font-legal",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "https://taskinglife.io";
@@ -33,11 +49,14 @@ export default function LandingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="landing-root relative min-h-screen overflow-hidden">
-      <div className="landing-bg-mesh" aria-hidden />
-      <div className="landing-bg-grid" aria-hidden />
-      <div className="landing-bg-noise" aria-hidden />
-      <div className="relative z-10">{children}</div>
-    </div>
+    <>
+      <script dangerouslySetInnerHTML={{ __html: `(function(){try{var s=localStorage.getItem('tasking-landing-theme');var t=s||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.dataset.landingTheme=t}catch(e){}})();` }} />
+      <div className={`${jakarta.variable} ${legalSerif.variable} landing-root relative min-h-screen overflow-hidden`}>
+        <div className="landing-bg-mesh" aria-hidden />
+        <div className="landing-bg-grid" aria-hidden />
+        <div className="landing-bg-noise" aria-hidden />
+        <div className="relative z-10">{children}</div>
+      </div>
+    </>
   );
 }

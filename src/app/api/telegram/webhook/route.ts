@@ -17,7 +17,7 @@
 
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { sendTelegramMessage } from "@/lib/telegram";
+import { safeSecretEqual, sendTelegramMessage } from "@/lib/telegram";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ type TelegramUpdate = { update_id: number; message?: TelegramMessage };
 
 export async function POST(req: Request) {
   const expected = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!expected) {
+  if (!expected || expected.length < 32) {
     // Fail loud instead of silently accepting unauthenticated updates.
     return NextResponse.json(
       { error: "TELEGRAM_WEBHOOK_SECRET not configured" },
@@ -40,8 +40,12 @@ export async function POST(req: Request) {
     );
   }
   const secret = req.headers.get("x-telegram-bot-api-secret-token");
-  if (secret !== expected) {
+  if (!safeSecretEqual(secret, expected)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const contentLength = Number(req.headers.get("content-length") || 0);
+  if (contentLength > 64 * 1024) {
+    return NextResponse.json({ error: "payload too large" }, { status: 413 });
   }
 
   let update: TelegramUpdate;
@@ -56,6 +60,14 @@ export async function POST(req: Request) {
 
   const chatId = String(message.chat.id);
   const text = message.text.trim();
+
+  if (message.chat.type !== "private") {
+    await replyPlain(chatId, "For privacy, link Tasking from a private chat with this bot.");
+    return NextResponse.json({ ok: true });
+  }
+  if (!message.from || String(message.from.id) !== chatId) {
+    return NextResponse.json({ ok: true, skipped: "sender_mismatch" });
+  }
 
   if (text === "/stop" || text === "/disable") {
     await handleStop(chatId);
@@ -138,7 +150,7 @@ async function handleStart(
     return;
   }
 
-  const { error: updateErr } = await supabase
+  const { data: claimed, error: updateErr } = await supabase
     .from("user_notification_channels")
     .update({
       external_id: chatId,
@@ -146,13 +158,21 @@ async function handleStart(
       link_code_expires_at: null,
       verified_at: new Date().toISOString(),
     })
-    .eq("id", row.id);
+    .eq("id", row.id)
+    .eq("link_code", code)
+    .is("verified_at", null)
+    .select("id")
+    .maybeSingle();
 
   if (updateErr) {
     await replyPlain(
       chatId,
       "Couldn't link your account. Try again in a minute, or generate a new code.",
     );
+    return;
+  }
+  if (!claimed) {
+    await replyPlain(chatId, "That code was already used. Generate a fresh one in Tasking.");
     return;
   }
 

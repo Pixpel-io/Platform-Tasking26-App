@@ -19,7 +19,12 @@ export default async function NotificationsSettingsPage({
     .eq("kind", "telegram")
     .maybeSingle();
 
-  const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "";
+  const rawBotUsername = (process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? "")
+    .trim()
+    .replace(/^@/, "");
+  const botUsername = /^[A-Za-z0-9_]{5,32}$/.test(rawBotUsername)
+    ? rawBotUsername
+    : "";
 
   return (
     <div className="mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">

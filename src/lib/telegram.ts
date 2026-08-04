@@ -8,7 +8,17 @@
 // notifications.
 // =============================================================================
 
+import "server-only";
+import { timingSafeEqual } from "crypto";
+
 const API_ROOT = "https://api.telegram.org";
+
+export function safeSecretEqual(actual: string | null, expected: string): boolean {
+  if (!actual) return false;
+  const left = Buffer.from(actual);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
 function botToken(): string {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -57,6 +67,7 @@ export async function sendTelegramMessage(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10_000),
   });
   const json = (await res.json().catch(() => ({}))) as {
     ok?: boolean;
@@ -93,11 +104,15 @@ export async function setTelegramWebhook(
       allowed_updates: ["message"],
       drop_pending_updates: true,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
+  const json = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    description?: string;
+  };
+  if (!res.ok || !json.ok) {
     throw new Error(
-      `Telegram setWebhook failed: ${JSON.stringify(json).slice(0, 200)}`,
+      `Telegram setWebhook failed: ${json.description ?? res.statusText}`,
     );
   }
   return json;

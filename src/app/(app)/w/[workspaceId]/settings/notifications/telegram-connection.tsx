@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   disconnectTelegram,
   generateTelegramLinkCode,
@@ -41,6 +42,7 @@ export function TelegramConnectionCard({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   const code = connection && !connection.verified_at ? connection.link_code : null;
   const expiresAt = connection?.link_code_expires_at ?? null;
@@ -61,10 +63,16 @@ export function TelegramConnectionCard({
     if (!connection?.link_code) return;
     let cancelled = false;
     const tick = async () => {
-      const next = await getTelegramStatus();
-      if (cancelled) return;
-      if (next) {
-        setConnection({
+      if (document.hidden) return;
+      if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+        setConnection((prev) => prev ? { ...prev, link_code: null, link_code_expires_at: null } : prev);
+        setError("That link code expired. Generate a new one to continue.");
+        return;
+      }
+      try {
+        const next = await getTelegramStatus();
+        if (cancelled) return;
+        if (next) setConnection({
           external_id: next.externalId,
           link_code: next.linkCode,
           link_code_expires_at: next.linkCodeExpiresAt,
@@ -75,19 +83,22 @@ export function TelegramConnectionCard({
           task_events_enabled: next.taskEventsEnabled,
           last_sent_at: next.lastSentAt,
         });
+      } catch {
+        if (!cancelled) setError("Could not check Telegram status. We’ll retry automatically.");
       }
     };
+    void tick();
     const id = setInterval(tick, 2000);
     return () => {
       cancelled = true;
       clearInterval(id);
     };
-  }, [verified, connection?.link_code]);
+  }, [verified, connection?.link_code, expiresAt]);
 
   function generate() {
     setError(null);
     start(async () => {
-      const res = await generateTelegramLinkCode();
+      const res = await generateTelegramLinkCode(Boolean(code));
       if ("error" in res && res.error) {
         setError(res.error);
         return;
@@ -307,7 +318,7 @@ export function TelegramConnectionCard({
       {verified && connection && (
         <div className="space-y-3">
           <p className="text-sm text-muted">
-            Chat ID: <span className="font-mono">{connection.external_id}</span>
+            Connected account: <span className="font-mono">••••{connection.external_id?.slice(-4)}</span>
             {connection.last_sent_at && (
               <>
                 {" "}
@@ -343,7 +354,7 @@ export function TelegramConnectionCard({
               />
               <Toggle
                 label="Group messages"
-                hint="Every message posted in channels you belong to. Chatty - off by default is fine for most people."
+                hint="Every message posted in channels you belong to. Turn this off if your channels are busy."
                 enabled={connection.group_messages_enabled}
                 onChange={(v) => togglePref("group_messages_enabled", v)}
                 disabled={pending}
@@ -359,7 +370,7 @@ export function TelegramConnectionCard({
           </div>
 
           <button
-            onClick={disconnect}
+            onClick={() => setConfirmDisconnect(true)}
             disabled={pending}
             className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
           >
@@ -370,6 +381,19 @@ export function TelegramConnectionCard({
 
       {error && (
         <p className="mt-3 text-sm text-danger">{error}</p>
+      )}
+      {confirmDisconnect && (
+        <ConfirmDialog
+          title="Disconnect Telegram?"
+          description="Tasking will stop forwarding notifications and remove this Telegram connection. You can reconnect later with a new code."
+          confirmLabel="Disconnect Telegram"
+          pending={pending}
+          onConfirm={() => {
+            setConfirmDisconnect(false);
+            disconnect();
+          }}
+          onCancel={() => setConfirmDisconnect(false)}
+        />
       )}
     </div>
   );
@@ -389,7 +413,7 @@ function Toggle({
   disabled: boolean;
 }) {
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg px-2 py-2 hover:bg-surface-2/50">
+    <div className="flex items-start justify-between gap-3 rounded-lg px-2 py-2 hover:bg-surface-2/50">
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-foreground">{label}</span>
         <span className="mt-0.5 block text-xs text-muted">{hint}</span>
@@ -410,6 +434,6 @@ function Toggle({
           }`}
         />
       </button>
-    </label>
+    </div>
   );
 }
