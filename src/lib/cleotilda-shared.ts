@@ -7,6 +7,15 @@ export const CLEOTILDA_ID = "c1e0711d-a000-4000-a000-000000000001";
 // name instead.
 export const CLEOTILDA_VIA = "[via:cleotilda]";
 
+export type CleotildaEmailDraft = {
+  accountId: string;
+  from: string;
+  to: string;
+  cc: string;
+  subject: string;
+  text: string;
+};
+
 export function isViaCleotilda(body: string): boolean {
   return body.startsWith(CLEOTILDA_VIA);
 }

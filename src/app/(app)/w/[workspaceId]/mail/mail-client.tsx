@@ -14,6 +14,7 @@ const MAIL_CACHE_TTL = 30_000;
 const DETAIL_CACHE_TTL = 5 * 60_000;
 const inboxCache = new Map<string, { messages: MailRow[]; at: number }>();
 const detailCache = new Map<string, { message: MailDetail; at: number }>();
+const detailRequests = new Map<string, Promise<MailDetail>>();
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -36,16 +37,18 @@ export function MailClient() {
   const [adding, setAdding] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [openingUid, setOpeningUid] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [mailNotice, setMailNotice] = useState<{ title: string; body: string } | null>(null);
-  const requestSequence = useRef(0);
+  const inboxRequestSequence = useRef(0);
+  const detailRequestSequence = useRef(0);
   const account = accounts?.find((item) => item.id === activeId) ?? accounts?.[0] ?? null;
   const filtered = useMemo(() => { const query = search.trim().toLowerCase(); return query ? messages.filter((message) => [message.subject, message.from?.name, message.from?.address].some((value) => value?.toLowerCase().includes(query))) : messages; }, [messages, search]);
   const unread = messages.filter((message) => message.unread).length;
 
   const loadMessages = useCallback(async (accountId: string, force = false) => {
-    const requestId = ++requestSequence.current;
+    const requestId = ++inboxRequestSequence.current;
     const cached = inboxCache.get(accountId);
     if (cached) setMessages(cached.messages);
     else setMessages([]);
@@ -54,10 +57,10 @@ export function MailClient() {
     try {
       const next = (await api<{ messages: MailRow[] }>(`/api/mail/messages?accountId=${encodeURIComponent(accountId)}`)).messages;
       inboxCache.set(accountId, { messages: next, at: Date.now() });
-      if (requestId === requestSequence.current) setMessages(next);
+      if (requestId === inboxRequestSequence.current) setMessages(next);
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load inbox."); }
-    finally { if (requestId === requestSequence.current) setLoading(false); }
+    finally { if (requestId === inboxRequestSequence.current) setLoading(false); }
   }, []);
 
   useEffect(() => { api<{ accounts: Account[] }>("/api/mail/account").then(({ accounts: values }) => { setAccounts(values); if (values.length) { const saved = window.localStorage.getItem("tasking-active-mail-account"); const next = values.find((item) => item.id === saved)?.id ?? values[0].id; setActiveId(next); void loadMessages(next); } }).catch((cause) => { setAccounts([]); setError(cause instanceof Error ? cause.message : "Could not load mail settings."); }); }, [loadMessages]);
@@ -96,6 +99,7 @@ export function MailClient() {
   function activate(accountId: string) {
     if (accountId === account?.id) return;
     setActiveId(accountId); window.localStorage.setItem("tasking-active-mail-account", accountId);
+    detailRequestSequence.current += 1; setOpeningUid(null);
     setSelected(null); setSearch(""); void loadMessages(accountId);
   }
   function markMessageRead(accountId: string, uid: number) {
@@ -104,20 +108,40 @@ export function MailClient() {
     const cached = inboxCache.get(accountId);
     if (cached) inboxCache.set(accountId, { ...cached, messages: mark(cached.messages) });
   }
+  const fetchMessage = useCallback((accountId: string, uid: number) => {
+    const cacheKey = `${accountId}:${uid}`;
+    const cached = detailCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < DETAIL_CACHE_TTL) return Promise.resolve(cached.message);
+    const pending = detailRequests.get(cacheKey);
+    if (pending) return pending;
+    const request = api<{ message: MailDetail }>(`/api/mail/messages/${uid}?accountId=${encodeURIComponent(accountId)}`)
+      .then(({ message }) => {
+        detailCache.set(cacheKey, { message, at: Date.now() });
+        return message;
+      })
+      .finally(() => detailRequests.delete(cacheKey));
+    detailRequests.set(cacheKey, request);
+    return request;
+  }, []);
+  function prefetchMessage(uid: number) {
+    if (!account) return;
+    void fetchMessage(account.id, uid).catch(() => undefined);
+  }
   async function openMessage(uid: number) {
     if (!account) return;
     const accountId = account.id;
-    const cacheKey = `${accountId}:${uid}`;
-    const cached = detailCache.get(cacheKey);
+    const requestId = ++detailRequestSequence.current;
+    const cached = detailCache.get(`${accountId}:${uid}`);
     if (cached && Date.now() - cached.at < DETAIL_CACHE_TTL) {
+      setOpeningUid(null);
       setSelected(cached.message);
       markMessageRead(accountId, uid);
       return;
     }
-    const requestId = ++requestSequence.current; setLoading(true); setError("");
-    try { const result = await api<{ message: MailDetail }>(`/api/mail/messages/${uid}?accountId=${encodeURIComponent(accountId)}`); detailCache.set(cacheKey, { message: result.message, at: Date.now() }); if (requestId === requestSequence.current) { setSelected(result.message); markMessageRead(accountId, uid); } }
+    setOpeningUid(uid); setError("");
+    try { const message = await fetchMessage(accountId, uid); if (requestId === detailRequestSequence.current) { setSelected(message); markMessageRead(accountId, uid); } }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not read email."); }
-    finally { if (requestId === requestSequence.current) setLoading(false); }
+    finally { if (requestId === detailRequestSequence.current) setOpeningUid(null); }
   }
   async function disconnect() {
     if (!account) return;
@@ -150,7 +174,7 @@ export function MailClient() {
   if (!account) return <AccountSetup initialError={error} onConnected={(value) => { setAccounts([value]); setActiveId(value.id); window.localStorage.setItem("tasking-active-mail-account", value.id); void loadMessages(value.id); }} />;
 
   return <div className="relative flex h-full min-h-0 flex-col bg-background">
-    <header className="flex min-h-22 items-center border-b border-border/60 bg-surface/75 px-4 py-3 backdrop-blur-xl sm:px-5 md:px-7 lg:pr-32">
+    <header className="flex h-24 min-h-24 shrink-0 items-center border-b border-border/60 bg-surface/75 px-4 py-3 backdrop-blur-xl sm:px-5 md:px-7 lg:pr-32">
       <div className="flex min-w-0 items-center gap-3.5">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-primary via-primary to-primary/65 text-primary-foreground shadow-lg shadow-primary/20 ring-1 ring-white/10"><Icon d="M4 6h16v12H4zM4 7l8 6 8-6" className="h-5.5 w-5.5" /></span>
         <div className="min-w-0">
@@ -197,7 +221,7 @@ export function MailClient() {
           <div className="mb-2.5 flex items-center justify-between px-0.5"><p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">Inbox</p><span className="text-[11px] font-medium text-muted">{filtered.length} messages</span></div>
           <label className="flex h-11 items-center gap-2.5 rounded-xl border border-border/80 bg-background/65 px-3.5 text-muted shadow-sm transition focus-within:border-primary/45 focus-within:ring-3 focus-within:ring-primary/8"><Icon d="M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0z" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search sender or subject" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted/70" />{search && <button aria-label="Clear search" onClick={() => setSearch("")} className="grid h-6 w-6 place-items-center rounded-md hover:bg-surface-2"><Icon d="M18 6L6 18M6 6l12 12" className="h-3.5 w-3.5" /></button>}</label>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2.5">{loading && messages.length === 0 && <div className="space-y-2">{[0, 1, 2, 3].map((item) => <div key={item} className="h-25 animate-pulse rounded-2xl border border-border/40 bg-surface-2/70" />)}</div>}{!loading && messages.length === 0 && <EmptyInbox />}{!loading && messages.length > 0 && filtered.length === 0 && <p className="p-8 text-center text-sm text-muted">No messages match your search.</p>}{filtered.map((message) => <MessageRow key={message.uid} message={message} active={selected?.uid === message.uid} onOpen={() => void openMessage(message.uid)} />)}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2.5">{loading && messages.length === 0 && <div className="space-y-2">{[0, 1, 2, 3].map((item) => <div key={item} className="h-25 animate-pulse rounded-2xl border border-border/40 bg-surface-2/70" />)}</div>}{!loading && messages.length === 0 && <EmptyInbox />}{!loading && messages.length > 0 && filtered.length === 0 && <p className="p-8 text-center text-sm text-muted">No messages match your search.</p>}{filtered.map((message) => <MessageRow key={message.uid} message={message} active={selected?.uid === message.uid} opening={openingUid === message.uid} onWarm={() => prefetchMessage(message.uid)} onOpen={() => void openMessage(message.uid)} />)}</div>
       </aside>
       <main className={`${selected ? "block" : "hidden md:block"} overflow-y-auto bg-[radial-gradient(circle_at_top,var(--color-primary)/0.035,transparent_32%)] p-3 sm:p-5 lg:p-8 xl:p-10`}>{selected ? <MessageDetail message={selected} onBack={() => setSelected(null)} /> : <NoSelection />}</main>
     </div>
@@ -211,16 +235,16 @@ function MailRailButton({ label, children, onClick, active = false, danger = fal
   return <button type="button" onClick={onClick} disabled={disabled} aria-label={label} title={label} className={`group relative flex w-full flex-col items-center gap-1 rounded-xl border px-0.5 py-1.5 text-[9px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-45 ${danger ? "border-transparent text-muted hover:border-danger/20 hover:bg-danger/8 hover:text-danger focus-visible:ring-danger/20" : active ? "border-primary/20 bg-primary/10 text-primary shadow-sm shadow-primary/8" : "border-transparent text-muted hover:-translate-y-px hover:border-border/70 hover:bg-background/75 hover:text-foreground hover:shadow-sm focus-visible:ring-primary/20"}`}><span className={`relative grid h-7 w-7 place-items-center rounded-lg border transition-all duration-200 ${danger ? "border-border/60 bg-background/60 group-hover:border-danger/20 group-hover:bg-danger/8" : active ? "border-primary/25 bg-primary/12 shadow-inner" : "border-border/60 bg-background/65 shadow-sm group-hover:border-primary/20 group-hover:bg-primary/8 group-hover:text-primary"}`}>{children}{badge > 0 && <span className="absolute -right-2.5 -top-2 grid h-4 min-w-4 place-items-center rounded-full border-2 border-surface bg-primary px-0.5 text-[8px] font-bold leading-none text-primary-foreground shadow-sm shadow-primary/30">{badge > 99 ? "99+" : badge}</span>}</span><span className="max-w-full truncate leading-tight tracking-tight">{label}</span>{active && <span aria-hidden="true" className="absolute bottom-0.5 h-0.5 w-3 rounded-full bg-primary" />}</button>;
 }
 
-function MessageRow({ message, active, onOpen }: { message: MailRow; active: boolean; onOpen: () => void }) {
+function MessageRow({ message, active, opening, onOpen, onWarm }: { message: MailRow; active: boolean; opening: boolean; onOpen: () => void; onWarm: () => void }) {
   const sender = message.from?.name || message.from?.address || "Unknown sender";
-  return <button onClick={onOpen} className={`group relative mb-1.5 block w-full overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-200 ${active ? "border-primary/30 bg-primary/9 shadow-sm shadow-primary/5" : "border-transparent hover:border-border/70 hover:bg-surface-2/75"}`}>
+  return <button onPointerDown={onWarm} onClick={onOpen} aria-busy={opening} className={`group relative mb-1.5 block w-full overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-200 ${active ? "border-primary/30 bg-primary/9 shadow-sm shadow-primary/5" : "border-transparent hover:border-border/70 hover:bg-surface-2/75"}`}>
     {message.unread && <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-primary" />}
     <div className="flex items-start gap-3">
       <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xs font-bold shadow-sm transition-transform group-hover:scale-[1.03] ${message.unread ? "bg-linear-to-br from-primary to-primary/70 text-primary-foreground" : "border border-border/60 bg-surface-2 text-muted"}`}>{initials(sender)}</span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2"><p className={`truncate text-sm ${message.unread ? "font-bold text-foreground" : "font-semibold text-foreground/85"}`}>{sender}</p><time className={`shrink-0 text-[10px] font-medium ${message.unread ? "text-primary" : "text-muted"}`}>{mailDate(message.date)}</time></div>
         <p className={`mt-1 truncate text-sm ${message.unread ? "font-semibold text-foreground" : "text-muted"}`}>{message.subject}</p>
-        <div className="mt-1.5 flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[11px] text-muted/70">{message.from?.address || "Email message"}</p>{message.flagged && <span className="text-amber-400" title="Flagged">★</span>}{message.size ? <span className="shrink-0 text-[10px] text-muted/60">{fileSize(message.size)}</span> : null}</div>
+        <div className="mt-1.5 flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-[11px] text-muted/70">{opening ? "Opening message..." : message.from?.address || "Email message"}</p>{opening && <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />}{message.flagged && <span className="text-amber-400" title="Flagged">★</span>}{message.size ? <span className="shrink-0 text-[10px] text-muted/60">{fileSize(message.size)}</span> : null}</div>
       </div>
     </div>
   </button>;
@@ -278,7 +302,7 @@ function ComposeDialog({ account, onClose }: { account: Account; onClose: () => 
       </header>
       <div className="flex-1 overflow-y-auto px-5 py-3 sm:px-6">
         {(["to", "cc", "subject"] as const).map((key) => <label key={key} className="flex items-center border-b border-border/60"><span className="w-16 text-[11px] font-bold uppercase tracking-wider text-muted">{key}</span><input type={key === "to" || key === "cc" ? "email" : "text"} placeholder={key === "to" ? "recipient@company.com" : key === "subject" ? "Add a subject" : "Optional"} value={form[key]} onChange={(event) => setForm((old) => ({ ...old, [key]: event.target.value }))} className="h-12 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/55" /></label>)}
-        <textarea autoFocus rows={12} placeholder="Write your message..." value={form.text} onChange={(event) => setForm((old) => ({ ...old, text: event.target.value }))} className="mt-5 min-h-64 w-full resize-none bg-transparent text-[15px] leading-7 outline-none placeholder:text-muted/55" />
+        <textarea autoFocus rows={12} placeholder="Write your message..." value={form.text} onChange={(event) => setForm((old) => ({ ...old, text: event.target.value }))} className="no-focus-ring mt-5 min-h-64 w-full resize-none rounded-2xl bg-transparent px-3 py-2 text-[15px] leading-7 outline-none transition-colors placeholder:text-muted/55 focus:bg-background/45" />
         {error && <p className="mt-3 rounded-xl border border-danger/20 bg-danger/8 px-3.5 py-2.5 text-sm text-danger">{error}</p>}
       </div>
       <footer className="flex items-center justify-between gap-3 border-t border-border/60 bg-surface-2/20 px-5 py-3.5 sm:px-6"><p className="hidden text-xs text-muted sm:block">Sent securely through {account.smtpHost}</p><div className="ml-auto flex gap-2"><button onClick={onClose} className="h-10 rounded-xl px-4 text-sm font-semibold text-muted transition hover:bg-surface-2 hover:text-foreground">Discard</button><button disabled={busy || !form.to.trim() || !form.subject.trim() || !form.text.trim()} onClick={() => void send()} className="flex h-10 items-center gap-2 rounded-xl bg-linear-to-r from-primary to-primary/80 px-5 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50">{busy ? "Sending..." : "Send email"}<Icon d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></button></div></footer>

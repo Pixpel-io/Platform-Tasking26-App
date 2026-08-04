@@ -3,13 +3,14 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { askCleotilda } from "./cleotilda-actions";
+import type { CleotildaEmailDraft } from "@/lib/cleotilda-shared";
+import { askCleotilda, sendCleotildaEmail } from "./cleotilda-actions";
 
 type PanelMessage = { role: "user" | "assistant"; content: string };
 
 const SUGGESTIONS = [
   "What can you do?",
-  "List our boards",
+  "Draft an email for me",
   "Create a task for me",
 ];
 
@@ -41,6 +42,8 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
   const [messages, setMessages] = useState<PanelMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<CleotildaEmailDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -194,6 +197,7 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
       if (res.error) setError(res.error);
       else if (res.reply) {
         setMessages((prev) => [...prev, { role: "assistant", content: res.reply! }]);
+        if (res.pendingEmail) setPendingEmail(res.pendingEmail);
         // Something was created (project/group/task) - re-render the
         // server-side sidebar/boards so it appears without a manual reload.
         if (res.mutated) router.refresh();
@@ -203,6 +207,28 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
     } finally {
       setThinking(false);
       inputRef.current?.focus();
+    }
+  }
+
+  async function confirmEmailSend() {
+    if (!pendingEmail || emailSending) return;
+    setEmailSending(true);
+    setError(null);
+    try {
+      const result = await sendCleotildaEmail(workspaceId, pendingEmail);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: `Email sent successfully to ${pendingEmail.to}.`,
+      }]);
+      setPendingEmail(null);
+    } catch {
+      setError("The email could not be sent. Please try again.");
+    } finally {
+      setEmailSending(false);
     }
   }
 
@@ -250,6 +276,7 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
               <button
                 onClick={() => {
                   setMessages([]);
+                  setPendingEmail(null);
                   setError(null);
                   try {
                     sessionStorage.removeItem(storageKey);
@@ -285,8 +312,8 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
                   Hi, I&apos;m Cleotilda
                 </p>
                 <p className="mt-1 max-w-60 text-xs text-muted">
-                  I can create tasks, send DMs, look up boards and members,
-                  and answer questions about your workspace.
+                  I can manage tasks and boards, send DMs, draft and send
+                  emails with your approval, and answer workspace questions.
                 </p>
                 <div className="mt-4 flex flex-col gap-1.5">
                   {SUGGESTIONS.map((s) => (
@@ -318,6 +345,27 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
                 </div>
               </div>
             ))}
+
+            {pendingEmail && (
+              <div className="overflow-hidden rounded-2xl border border-primary/25 bg-background shadow-lg shadow-primary/5">
+                <div className="flex items-center gap-2 border-b border-border/70 bg-primary/7 px-3.5 py-2.5">
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-primary/12 text-primary">
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 6h16v12H4zM4 7l8 6 8-6" /></svg>
+                  </span>
+                  <div className="min-w-0 flex-1"><p className="text-xs font-bold text-foreground">Email ready for review</p><p className="truncate text-[10px] text-muted">From {pendingEmail.from}</p></div>
+                </div>
+                <div className="space-y-2 px-3.5 py-3 text-xs">
+                  <p className="wrap-break-word"><span className="font-semibold text-muted">To:</span> <span className="text-foreground">{pendingEmail.to}</span></p>
+                  {pendingEmail.cc && <p className="wrap-break-word"><span className="font-semibold text-muted">Cc:</span> <span className="text-foreground">{pendingEmail.cc}</span></p>}
+                  <p className="wrap-break-word"><span className="font-semibold text-muted">Subject:</span> <span className="font-semibold text-foreground">{pendingEmail.subject}</span></p>
+                  <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-xl border border-border/60 bg-surface/60 p-3 font-sans text-xs leading-5 text-foreground">{pendingEmail.text}</pre>
+                </div>
+                <div className="flex items-center justify-end gap-2 border-t border-border/70 px-3 py-2.5">
+                  <button onClick={() => setPendingEmail(null)} disabled={emailSending} className="h-8 rounded-lg px-3 text-xs font-semibold text-muted transition hover:bg-surface-2 hover:text-foreground disabled:opacity-50">Cancel</button>
+                  <button onClick={() => void confirmEmailSend()} disabled={emailSending} className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/20 transition hover:opacity-90 disabled:opacity-50">{emailSending ? "Sending..." : "Send email"}</button>
+                </div>
+              </div>
+            )}
 
             {thinking && (
               <div className="flex justify-start">

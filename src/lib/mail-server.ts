@@ -108,6 +108,8 @@ export async function getMailAccount(userId: string, accountId: string): Promise
 }
 
 type MailEndpoint = { address: string; servername: string };
+const MAIL_ENDPOINT_TTL = 5 * 60_000;
+const mailEndpointCache = new Map<string, { endpoint: MailEndpoint; expiresAt: number }>();
 
 function imapClient(
   account: StoredMailAccount | MailAccountInput,
@@ -166,6 +168,8 @@ async function resolvePublicMailHost(host: string): Promise<MailEndpoint> {
   if (!normalized || normalized === "localhost" || normalized.endsWith(".local")) {
     throw new Error("Private or local mail servers are not allowed.");
   }
+  const cached = mailEndpointCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) return cached.endpoint;
   const addresses = isIP(normalized)
     ? [{ address: normalized }]
     : await lookup(normalized, { all: true });
@@ -174,7 +178,9 @@ async function resolvePublicMailHost(host: string): Promise<MailEndpoint> {
   }
   // Connect to the already-validated address instead of resolving the host a
   // second time inside the mail library (which would permit DNS rebinding).
-  return { address: addresses[0].address, servername: normalized };
+  const endpoint = { address: addresses[0].address, servername: normalized };
+  mailEndpointCache.set(normalized, { endpoint, expiresAt: Date.now() + MAIL_ENDPOINT_TTL });
+  return endpoint;
 }
 
 export async function verifyMailConnection(input: MailAccountInput) {

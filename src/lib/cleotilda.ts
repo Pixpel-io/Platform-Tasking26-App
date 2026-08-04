@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { CLEOTILDA_VIA } from "@/lib/cleotilda-shared";
+import { CLEOTILDA_VIA, type CleotildaEmailDraft } from "@/lib/cleotilda-shared";
+import { listMailAccounts } from "@/lib/mail-server";
 
 // Cleotilda - the workspace AI assistant, powered by Kimi (Moonshot AI's
 // OpenAI-compatible API). Triggered when a message mentions @cleotilda; it can
@@ -23,6 +24,7 @@ type RoomTarget = {
   channelId?: string;
   conversationId?: string;
   inferredSourceMessageId?: string;
+  panel?: boolean;
 };
 
 type SbClient = Awaited<ReturnType<typeof createClient>>;
@@ -39,6 +41,56 @@ type ChatMessage =
   | { role: "tool"; tool_call_id: string; content: string };
 
 const TOOLS = [
+  {
+    type: "function" as const,
+    function: {
+      name: "search_workspace",
+      description:
+        "Search visible tasks and chat messages in the current workspace by a literal phrase. Use this to find context before answering questions like 'where did we discuss X?' or 'is there already a task for X?'.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "A specific phrase, name or keyword to find" } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "get_my_work_summary",
+      description:
+        "Get the requester's assigned tasks across this workspace, grouped by overdue, due soon, open and completed. Use for daily plans, priorities, workload and 'what should I work on?' questions.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "list_mail_accounts",
+      description:
+        "List the requester's connected mailboxes. Use this before preparing an email so the user sends from the correct account.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "prepare_email",
+      description:
+        "Prepare an email for explicit user review in the Cleotilda panel. This DOES NOT send it. Call list_mail_accounts first, then include a complete subject and body. The UI will show a Send email confirmation button.",
+      parameters: {
+        type: "object",
+        properties: {
+          account_id: { type: "string", description: "Sender mailbox id from list_mail_accounts" },
+          to: { type: "string", description: "Recipient email address(es), comma separated" },
+          cc: { type: "string", description: "Optional CC address(es), comma separated" },
+          subject: { type: "string", description: "Complete email subject" },
+          text: { type: "string", description: "Complete plain-text email body" },
+        },
+        required: ["account_id", "to", "subject", "text"],
+      },
+    },
+  },
   {
     type: "function" as const,
     function: {
@@ -333,6 +385,108 @@ async function runTool(
   // the same "last position" and would otherwise collide on the same slot.
   seq = 0,
 ): Promise<string> {
+  if (name === "search_workspace") {
+    const phrase = String(input.query ?? "").trim().slice(0, 100);
+    if (phrase.length < 2) return JSON.stringify({ error: "search query must be at least 2 characters" });
+    const escaped = phrase.replace(/[%_\\]/g, (char) => `\\${char}`);
+    const pattern = `%${escaped}%`;
+    const [{ data: titleMatches }, { data: descriptionMatches }, { data: messages }] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, title, description, priority, due_date, completed_at, projects!inner(id, name, workspace_id)")
+        .eq("projects.workspace_id", target.workspaceId)
+        .is("deleted_at", null)
+        .ilike("title", pattern)
+        .limit(20),
+      supabase
+        .from("tasks")
+        .select("id, title, description, priority, due_date, completed_at, projects!inner(id, name, workspace_id)")
+        .eq("projects.workspace_id", target.workspaceId)
+        .is("deleted_at", null)
+        .ilike("description", pattern)
+        .limit(20),
+      supabase
+        .from("messages")
+        .select("id, body, created_at, channel_id, conversation_id, profiles!messages_user_id_fkey(full_name, email)")
+        .eq("workspace_id", target.workspaceId)
+        .is("deleted_at", null)
+        .ilike("body", pattern)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+    const taskMatches = [...(titleMatches ?? []), ...(descriptionMatches ?? [])];
+    const tasks = [...new Map(taskMatches.map((task) => [task.id, task])).values()].slice(0, 20);
+    return JSON.stringify({ tasks: tasks ?? [], messages: messages ?? [] });
+  }
+
+  if (name === "get_my_work_summary") {
+    const [{ data: projects, error: projectsError }, { data: assignments, error: assignmentsError }] = await Promise.all([
+      supabase
+        .from("projects")
+        .select("id, name")
+        .eq("workspace_id", target.workspaceId)
+        .is("deleted_at", null),
+      supabase
+      .from("task_assignees")
+      .select("task_id")
+      .eq("user_id", userId)
+      .limit(500),
+    ]);
+    if (projectsError || assignmentsError) {
+      return JSON.stringify({ error: projectsError?.message ?? assignmentsError?.message });
+    }
+    const projectIds = (projects ?? []).map((project) => project.id);
+    const taskIds = (assignments ?? []).map((assignment) => assignment.task_id);
+    if (projectIds.length === 0 || taskIds.length === 0) {
+      return JSON.stringify({ overdue: [], due_soon: [], open_without_due_date: [], recently_completed: [] });
+    }
+    const { data: tasks, error: tasksError } = await supabase
+      .from("tasks")
+      .select("id, project_id, title, priority, due_date, completed_at")
+      .in("id", taskIds)
+      .in("project_id", projectIds)
+      .is("deleted_at", null)
+      .limit(200);
+    if (tasksError) return JSON.stringify({ error: tasksError.message });
+    const projectNames = new Map((projects ?? []).map((project) => [project.id, project.name]));
+    const visibleTasks = (tasks ?? []).map((task) => ({ ...task, project_name: projectNames.get(task.project_id) ?? "Unknown board" }));
+    const today = new Date().toISOString().slice(0, 10);
+    return JSON.stringify({
+      overdue: visibleTasks.filter((task) => !task.completed_at && task.due_date && task.due_date < today),
+      due_soon: visibleTasks.filter((task) => !task.completed_at && task.due_date && task.due_date >= today),
+      open_without_due_date: visibleTasks.filter((task) => !task.completed_at && !task.due_date),
+      recently_completed: visibleTasks.filter((task) => task.completed_at).slice(0, 20),
+    });
+  }
+
+  if (name === "list_mail_accounts") {
+    const accounts = await listMailAccounts(userId);
+    return JSON.stringify(accounts.map((account) => ({
+      id: account.id,
+      email: account.email,
+      display_name: account.display_name,
+    })));
+  }
+
+  if (name === "prepare_email") {
+    if (!target.panel) {
+      return JSON.stringify({ error: "Email sending requires the private Cleotilda assistant panel so the requester can review and confirm the draft." });
+    }
+    const accountId = String(input.account_id ?? "").trim();
+    const to = String(input.to ?? "").trim();
+    const cc = String(input.cc ?? "").trim();
+    const subject = String(input.subject ?? "").trim();
+    const text = String(input.text ?? "").trim();
+    if (!accountId || !to || !subject || !text) {
+      return JSON.stringify({ error: "account_id, to, subject and text are required" });
+    }
+    if (to.length > 2000 || cc.length > 2000 || subject.length > 998 || text.length > 900000 || /[\r\n]/.test(subject)) {
+      return JSON.stringify({ error: "email fields exceed the allowed size" });
+    }
+    const account = (await listMailAccounts(userId)).find((item) => item.id === accountId);
+    if (!account) return JSON.stringify({ error: "sender mailbox not found; call list_mail_accounts again" });
+    return JSON.stringify({ ok: true, draft_ready: true, from: account.email, account_id: accountId, to, cc, subject, text });
+  }
   if (name === "list_projects") {
     const { data: projects } = await supabase
       .from("projects")
@@ -866,6 +1020,7 @@ async function kimiChat(
       "content-type": "application/json",
       authorization: `Bearer ${process.env.KIMI_API_KEY}`,
     },
+    signal: AbortSignal.timeout(60000),
     body: JSON.stringify({
       model: MODEL,
       // Large enough to hold a big batch of tool calls in one response (e.g.
@@ -923,6 +1078,8 @@ const RULES = (
   today: string,
 ) => `- Be brief and friendly, like a helpful coworker on chat. A few sentences at most.
 - Your tools ACT on the workspace. Creation: create_project (new board), create_group (new chat channel), create_task (work item), send_dm. Discovery: list_projects, list_members, list_tasks. Task edits: update_task, assign_task, unassign_task, delete_task. Board membership: add_project_members, remove_project_member. Use them to actually do things instead of describing how the user could do them. Never say you can't do something one of your tools already covers.
+- EMAIL: In the private assistant panel you can list connected mailboxes and prepare polished emails. Call list_mail_accounts, resolve recipients from the user's request or list_members, then call prepare_email with the complete draft. Never claim an email was sent when it was only prepared; the user must review it and press the panel's Send email button. In a public room, provide a draft but direct the requester to the private panel to send it.
+- CONTEXT AND PLANNING: Use search_workspace before claiming something was never discussed or no related task exists. Use get_my_work_summary for priorities, overdue work, daily plans and workload questions. Base summaries on tool data, clearly distinguish facts from suggestions, and do not invent statuses.
 - CRITICAL - avoid duplicates. Before you create_task, ask: is this the same task the user (or you) already mentioned in this conversation? If the user is following up ("assign it to Bob", "change the due date", "delete that report task", "make it urgent"), that is almost certainly an EXISTING task. Call list_tasks (with a query substring if useful) to find the id and use update_task / assign_task / delete_task on it. Only call create_task when the user is asking for a genuinely new work item. The same rule applies to boards: don't create_project if one with that name already exists in list_projects - work with the existing one.
 - Pick the right tool: "make/create a project X" means create_project. "Make a group/channel X" means create_group. "Send a message to X" / "X ko msg karo" means send_dm. "Assign X to that task" / "reassign" means assign_task. "Remove X from the task" means unassign_task. "Delete that task" means delete_task. "Add X to the board" means add_project_members. "Remove X from the board" means remove_project_member.
 - CLEANING DUPLICATES: When the user asks to "remove duplicate tasks", "delete duplicates", or similar on a board, they mean tasks that LOOK the same to a human reader, NOT tasks whose title contains the word "duplicate". Do not compare titles as raw strings - two titles that only differ in quote style ("Replace 'long dash'" vs "Replace long dash"), case, extra whitespace, or trailing punctuation ARE duplicates.
@@ -953,7 +1110,7 @@ export async function chatWithCleotilda(args: {
   userId: string;
   userName: string;
   history: { role: "user" | "assistant"; content: string }[];
-}): Promise<{ reply: string; mutated: boolean }> {
+}): Promise<{ reply: string; mutated: boolean; pendingEmail?: CleotildaEmailDraft }> {
   if (!cleotildaEnabled()) {
     return {
       reply: "Cleotilda isn't configured yet (missing API key).",
@@ -977,7 +1134,7 @@ ${RULES(today)}`;
     ),
   ];
 
-  const target: RoomTarget = { workspaceId: args.workspaceId };
+  const target: RoomTarget = { workspaceId: args.workspaceId, panel: true };
   const MUTATING = new Set([
     "create_project",
     "create_group",
@@ -993,6 +1150,7 @@ ${RULES(today)}`;
 
   let reply = "";
   let mutated = false;
+  let pendingEmail: CleotildaEmailDraft | undefined;
   for (let i = 0; i < 10; i++) {
     const msg = await kimiChat(messages);
 
@@ -1034,12 +1192,23 @@ ${RULES(today)}`;
                 input,
                 seq,
               );
-        return { id: tc.id, name: tc.function.name, result };
+        return { id: tc.id, name: tc.function.name, input, result };
       }),
     );
     for (const r of results) {
       if (MUTATING.has(r.name) && r.result.includes('"ok":true')) {
         mutated = true;
+      }
+      if (r.name === "prepare_email" && r.input && r.result.includes('"draft_ready":true')) {
+        const prepared = JSON.parse(r.result) as { from: string };
+        pendingEmail = {
+          accountId: String(r.input.account_id ?? ""),
+          from: prepared.from,
+          to: String(r.input.to ?? ""),
+          cc: String(r.input.cc ?? ""),
+          subject: String(r.input.subject ?? ""),
+          text: String(r.input.text ?? ""),
+        };
       }
       messages.push({ role: "tool", tool_call_id: r.id, content: r.result });
     }
@@ -1048,7 +1217,7 @@ ${RULES(today)}`;
   reply = reply || "Sorry, I couldn't finish that one. Try rephrasing?";
   const lastUser = args.history[args.history.length - 1]?.content ?? "";
   reply = await ensureUserLanguage(reply, lastUser);
-  return { reply, mutated };
+  return { reply, mutated, pendingEmail };
 }
 
 // Fire-and-forget entry point. Called from sendMessage after the user's

@@ -209,7 +209,7 @@ export function Sidebar({
   return (
     <aside className="relative flex h-dvh w-64 shrink-0 flex-col border-r border-border bg-linear-to-b from-surface to-background/60">
       {/* Workspace switcher */}
-      <div className="relative border-b border-border/70 p-3">
+      <div className="relative flex h-24 shrink-0 items-center border-b border-border/70 p-3">
         <button
           onClick={() => setSwitcherOpen((o) => !o)}
           className="group flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-2 text-left transition-colors hover:border-border hover:bg-surface-2"

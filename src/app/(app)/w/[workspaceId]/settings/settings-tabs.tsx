@@ -15,7 +15,7 @@ export function SettingsTabs({ base }: { base: string }) {
   ];
 
   return (
-    <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
+    <nav className="mb-6 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-border">
       {tabs.map((t) => {
         const active = t.exact
           ? pathname === t.href
