@@ -2,17 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import Image from "next/image";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { getRealtimeClient } from "@/lib/supabase/client";
 
 type Account = { id: string; email: string; displayName: string | null; imapHost: string; imapPort: number; imapSecure: boolean; smtpHost: string; smtpPort: number; smtpSecure: boolean; username: string; notificationsEnabled: boolean };
 type MailRow = { uid: number; subject: string; from: { name?: string; address?: string } | null; date: string; unread: boolean; flagged?: boolean; size?: number };
-type MailDetail = { uid: number; subject: string; from: string; to: string; cc: string; date: string; text: string; attachments: { filename: string; contentType: string; size: number }[] };
+type MailDetail = { uid: number; subject: string; from: string; to: string; cc: string; date: string; text: string; html: string | null; attachments: { filename: string; contentType: string; size: number }[] };
+type MailPage = { messages: MailRow[]; hasMore: boolean; nextBeforeUid: number | null };
 
 const MAIL_CACHE_TTL = 30_000;
 const DETAIL_CACHE_TTL = 5 * 60_000;
-const inboxCache = new Map<string, { messages: MailRow[]; at: number }>();
+const inboxCache = new Map<string, MailPage & { at: number }>();
 const detailCache = new Map<string, { message: MailDetail; at: number }>();
 const detailRequests = new Map<string, Promise<MailDetail>>();
 
@@ -24,6 +26,8 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 function Icon({ d, className = "h-4 w-4" }: { d: string; className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}><path d={d} /></svg>; }
 function initials(value: string) { return value.split(/\s|@/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "M"; }
+function emailAddress(value: string) { return value.match(/<([^<>]+@[^<>]+)>/)?.[1] ?? value.match(/[\w.!#$%&'*+/=?^`{|}~-]+@[\w.-]+/)?.[0] ?? ""; }
+function senderIconUrl(value: string) { const domain = emailAddress(value).split("@")[1]?.toLowerCase(); return domain ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128` : ""; }
 function mailDate(value: string) { if (!value) return ""; const date = new Date(value); return date.toDateString() === new Date().toDateString() ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : date.toLocaleDateString([], { month: "short", day: "numeric" }); }
 function fullMailDate(value: string) { if (!value) return ""; return new Date(value).toLocaleString([], { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
 function fileSize(value: number) { if (!value) return ""; if (value < 1024) return `${value} B`; if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`; return `${(value / 1024 / 1024).toFixed(1)} MB`; }
@@ -37,12 +41,16 @@ export function MailClient() {
   const [adding, setAdding] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextBeforeUid, setNextBeforeUid] = useState<number | null>(null);
   const [openingUid, setOpeningUid] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [mailNotice, setMailNotice] = useState<{ title: string; body: string } | null>(null);
   const inboxRequestSequence = useRef(0);
   const detailRequestSequence = useRef(0);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   const account = accounts?.find((item) => item.id === activeId) ?? accounts?.[0] ?? null;
   const filtered = useMemo(() => { const query = search.trim().toLowerCase(); return query ? messages.filter((message) => [message.subject, message.from?.name, message.from?.address].some((value) => value?.toLowerCase().includes(query))) : messages; }, [messages, search]);
   const unread = messages.filter((message) => message.unread).length;
@@ -50,18 +58,61 @@ export function MailClient() {
   const loadMessages = useCallback(async (accountId: string, force = false) => {
     const requestId = ++inboxRequestSequence.current;
     const cached = inboxCache.get(accountId);
-    if (cached) setMessages(cached.messages);
-    else setMessages([]);
+    if (cached) {
+      setMessages(cached.messages);
+      setHasMore(cached.hasMore);
+      setNextBeforeUid(cached.nextBeforeUid);
+    } else {
+      setMessages([]);
+      setHasMore(false);
+      setNextBeforeUid(null);
+    }
     if (!force && cached && Date.now() - cached.at < MAIL_CACHE_TTL) return;
     setLoading(true); setError("");
     try {
-      const next = (await api<{ messages: MailRow[] }>(`/api/mail/messages?accountId=${encodeURIComponent(accountId)}`)).messages;
-      inboxCache.set(accountId, { messages: next, at: Date.now() });
-      if (requestId === inboxRequestSequence.current) setMessages(next);
+      const page = await api<MailPage>(`/api/mail/messages?accountId=${encodeURIComponent(accountId)}&limit=30`);
+      inboxCache.set(accountId, { ...page, at: Date.now() });
+      if (requestId === inboxRequestSequence.current) {
+        setMessages(page.messages);
+        setHasMore(page.hasMore);
+        setNextBeforeUid(page.nextBeforeUid);
+      }
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load inbox."); }
     finally { if (requestId === inboxRequestSequence.current) setLoading(false); }
   }, []);
+
+  const loadMoreMessages = useCallback(async () => {
+    if (!account || loading || loadingMore || !hasMore || !nextBeforeUid || search.trim()) return;
+    const accountId = account.id;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const page = await api<MailPage>(`/api/mail/messages?accountId=${encodeURIComponent(accountId)}&limit=30&beforeUid=${nextBeforeUid}`);
+      setMessages((current) => {
+        const seen = new Set(current.map((message) => message.uid));
+        const combined = [...current, ...page.messages.filter((message) => !seen.has(message.uid))];
+        inboxCache.set(accountId, { ...page, messages: combined, at: Date.now() });
+        return combined;
+      });
+      setHasMore(page.hasMore);
+      setNextBeforeUid(page.nextBeforeUid);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load more emails.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [account, hasMore, loading, loadingMore, nextBeforeUid, search]);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) void loadMoreMessages();
+    }, { rootMargin: "240px 0px" });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [loadMoreMessages]);
 
   useEffect(() => { api<{ accounts: Account[] }>("/api/mail/account").then(({ accounts: values }) => { setAccounts(values); if (values.length) { const saved = window.localStorage.getItem("tasking-active-mail-account"); const next = values.find((item) => item.id === saved)?.id ?? values[0].id; setActiveId(next); void loadMessages(next); } }).catch((cause) => { setAccounts([]); setError(cause instanceof Error ? cause.message : "Could not load mail settings."); }); }, [loadMessages]);
 
@@ -221,7 +272,7 @@ export function MailClient() {
           <div className="mb-2.5 flex items-center justify-between px-0.5"><p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">Inbox</p><span className="text-[11px] font-medium text-muted">{filtered.length} messages</span></div>
           <label className="flex h-11 items-center gap-2.5 rounded-xl border border-border/80 bg-background/65 px-3.5 text-muted shadow-sm transition focus-within:border-primary/45 focus-within:ring-3 focus-within:ring-primary/8"><Icon d="M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0z" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search sender or subject" className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted/70" />{search && <button aria-label="Clear search" onClick={() => setSearch("")} className="grid h-6 w-6 place-items-center rounded-md hover:bg-surface-2"><Icon d="M18 6L6 18M6 6l12 12" className="h-3.5 w-3.5" /></button>}</label>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2.5">{loading && messages.length === 0 && <div className="space-y-2">{[0, 1, 2, 3].map((item) => <div key={item} className="h-25 animate-pulse rounded-2xl border border-border/40 bg-surface-2/70" />)}</div>}{!loading && messages.length === 0 && <EmptyInbox />}{!loading && messages.length > 0 && filtered.length === 0 && <p className="p-8 text-center text-sm text-muted">No messages match your search.</p>}{filtered.map((message) => <MessageRow key={message.uid} message={message} active={selected?.uid === message.uid} opening={openingUid === message.uid} onWarm={() => prefetchMessage(message.uid)} onOpen={() => void openMessage(message.uid)} />)}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2.5">{loading && messages.length === 0 && <div className="space-y-2">{[0, 1, 2, 3].map((item) => <div key={item} className="h-25 animate-pulse rounded-2xl border border-border/40 bg-surface-2/70" />)}</div>}{!loading && messages.length === 0 && <EmptyInbox />}{!loading && messages.length > 0 && filtered.length === 0 && <p className="p-8 text-center text-sm text-muted">No messages match your search.</p>}{filtered.map((message) => <MessageRow key={message.uid} message={message} active={selected?.uid === message.uid} opening={openingUid === message.uid} onWarm={() => prefetchMessage(message.uid)} onOpen={() => void openMessage(message.uid)} />)}{!search.trim() && <div ref={loadMoreRef} className="grid min-h-14 place-items-center py-3">{loadingMore ? <span className="flex items-center gap-2 text-xs text-muted"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />Loading older emails...</span> : hasMore ? <button onClick={() => void loadMoreMessages()} className="rounded-lg px-3 py-2 text-xs font-semibold text-muted hover:bg-surface-2 hover:text-foreground">Load older emails</button> : messages.length > 0 ? <span className="text-[11px] text-muted/65">You’ve reached the end of your inbox</span> : null}</div>}</div>
       </aside>
       <main className={`${selected ? "block" : "hidden md:block"} overflow-y-auto bg-[radial-gradient(circle_at_top,var(--color-primary)/0.035,transparent_32%)] p-3 sm:p-5 lg:p-8 xl:p-10`}>{selected ? <MessageDetail message={selected} onBack={() => setSelected(null)} /> : <NoSelection />}</main>
     </div>
@@ -240,7 +291,7 @@ function MessageRow({ message, active, opening, onOpen, onWarm }: { message: Mai
   return <button onPointerDown={onWarm} onClick={onOpen} aria-busy={opening} className={`group relative mb-1.5 block w-full overflow-hidden rounded-2xl border p-3.5 text-left transition-all duration-200 ${active ? "border-primary/30 bg-primary/9 shadow-sm shadow-primary/5" : "border-transparent hover:border-border/70 hover:bg-surface-2/75"}`}>
     {message.unread && <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-primary" />}
     <div className="flex items-start gap-3">
-      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xs font-bold shadow-sm transition-transform group-hover:scale-[1.03] ${message.unread ? "bg-linear-to-br from-primary to-primary/70 text-primary-foreground" : "border border-border/60 bg-surface-2 text-muted"}`}>{initials(sender)}</span>
+      <MailAvatar value={message.from?.address || sender} label={sender} unread={message.unread} size="sm" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2"><p className={`truncate text-sm ${message.unread ? "font-bold text-foreground" : "font-semibold text-foreground/85"}`}>{sender}</p><time className={`shrink-0 text-[10px] font-medium ${message.unread ? "text-primary" : "text-muted"}`}>{mailDate(message.date)}</time></div>
         <p className={`mt-1 truncate text-sm ${message.unread ? "font-semibold text-foreground" : "text-muted"}`}>{message.subject}</p>
@@ -250,23 +301,71 @@ function MessageRow({ message, active, opening, onOpen, onWarm }: { message: Mai
   </button>;
 }
 function EmptyInbox() { return <div className="grid min-h-64 place-items-center px-8 text-center"><div><span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary"><Icon d="M4 6h16v12H4zM4 7l8 6 8-6" /></span><p className="mt-4 text-sm font-semibold">Your inbox is clear</p><p className="mt-1 text-xs text-muted">New messages will appear here.</p></div></div>; }
+function MailAvatar({ value, label, unread = false, size = "md" }: { value: string; label: string; unread?: boolean; size?: "sm" | "md" }) {
+  const [failed, setFailed] = useState(false);
+  const iconUrl = senderIconUrl(value);
+  const pixels = size === "sm" ? 40 : 44;
+  return <span className={`relative grid ${size === "sm" ? "h-10 w-10 rounded-xl" : "h-11 w-11 rounded-2xl"} shrink-0 place-items-center overflow-hidden text-xs font-bold shadow-sm transition-transform group-hover:scale-[1.03] ${unread ? "bg-linear-to-br from-primary to-primary/70 text-primary-foreground" : "border border-border/60 bg-surface-2 text-muted"}`}>
+    {iconUrl && !failed ? <Image src={iconUrl} alt="" width={pixels} height={pixels} className="h-full w-full bg-white object-contain p-1.5" onError={() => setFailed(true)} /> : initials(label)}
+  </span>;
+}
+function EmailBody({ html, text }: { html: string | null; text: string }) {
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState(520);
+  const documentHtml = useMemo(() => {
+    if (!html) return "";
+    const readerHead = `<base target="_blank"><meta name="color-scheme" content="light"><style>html,body{margin:0!important;padding:0!important;min-height:0;background:#fff;color:#202124}body{padding:28px 32px!important;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;overflow-wrap:anywhere}img{max-width:100%!important;height:auto!important}table{max-width:100%!important}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#1a73e8}blockquote{margin-left:0;padding-left:14px;border-left:3px solid #dadce0;color:#5f6368}@media(max-width:600px){body{padding:20px 16px!important}}</style>`;
+    return /<head[\s>]/i.test(html)
+      ? html.replace(/<head([^>]*)>/i, `<head$1>${readerHead}`)
+      : `<!doctype html><html><head>${readerHead}</head><body>${html}</body></html>`;
+  }, [html]);
+
+  const resizeFrame = useCallback(() => {
+    const body = frameRef.current?.contentDocument?.body;
+    const root = frameRef.current?.contentDocument?.documentElement;
+    if (!body || !root) return;
+    setHeight(Math.max(320, Math.min(5000, Math.max(body.scrollHeight, root.scrollHeight))));
+  }, []);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame || !html) return;
+    const onLoad = () => {
+      resizeFrame();
+      const body = frame.contentDocument?.body;
+      if (!body || typeof ResizeObserver === "undefined") return;
+      const observer = new ResizeObserver(resizeFrame);
+      observer.observe(body);
+      frame.dataset.observing = "true";
+      (frame as HTMLIFrameElement & { resizeObserver?: ResizeObserver }).resizeObserver = observer;
+    };
+    frame.addEventListener("load", onLoad);
+    return () => {
+      frame.removeEventListener("load", onLoad);
+      (frame as HTMLIFrameElement & { resizeObserver?: ResizeObserver }).resizeObserver?.disconnect();
+    };
+  }, [html, resizeFrame]);
+
+  if (!html) return <div className="mx-auto max-w-[760px] whitespace-pre-wrap font-sans text-[15.5px] leading-[1.75] text-foreground/90 [overflow-wrap:anywhere]">{text || "This email has no readable body."}</div>;
+  return <iframe ref={frameRef} title="Email content" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer" srcDoc={documentHtml} style={{ height }} className="block w-full border-0 bg-white" />;
+}
 function NoSelection() { return <div className="grid h-full min-h-80 place-items-center text-center"><div className="max-w-xs"><span className="mx-auto grid h-18 w-18 place-items-center rounded-3xl border border-primary/15 bg-linear-to-br from-primary/12 to-primary/4 text-primary shadow-xl shadow-primary/5"><Icon d="M4 6h16v12H4zM4 7l8 6 8-6" className="h-7 w-7" /></span><p className="mt-5 text-lg font-bold tracking-tight">Your inbox, at a glance</p><p className="mt-1.5 text-sm leading-6 text-muted">Choose a message from the inbox to read its full conversation here.</p></div></div>; }
 function MessageDetail({ message, onBack }: { message: MailDetail; onBack: () => void }) {
-  return <article className="mx-auto max-w-4xl overflow-hidden rounded-3xl border border-border/70 bg-surface/90 shadow-xl shadow-black/5 backdrop-blur-sm">
+  return <article className="mx-auto max-w-[920px] overflow-hidden rounded-2xl border border-border/70 bg-surface shadow-lg shadow-black/5">
     <div className="flex items-center justify-between border-b border-border/60 px-3 py-2.5 sm:px-5">
       <button onClick={onBack} className="flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-sm font-semibold text-muted transition hover:bg-surface-2 hover:text-foreground md:hidden"><Icon d="M15 18l-6-6 6-6" />Inbox</button>
       <span className="hidden text-[11px] font-bold uppercase tracking-[0.14em] text-muted md:inline">Message</span>
       <time className="text-[11px] font-medium text-muted">{fullMailDate(message.date)}</time>
     </div>
-    <div className="border-b border-border/60 p-5 sm:p-7 lg:p-9">
-      <h2 className="max-w-3xl text-balance text-xl font-bold leading-tight tracking-[-0.025em] sm:text-2xl lg:text-3xl">{message.subject}</h2>
-      <div className="mt-6 flex items-start gap-3.5">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-primary to-primary/65 text-sm font-bold text-primary-foreground shadow-md shadow-primary/15">{initials(message.from)}</span>
+    <div className="border-b border-border/60 px-5 py-6 sm:px-8 lg:px-10">
+      <h2 className="max-w-[760px] text-pretty text-xl font-semibold leading-snug tracking-[-0.018em] sm:text-2xl">{message.subject}</h2>
+      <div className="mt-5 flex items-start gap-3.5">
+        <MailAvatar value={message.from} label={message.from} unread />
         <div className="min-w-0 flex-1 text-sm"><p className="wrap-break-word font-bold text-foreground">{message.from}</p><p className="mt-0.5 wrap-break-word text-xs leading-5 text-muted"><span className="font-medium text-muted/75">To:</span> {message.to || "Undisclosed recipients"}</p>{message.cc && <p className="wrap-break-word text-xs leading-5 text-muted"><span className="font-medium text-muted/75">Cc:</span> {message.cc}</p>}</div>
       </div>
     </div>
     {message.attachments.length > 0 && <div className="flex flex-wrap gap-2 border-b border-border/60 bg-surface-2/25 px-5 py-3.5 sm:px-7 lg:px-9">{message.attachments.map((item, index) => <span key={`${item.filename}-${index}`} title={item.filename} className="flex max-w-full items-center gap-2 rounded-xl border border-border/80 bg-background/60 px-3 py-2 text-xs shadow-sm"><Icon d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19" /><span className="max-w-52 truncate font-medium">{item.filename}</span><span className="text-muted">{fileSize(item.size)}</span></span>)}</div>}
-    <div className="min-h-80 p-5 sm:p-7 lg:p-9"><pre className="whitespace-pre-wrap wrap-break-word font-sans text-[15px] leading-7 text-foreground/90">{message.text || "This email has no plain-text body."}</pre></div>
+    <div className="min-h-80 overflow-hidden bg-white"><EmailBody html={message.html} text={message.text} /></div>
   </article>;
 }
 

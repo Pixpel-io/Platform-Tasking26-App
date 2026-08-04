@@ -1,4 +1,4 @@
-import { enforceMailRateLimit, listMail, requestUser, sendMail } from "@/lib/mail-server";
+import { enforceMailRateLimit, listMailPage, requestUser, sendMail } from "@/lib/mail-server";
 
 export const runtime = "nodejs";
 
@@ -10,13 +10,15 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const accountId = url.searchParams.get("accountId")?.trim();
     if (!accountId) throw new Error("Choose a mailbox first.");
-    const messages = await listMail(
+    const beforeUidValue = Number(url.searchParams.get("beforeUid"));
+    const page = await listMailPage(
       user.id,
       accountId,
       "INBOX",
       Number(url.searchParams.get("limit") || 30),
+      Number.isSafeInteger(beforeUidValue) && beforeUidValue > 0 ? beforeUidValue : undefined,
     );
-    return Response.json({ messages });
+    return Response.json(page);
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Could not load mail." },

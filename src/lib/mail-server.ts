@@ -283,6 +283,16 @@ export async function syncMailNotifications(userId: string) {
 }
 
 export async function listMail(userId: string, accountId: string, folder = "INBOX", limit = 30) {
+  return (await listMailPage(userId, accountId, folder, limit)).messages;
+}
+
+export async function listMailPage(
+  userId: string,
+  accountId: string,
+  folder = "INBOX",
+  limit = 30,
+  beforeUid?: number,
+) {
   const account = await getMailAccount(userId, accountId);
   if (!account) throw new Error("Connect an email account first.");
   const endpoint = await resolvePublicMailHost(account.imap_host);
@@ -291,12 +301,17 @@ export async function listMail(userId: string, accountId: string, folder = "INBO
     await client.connect();
     await client.mailboxOpen(folder, { readOnly: true });
     const uids = await client.search({ all: true }, { uid: true });
-    if (!uids) return [];
+    if (!uids) return { messages: [], hasMore: false, nextBeforeUid: null };
     const safeLimit = Number.isFinite(limit)
       ? Math.min(Math.max(Math.trunc(limit), 1), 100)
       : 30;
-    const selected = uids.slice(-safeLimit);
-    if (selected.length === 0) return [];
+    const eligibleUids = beforeUid
+      ? uids.filter((uid) => uid < beforeUid)
+      : uids;
+    const selected = eligibleUids.slice(-safeLimit);
+    if (selected.length === 0) {
+      return { messages: [], hasMore: false, nextBeforeUid: null };
+    }
     const rows = await client.fetchAll(selected, {
       uid: true,
       envelope: true,
@@ -304,7 +319,7 @@ export async function listMail(userId: string, accountId: string, folder = "INBO
       internalDate: true,
       size: true,
     }, { uid: true });
-    return rows.reverse().map((message) => ({
+    const messages = rows.reverse().map((message) => ({
       uid: message.uid,
       subject: message.envelope?.subject || "(No subject)",
       from: message.envelope?.from?.[0] ?? null,
@@ -314,6 +329,11 @@ export async function listMail(userId: string, accountId: string, folder = "INBO
       flagged: message.flags?.has("\\Flagged") ?? false,
       size: message.size ?? 0,
     }));
+    return {
+      messages,
+      hasMore: eligibleUids.length > selected.length,
+      nextBeforeUid: selected[0] ?? null,
+    };
   } finally {
     if (client.usable) await client.logout().catch(() => undefined);
   }
