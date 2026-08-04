@@ -5,6 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   disconnectTelegram,
   generateTelegramLinkCode,
+  getTelegramStatus,
   setTelegramPreference,
 } from "./notifications-actions";
 
@@ -25,22 +26,24 @@ export type TelegramConnection = {
 export function TelegramConnectionCard({
   workspaceId,
   botUsername,
-  connection,
+  connection: initialConnection,
 }: {
   workspaceId: string;
   botUsername: string;
   connection: TelegramConnection | null;
 }) {
-  const [code, setCode] = useState<string | null>(
-    connection && !connection.verified_at ? connection.link_code : null,
-  );
-  const [expiresAt, setExpiresAt] = useState<string | null>(
-    connection?.link_code_expires_at ?? null,
+  // The card owns the full connection state so it can transition
+  // "code shown -> Connected" the moment the bot receives /start CODE,
+  // without waiting for a manual page refresh.
+  const [connection, setConnection] = useState<TelegramConnection | null>(
+    initialConnection,
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
 
+  const code = connection && !connection.verified_at ? connection.link_code : null;
+  const expiresAt = connection?.link_code_expires_at ?? null;
   const verified = Boolean(connection?.verified_at);
   const botMissing = !botUsername;
 
@@ -49,6 +52,37 @@ export function TelegramConnectionCard({
     const t = setTimeout(() => setCopied(false), 1500);
     return () => clearTimeout(t);
   }, [copied]);
+
+  // Auto-poll while a code is pending. The moment the bot receives /start
+  // CODE (or a bare code), verified_at is set server-side and this loop
+  // pulls the fresh row - the render then flips to the Connected view.
+  useEffect(() => {
+    if (verified) return;
+    if (!connection?.link_code) return;
+    let cancelled = false;
+    const tick = async () => {
+      const next = await getTelegramStatus();
+      if (cancelled) return;
+      if (next) {
+        setConnection({
+          external_id: next.externalId,
+          link_code: next.linkCode,
+          link_code_expires_at: next.linkCodeExpiresAt,
+          verified_at: next.verifiedAt,
+          mentions_enabled: next.mentionsEnabled,
+          dms_enabled: next.dmsEnabled,
+          group_messages_enabled: next.groupMessagesEnabled,
+          task_events_enabled: next.taskEventsEnabled,
+          last_sent_at: next.lastSentAt,
+        });
+      }
+    };
+    const id = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [verified, connection?.link_code]);
 
   function generate() {
     setError(null);
@@ -59,8 +93,17 @@ export function TelegramConnectionCard({
         return;
       }
       if ("code" in res) {
-        setCode(res.code);
-        setExpiresAt(res.expiresAt);
+        setConnection((prev) => ({
+          external_id: prev?.external_id ?? null,
+          link_code: res.code,
+          link_code_expires_at: res.expiresAt,
+          verified_at: null,
+          mentions_enabled: prev?.mentions_enabled ?? true,
+          dms_enabled: prev?.dms_enabled ?? true,
+          group_messages_enabled: prev?.group_messages_enabled ?? true,
+          task_events_enabled: prev?.task_events_enabled ?? false,
+          last_sent_at: prev?.last_sent_at ?? null,
+        }));
       }
     });
   }
@@ -70,10 +113,7 @@ export function TelegramConnectionCard({
     start(async () => {
       const res = await disconnectTelegram(workspaceId);
       if (res.error) setError(res.error);
-      else {
-        setCode(null);
-        setExpiresAt(null);
-      }
+      else setConnection(null);
     });
   }
 
@@ -86,9 +126,16 @@ export function TelegramConnectionCard({
     value: boolean,
   ) {
     setError(null);
+    // Optimistic update - the toggle flips immediately, no waiting for
+    // the round-trip.
+    setConnection((prev) => (prev ? { ...prev, [key]: value } : prev));
     start(async () => {
       const res = await setTelegramPreference(workspaceId, key, value);
-      if (res.error) setError(res.error);
+      if (res.error) {
+        setError(res.error);
+        // Roll back on failure.
+        setConnection((prev) => (prev ? { ...prev, [key]: !value } : prev));
+      }
     });
   }
 
@@ -205,16 +252,24 @@ export function TelegramConnectionCard({
                 </div>
               </details>
 
-              {expiresAt && (
-                <p className="mt-3 text-xs text-muted">
-                  Code expires{" "}
-                  {new Date(expiresAt).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                  . This page will show &quot;Connected&quot; once you finish.
-                </p>
-              )}
+              <div className="mt-4 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/6 px-3 py-2 text-xs">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-primary/60" />
+                  <span className="relative h-2 w-2 rounded-full bg-primary" />
+                </span>
+                <span className="text-foreground">
+                  Waiting for you to tap Start in Telegram...
+                </span>
+                {expiresAt && (
+                  <span className="ml-auto text-muted">
+                    Expires{" "}
+                    {new Date(expiresAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                )}
+              </div>
             </div>
           ) : null}
 

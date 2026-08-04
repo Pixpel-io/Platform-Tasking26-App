@@ -57,21 +57,6 @@ export async function POST(req: Request) {
   const chatId = String(message.chat.id);
   const text = message.text.trim();
 
-  // Parse `/start CODE` (Telegram sends the payload verbatim as the message
-  // text when the user opens t.me/YourBot?start=CODE).
-  if (text.startsWith("/start")) {
-    const code = text.slice("/start".length).trim().toUpperCase();
-    if (!code) {
-      await replyPlain(
-        chatId,
-        "Welcome to Tasking. Head to Settings → Notifications inside the app and tap 'Connect Telegram' to get your link.",
-      );
-      return NextResponse.json({ ok: true });
-    }
-    await handleStart(chatId, code, message);
-    return NextResponse.json({ ok: true });
-  }
-
   if (text === "/stop" || text === "/disable") {
     await handleStop(chatId);
     return NextResponse.json({ ok: true });
@@ -85,8 +70,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  // Parse `/start CODE` (Telegram sends the payload verbatim as the message
+  // text when the user opens t.me/YourBot?start=CODE) - AND accept a bare
+  // code with no prefix, so users who tap Start without a start param can
+  // still finish the link by copy-pasting the code.
+  const codeCandidate = extractLinkCode(text);
+  if (codeCandidate) {
+    await handleStart(chatId, codeCandidate, message);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (text.startsWith("/start")) {
+    await replyPlain(
+      chatId,
+      "Send the link code from Tasking → Settings → Notifications, or open the app and tap Generate link code.",
+    );
+    return NextResponse.json({ ok: true });
+  }
+
   // Silently ignore other text - the bot is one-way by design.
   return NextResponse.json({ ok: true });
+}
+
+// Pull a link code out of an incoming message. Accepts three shapes:
+//   /start ABC123DEFG   (Telegram's deep-link flow)
+//   ABC123DEFG          (user pasted just the code)
+//   /ABC123DEFG         (user pasted with a leading slash by habit)
+// The code alphabet is the same base32 subset generateLinkCode() uses.
+function extractLinkCode(text: string): string | null {
+  const stripped = text
+    .replace(/^\/start\s+/i, "")
+    .replace(/^\/+/, "")
+    .trim()
+    .toUpperCase();
+  if (/^[BCDFGHJKMNPQRSTVWXYZ23456789]{8,16}$/.test(stripped)) {
+    return stripped;
+  }
+  return null;
 }
 
 async function handleStart(

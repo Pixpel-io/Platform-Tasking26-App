@@ -7,6 +7,44 @@ import { generateLinkCode } from "@/lib/telegram";
 
 type Result = { error?: string };
 
+// Lightweight poll target - the connect UI hits this every couple of seconds
+// while a link code is outstanding, so the moment Telegram runs `/start CODE`
+// the page transitions to "Connected" without a manual refresh.
+export async function getTelegramStatus(): Promise<{
+  externalId: string | null;
+  verifiedAt: string | null;
+  linkCode: string | null;
+  linkCodeExpiresAt: string | null;
+  mentionsEnabled: boolean;
+  dmsEnabled: boolean;
+  groupMessagesEnabled: boolean;
+  taskEventsEnabled: boolean;
+  lastSentAt: string | null;
+} | null> {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("user_notification_channels")
+    .select(
+      "external_id, verified_at, link_code, link_code_expires_at, mentions_enabled, dms_enabled, group_messages_enabled, task_events_enabled, last_sent_at",
+    )
+    .eq("user_id", user.id)
+    .eq("kind", "telegram")
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    externalId: data.external_id,
+    verifiedAt: data.verified_at,
+    linkCode: data.link_code,
+    linkCodeExpiresAt: data.link_code_expires_at,
+    mentionsEnabled: data.mentions_enabled,
+    dmsEnabled: data.dms_enabled,
+    groupMessagesEnabled: data.group_messages_enabled,
+    taskEventsEnabled: data.task_events_enabled,
+    lastSentAt: data.last_sent_at,
+  };
+}
+
 // Generate (or rotate) a Telegram link code for the current user. Codes expire
 // after 30 minutes; if a fresh unclaimed code exists we return it rather than
 // churning through codes when the user just re-opens the settings page.
