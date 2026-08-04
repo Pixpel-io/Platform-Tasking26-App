@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 
 const MENTION_RE = /(@[a-zA-Z0-9._-]+)/g;
 const LINK_RE = /(<[^>\s]+\|[^>]+>|https?:\/\/[^\s<]+)/g;
+const LINK_TOKEN_RE = /(<[^>\s]+\|[^>]+>|https?:\/\/[^\s<]+)/;
 
 // Inline marks, tried in priority order. `code` does not recurse into its
 // inner text; the others do, so *_bold italic_* nests correctly.
@@ -50,7 +51,7 @@ function renderLinksAndMentions(text: string, key: string): ReactNode[] {
           href={href}
           target="_blank"
           rel="noreferrer noopener"
-          className="text-primary underline underline-offset-2 hover:opacity-80"
+          className="break-all text-primary underline underline-offset-2 hover:opacity-80"
         >
           {label}
         </a>,
@@ -77,6 +78,20 @@ function renderLinksAndMentions(text: string, key: string): ReactNode[] {
 }
 
 function renderInline(text: string, key: string): ReactNode[] {
+  // Links are atomic. Protect them before parsing markdown markers because
+  // long query strings commonly contain `_`, `*` or `~`; treating those as
+  // formatting used to split one URL into several partially clickable pieces.
+  const link = LINK_TOKEN_RE.exec(text);
+  if (link?.index !== undefined) {
+    const before = text.slice(0, link.index);
+    const after = text.slice(link.index + link[0].length);
+    return [
+      ...(before ? renderInline(before, `${key}-lb`) : []),
+      ...renderLinksAndMentions(link[0], `${key}-link`),
+      ...(after ? renderInline(after, `${key}-la`) : []),
+    ];
+  }
+
   // Find the earliest inline mark in the text.
   let best: { idx: number; len: number; inner: string; name: string } | null =
     null;
