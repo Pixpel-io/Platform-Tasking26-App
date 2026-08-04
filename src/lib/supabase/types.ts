@@ -67,6 +67,12 @@ export type Notification =
 export interface Database {
   public: {
     Tables: {
+      mail_notifications: {
+        Row: { id: string; user_id: string; account_id: string; uid: number; title: string; body: string; read_at: string | null; created_at: string };
+        Insert: { id?: string; user_id: string; account_id: string; uid: number; title?: string; body?: string; read_at?: string | null; created_at?: string };
+        Update: { title?: string; body?: string; read_at?: string | null };
+        Relationships: [];
+      };
       user_mail_accounts: {
         Row: {
           id: string;
@@ -81,6 +87,8 @@ export interface Database {
           smtp_secure: boolean;
           username: string;
           encrypted_password: string;
+          notifications_enabled: boolean;
+          last_notified_uid: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -97,6 +105,8 @@ export interface Database {
           smtp_secure?: boolean;
           username: string;
           encrypted_password: string;
+          notifications_enabled?: boolean;
+          last_notified_uid?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -111,6 +121,8 @@ export interface Database {
           smtp_secure?: boolean;
           username?: string;
           encrypted_password?: string;
+          notifications_enabled?: boolean;
+          last_notified_uid?: number | null;
           updated_at?: string;
         };
         Relationships: [];

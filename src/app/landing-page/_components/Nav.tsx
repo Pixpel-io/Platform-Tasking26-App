@@ -140,6 +140,22 @@ export function Nav() {
               {l.label}
             </a>
           ))}
+          <div className="mt-1 grid grid-cols-2 gap-2 border-t border-[var(--border)] p-2 pt-3">
+            <a
+              href="https://taskinglife.io/login"
+              onClick={() => setOpen(false)}
+              className="landing-btn-ghost justify-center !px-3 !py-2.5 !text-sm"
+            >
+              Sign in
+            </a>
+            <a
+              href="/landing-page#cta"
+              onClick={() => setOpen(false)}
+              className="landing-btn-primary justify-center !px-3 !py-2.5 !text-sm"
+            >
+              Get started
+            </a>
+          </div>
         </div>
       )}
     </motion.header>

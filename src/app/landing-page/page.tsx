@@ -11,8 +11,11 @@ import { Footer } from "./_components/Footer";
 export default function LandingPage() {
   return (
     <>
+      <a href="#landing-content" className="landing-skip-link">
+        Skip to content
+      </a>
       <Nav />
-      <main>
+      <main id="landing-content">
         <Hero />
         <LogoStrip />
         <Bento />

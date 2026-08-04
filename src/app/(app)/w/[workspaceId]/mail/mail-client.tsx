@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { getRealtimeClient } from "@/lib/supabase/client";
 
-type Account = { id: string; email: string; displayName: string | null; imapHost: string; imapPort: number; imapSecure: boolean; smtpHost: string; smtpPort: number; smtpSecure: boolean; username: string };
+type Account = { id: string; email: string; displayName: string | null; imapHost: string; imapPort: number; imapSecure: boolean; smtpHost: string; smtpPort: number; smtpSecure: boolean; username: string; notificationsEnabled: boolean };
 type MailRow = { uid: number; subject: string; from: { name?: string; address?: string } | null; date: string; unread: boolean; flagged?: boolean; size?: number };
 type MailDetail = { uid: number; subject: string; from: string; to: string; cc: string; date: string; text: string; attachments: { filename: string; contentType: string; size: number }[] };
 
@@ -35,6 +37,7 @@ export function MailClient() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [mailNotice, setMailNotice] = useState<{ title: string; body: string } | null>(null);
   const requestSequence = useRef(0);
   const account = accounts?.find((item) => item.id === activeId) ?? accounts?.[0] ?? null;
   const filtered = useMemo(() => { const query = search.trim().toLowerCase(); return query ? messages.filter((message) => [message.subject, message.from?.name, message.from?.address].some((value) => value?.toLowerCase().includes(query))) : messages; }, [messages, search]);
@@ -57,6 +60,37 @@ export function MailClient() {
   }, []);
 
   useEffect(() => { api<{ accounts: Account[] }>("/api/mail/account").then(({ accounts: values }) => { setAccounts(values); if (values.length) { const saved = window.localStorage.getItem("tasking-active-mail-account"); const next = values.find((item) => item.id === saved)?.id ?? values[0].id; setActiveId(next); void loadMessages(next); } }).catch((cause) => { setAccounts([]); setError(cause instanceof Error ? cause.message : "Could not load mail settings."); }); }, [loadMessages]);
+
+  useEffect(() => {
+    if (!account) return;
+    let cancelled = false;
+    let client: Awaited<ReturnType<typeof getRealtimeClient>> | null = null;
+    let channel: RealtimeChannel | null = null;
+    const accountId = account.id;
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      client = supabase;
+      channel = supabase
+        .channel(`mail-notifications:${accountId}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "mail_notifications", filter: `account_id=eq.${accountId}` }, (payload) => {
+          const row = payload.new as { account_id?: string; title?: string; body?: string };
+          if (row.account_id !== accountId) return;
+          setMailNotice({ title: row.title || "New email", body: row.body || "A new message arrived." });
+          void loadMessages(accountId, true);
+        })
+        .subscribe();
+    });
+    return () => {
+      cancelled = true;
+      if (client && channel) void client.removeChannel(channel);
+    };
+  }, [account, loadMessages]);
+
+  useEffect(() => {
+    if (!mailNotice) return;
+    const timer = window.setTimeout(() => setMailNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [mailNotice]);
 
   function activate(accountId: string) {
     if (accountId === account?.id) return;
@@ -88,12 +122,28 @@ export function MailClient() {
       if (next) { window.localStorage.setItem("tasking-active-mail-account", next.id); void loadMessages(next.id); } else window.localStorage.removeItem("tasking-active-mail-account");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not disconnect mailbox."); }
   }
+  async function toggleMailNotifications() {
+    if (!account) return;
+    const enabled = !account.notificationsEnabled;
+    setAccounts((current) => current?.map((item) => item.id === account.id ? { ...item, notificationsEnabled: enabled } : item));
+    setError("");
+    try {
+      await api("/api/mail/account", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ accountId: account.id, enabled }),
+      });
+    } catch (cause) {
+      setAccounts((current) => current?.map((item) => item.id === account.id ? { ...item, notificationsEnabled: !enabled } : item));
+      setError(cause instanceof Error ? cause.message : "Could not update mail notifications.");
+    }
+  }
 
   if (accounts === undefined) return <div className="grid h-full place-items-center"><div className="flex flex-col items-center gap-3 text-muted"><span className="h-9 w-9 animate-spin rounded-full border-2 border-primary/20 border-t-primary" /><span className="text-sm">Opening your mailbox...</span></div></div>;
   if (!account) return <AccountSetup initialError={error} onConnected={(value) => { setAccounts([value]); setActiveId(value.id); window.localStorage.setItem("tasking-active-mail-account", value.id); void loadMessages(value.id); }} />;
 
-  return <div className="flex h-full min-h-0 flex-col bg-background">
-    <header className="flex min-h-22 items-center justify-between gap-3 border-b border-border/60 bg-surface/75 px-3 py-3 backdrop-blur-xl sm:px-5 md:px-7 lg:pr-32">
+  return <div className="relative flex h-full min-h-0 flex-col bg-background">
+    <header className="flex min-h-22 items-center border-b border-border/60 bg-surface/75 px-4 py-3 backdrop-blur-xl sm:px-5 md:px-7 lg:pr-32">
       <div className="flex min-w-0 items-center gap-3.5">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-primary via-primary to-primary/65 text-primary-foreground shadow-lg shadow-primary/20 ring-1 ring-white/10"><Icon d="M4 6h16v12H4zM4 7l8 6 8-6" className="h-5.5 w-5.5" /></span>
         <div className="min-w-0">
@@ -101,14 +151,25 @@ export function MailClient() {
           <label className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-medium text-muted"><span className="hidden sm:inline">Inbox</span><span className="hidden sm:inline">·</span><select aria-label="Active mailbox" value={account.id} onChange={(event) => activate(event.target.value)} className="min-w-0 max-w-48 truncate bg-transparent font-medium text-muted outline-none transition hover:text-foreground sm:max-w-72">{accounts.map((item) => <option key={item.id} value={item.id}>{item.displayName ? `${item.displayName} - ` : ""}{item.email}</option>)}</select></label>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-        <button aria-label="Add mailbox" title="Add another mailbox" onClick={() => setAdding(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-border/80 bg-background/60 text-muted transition hover:border-primary/30 hover:bg-primary/8 hover:text-primary"><Icon d="M12 5v14M5 12h14" /></button>
-        <button aria-label="Refresh inbox" title="Refresh inbox" disabled={loading} onClick={() => void loadMessages(account.id, true)} className="grid h-10 w-10 place-items-center rounded-xl border border-border/80 bg-background/60 text-muted transition hover:border-primary/30 hover:bg-primary/8 hover:text-primary disabled:opacity-50"><span className={loading ? "animate-spin" : ""}><Icon d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></span></button>
-        <button onClick={() => setCompose(true)} aria-label="Compose email" className="flex h-10 items-center gap-2 rounded-xl bg-linear-to-r from-primary to-primary/80 px-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:-translate-y-0.5 hover:shadow-primary/30 sm:px-4"><Icon d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4z" /><span className="hidden sm:inline">Compose</span></button>
-        <button aria-label="Disconnect mailbox" title="Disconnect active mailbox" onClick={() => setConfirmDisconnect(true)} className="hidden h-10 w-10 place-items-center rounded-xl border border-border/80 bg-background/60 text-muted transition hover:border-danger/30 hover:bg-danger/8 hover:text-danger xl:grid"><Icon d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /></button>
-      </div>
     </header>
+    <nav aria-label="Mailbox actions" className="flex min-h-15 items-center justify-between gap-3 border-b border-border/60 bg-surface/45 px-3 py-2.5 shadow-sm shadow-black/3 backdrop-blur-lg sm:px-5 md:px-7">
+      <div className="flex min-w-0 items-center gap-3">
+        <button onClick={() => setCompose(true)} className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-linear-to-r from-primary to-primary/80 px-4 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/25"><Icon d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4z" /><span>Compose</span></button>
+        <span className="hidden h-7 w-px bg-border/80 sm:block" />
+        <div className="hidden min-w-0 sm:block">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-foreground">Inbox</p>
+          <p className="mt-0.5 truncate text-[11px] text-muted">{account.email}</p>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <button role="switch" aria-checked={account.notificationsEnabled} aria-label={`${account.notificationsEnabled ? "Disable" : "Enable"} new mail notifications`} title={`${account.notificationsEnabled ? "Disable" : "Enable"} new mail notifications`} onClick={() => void toggleMailNotifications()} className={`relative grid h-10 w-10 place-items-center rounded-xl border shadow-sm transition ${account.notificationsEnabled ? "border-primary/35 bg-primary/12 text-primary" : "border-border/80 bg-background/70 text-muted hover:border-primary/30 hover:bg-primary/8 hover:text-primary"}`}><Icon d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M14 21h-4" />{unread > 0 && <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm shadow-primary/30">{unread > 99 ? "99+" : unread}</span>}</button>
+        <button aria-label="Add mailbox" title="Add another mailbox" onClick={() => setAdding(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-border/80 bg-background/70 text-muted shadow-sm transition hover:border-primary/30 hover:bg-primary/8 hover:text-primary"><Icon d="M12 5v14M5 12h14" /></button>
+        <button aria-label="Refresh inbox" title="Refresh inbox" disabled={loading} onClick={() => void loadMessages(account.id, true)} className="grid h-10 w-10 place-items-center rounded-xl border border-border/80 bg-background/70 text-muted shadow-sm transition hover:border-primary/30 hover:bg-primary/8 hover:text-primary disabled:opacity-50"><span className={loading ? "animate-spin" : ""}><Icon d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></span></button>
+        <button aria-label="Disconnect mailbox" title="Disconnect active mailbox" onClick={() => setConfirmDisconnect(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-border/80 bg-background/70 text-muted shadow-sm transition hover:border-danger/30 hover:bg-danger/8 hover:text-danger"><Icon d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /></button>
+      </div>
+    </nav>
     {error && <div className="flex items-center gap-2 border-b border-danger/20 bg-danger/8 px-4 py-2.5 text-sm text-danger sm:px-6"><Icon d="M12 9v4M12 17h.01M10.3 3.7L2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.7a2 2 0 0 0-3.4 0z" />{error}</div>}
+    {mailNotice && <div className="absolute right-4 top-39 z-40 flex w-[min(22rem,calc(100%-2rem))] items-start gap-3 rounded-2xl border border-primary/25 bg-surface/95 p-4 shadow-xl shadow-black/15 backdrop-blur-xl"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary"><Icon d="M4 6h16v12H4zM4 7l8 6 8-6" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-foreground">{mailNotice.title}</p><p className="mt-0.5 truncate text-xs text-muted">{mailNotice.body}</p></div><button aria-label="Dismiss mail notification" onClick={() => setMailNotice(null)} className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground"><Icon d="M18 6L6 18M6 6l12 12" /></button></div>}
     <div className="grid min-h-0 flex-1 md:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[410px_minmax(0,1fr)]">
       <aside className={`${selected ? "hidden md:flex" : "flex"} min-h-0 flex-col border-r border-border/60 bg-surface/25`}>
         <div className="border-b border-border/60 bg-surface/45 p-3.5 backdrop-blur-lg">

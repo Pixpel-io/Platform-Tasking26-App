@@ -4,6 +4,7 @@ import {
   listMailAccounts,
   requestUser,
   saveMailAccount,
+  setMailNotifications,
   verifyMailConnection,
   type MailAccountInput,
 } from "@/lib/mail-server";
@@ -27,7 +28,22 @@ function publicAccount(account: Awaited<ReturnType<typeof listMailAccounts>>[num
     smtpPort: account.smtp_port,
     smtpSecure: account.smtp_secure,
     username: account.username,
+    notificationsEnabled: account.notifications_enabled,
   };
+}
+
+export async function PATCH(request: Request) {
+  const user = await requestUser(request);
+  if (!user) return errorResponse(new Error("Unauthorized"), 401);
+  try {
+    await enforceMailRateLimit(user.id, "account");
+    const body = (await request.json()) as { accountId?: string; enabled?: boolean };
+    if (!body.accountId?.trim() || typeof body.enabled !== "boolean") throw new Error("Invalid notification preference.");
+    await setMailNotifications(user.id, body.accountId.trim(), body.enabled);
+    return Response.json({ ok: true });
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 async function parseInput(request: Request): Promise<MailAccountInput> {

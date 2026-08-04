@@ -38,6 +38,7 @@ export default async function NotificationsSettingsPage({
       </header>
       <SettingsTabs base={`/w/${workspaceId}/settings`} />
       <TelegramConnectionCard
+        userId={user.id}
         workspaceId={workspaceId}
         botUsername={botUsername}
         connection={telegram ?? null}

@@ -34,6 +34,7 @@ export function useUnreadNotifications(
           .from("notifications")
           .select("id", { count: "exact", head: true })
           .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
+          .neq("type", "mail.new")
           .is("read_at", null);
         setCount(c ?? 0);
       }
@@ -52,8 +53,9 @@ export function useUnreadNotifications(
             // Bell counts this workspace's notifications + global DM ones
             // (workspace_id null). Skip inserts destined for other workspaces
             // so the badge stays accurate between recounts.
-            const wid = (payload.new as { workspace_id?: string | null })
-              ?.workspace_id;
+            const row = payload.new as { workspace_id?: string | null; type?: string };
+            if (row.type === "mail.new") return;
+            const wid = row.workspace_id;
             if (wid == null || wid === workspaceId) {
               setCount((c) => c + 1);
             }

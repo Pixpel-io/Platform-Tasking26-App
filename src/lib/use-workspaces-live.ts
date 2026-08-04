@@ -39,6 +39,16 @@ export function useWorkspacesLive(userId: string) {
           { event: "*", schema: "public", table: "workspaces" },
           scheduleRefresh,
         )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "workspace_members",
+            filter: `user_id=eq.${userId}`,
+          },
+          scheduleRefresh,
+        )
         .subscribe();
     });
 

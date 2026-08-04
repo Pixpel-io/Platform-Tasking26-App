@@ -51,7 +51,7 @@ export default function LandingLayout({
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: `(function(){try{var s=localStorage.getItem('tasking-landing-theme');var t=s||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.dataset.landingTheme=t}catch(e){}})();` }} />
-      <div className={`${jakarta.variable} ${legalSerif.variable} landing-root relative min-h-screen overflow-hidden`}>
+      <div className={`${jakarta.variable} ${legalSerif.variable} landing-root relative min-h-screen overflow-x-clip`}>
         <div className="landing-bg-mesh" aria-hidden />
         <div className="landing-bg-grid" aria-hidden />
         <div className="landing-bg-noise" aria-hidden />

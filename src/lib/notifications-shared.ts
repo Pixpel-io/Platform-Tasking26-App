@@ -33,6 +33,7 @@ export function notificationHref(
     return `/dm/${n.conversation_id}`;
   }
   const base = `/w/${n.workspace_id ?? workspaceId}`;
+  if (n.type === "mail.new") return `${base}/mail`;
   if (n.channel_id) return `${base}/c/${n.channel_id}`;
   if (n.conversation_id) return `${base}/dm/${n.conversation_id}`;
   if (n.project_id) return `${base}/projects/${n.project_id}`;

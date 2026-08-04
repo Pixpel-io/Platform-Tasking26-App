@@ -462,10 +462,28 @@ html[data-landing-theme="light"] .landing-root .text-\[\#6d6d82\] { color: #6474
 
 /* Elements sitting on saturated fills intentionally stay white. */
 html[data-landing-theme="light"] .landing-root .landing-btn-primary,
+html[data-landing-theme="light"] .landing-root [class*="bg-gradient-to"][class*="text-white"],
 html[data-landing-theme="light"] .landing-root [class*="bg-gradient-to"] > svg,
 html[data-landing-theme="light"] .landing-root [class*="bg-gradient-to"] > [class*="text-white"] {
   color: #fff;
 }
+
+.landing-skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.75rem;
+  color: #fff;
+  background: #4f46e5;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transform: translateY(-150%);
+  transition: transform 160ms ease;
+}
+
+.landing-skip-link:focus-visible { transform: translateY(0); }
 
 html[data-landing-theme="light"] .landing-root::-webkit-scrollbar-track { background: #eef1f8; }
 html[data-landing-theme="light"] .landing-root::-webkit-scrollbar-thumb { border-color: #eef1f8; }

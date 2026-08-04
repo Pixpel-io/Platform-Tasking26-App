@@ -36,6 +36,7 @@ export function useWorkspaceUnreads(
           .from("notifications")
           .select("workspace_id")
           .neq("type", "dm")
+          .neq("type", "mail.new")
           .is("read_at", null);
         const next: Record<string, number> = {};
         for (const row of data ?? []) {
@@ -62,7 +63,7 @@ export function useWorkspaceUnreads(
             };
             // DM notifications are cross-workspace; don't inflate any
             // specific workspace's badge with them.
-            if (row.type === "dm") return;
+            if (row.type === "dm" || row.type === "mail.new") return;
             if (row.workspace_id) {
               setCounts((prev) => ({
                 ...prev,

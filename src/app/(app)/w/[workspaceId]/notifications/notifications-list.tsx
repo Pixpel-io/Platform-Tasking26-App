@@ -83,7 +83,9 @@ export function NotificationsList({
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications" },
         async (payload) => {
-          const id = (payload.new as { id?: string })?.id;
+          const inserted = payload.new as { id?: string; type?: string };
+          if (inserted.type === "mail.new") return;
+          const id = inserted.id;
           if (!id) return;
           const { data } = await supabase
             .from("notifications")

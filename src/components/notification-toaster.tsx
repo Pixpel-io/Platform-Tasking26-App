@@ -37,6 +37,7 @@ const TYPE_ICON: Record<string, string> = {
     "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4",
   "group.message":
     "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  "mail.new": "M4 6h16v12H4zM4 7l8 6 8-6",
 };
 
 type Toast = NotificationWithActor & { leaving?: boolean };
@@ -109,7 +110,9 @@ export function NotificationToaster({
             filter: `user_id=eq.${userId}`,
           },
           async (payload) => {
-            const id = (payload.new as { id?: string })?.id;
+            const inserted = payload.new as { id?: string; type?: string };
+            if (inserted.type === "mail.new") return;
+            const id = inserted.id;
             if (!id) return;
             // Don't pop a toast while the user is reading the notifications page.
             if (pathnameRef.current.endsWith("/notifications")) return;
@@ -168,6 +171,25 @@ export function NotificationToaster({
       pending.clear();
     };
   }, [workspaceId, userId, dismiss]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = () => {
+      if (cancelled || document.hidden) return;
+      void fetch("/api/mail/notifications", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      }).catch(() => undefined);
+    };
+    const initial = window.setTimeout(sync, 3000);
+    const interval = window.setInterval(sync, 45000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+    };
+  }, [workspaceId]);
 
   if (toasts.length === 0) return null;
 

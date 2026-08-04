@@ -24,6 +24,7 @@ export const getNotifications = cache(
       .from("notifications")
       .select(NOTIFICATION_SELECT)
       .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
+      .neq("type", "mail.new")
       .order("created_at", { ascending: false })
       .limit(limit);
     return (data as NotificationWithActor[] | null) ?? [];
@@ -44,6 +45,7 @@ export const getUnreadCountsByWorkspace = cache(
       .from("notifications")
       .select("workspace_id")
       .neq("type", "dm")
+      .neq("type", "mail.new")
       .is("read_at", null);
     const counts: Record<string, number> = {};
     for (const row of data ?? []) {
@@ -89,6 +91,7 @@ export const getUnreadNotificationCount = cache(
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .or(`workspace_id.eq.${workspaceId},workspace_id.is.null`)
+      .neq("type", "mail.new")
       .is("read_at", null);
     return count ?? 0;
   },

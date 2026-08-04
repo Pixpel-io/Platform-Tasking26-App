@@ -37,6 +37,8 @@ type StoredMailAccount = {
   smtp_secure: boolean;
   username: string;
   encrypted_password: string;
+  notifications_enabled: boolean;
+  last_notified_uid: number | null;
 };
 
 function encryptionKey(): Buffer {
@@ -219,6 +221,53 @@ export async function saveMailAccount(userId: string, input: MailAccountInput) {
 export async function deleteMailAccount(userId: string, accountId: string) {
   const { error } = await adminMailTable().delete().eq("user_id", userId).eq("id", accountId);
   if (error) throw error;
+}
+
+export async function setMailNotifications(userId: string, accountId: string, enabled: boolean) {
+  const { data, error } = await adminMailTable()
+    .update({ notifications_enabled: enabled })
+    .eq("user_id", userId)
+    .eq("id", accountId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Mailbox not found.");
+}
+
+export async function syncMailNotifications(userId: string) {
+  const service = createServiceClient();
+  const accounts = (await listMailAccounts(userId)).filter((item) => item.notifications_enabled);
+  for (const account of accounts) {
+    const messages = await listMail(userId, account.id, "INBOX", 30);
+    const newestUid = messages.reduce((max, item) => Math.max(max, item.uid), 0);
+    if (!newestUid || account.last_notified_uid === null) {
+      if (newestUid) await adminMailTable().update({ last_notified_uid: newestUid }).eq("id", account.id).is("last_notified_uid", null);
+      continue;
+    }
+    if (newestUid <= account.last_notified_uid) continue;
+
+    const fresh = messages.filter((item) => item.uid > account.last_notified_uid!);
+    const { data: claimed } = await adminMailTable()
+      .update({ last_notified_uid: newestUid })
+      .eq("id", account.id)
+      .eq("last_notified_uid", account.last_notified_uid)
+      .select("id")
+      .maybeSingle();
+    if (!claimed || fresh.length === 0) continue;
+
+    const latest = fresh[0];
+    const sender = latest.from?.name || latest.from?.address || "New sender";
+    const title = fresh.length === 1 ? `New email from ${sender}` : `${fresh.length} new emails`;
+    const body = fresh.length === 1 ? latest.subject : `New mail in ${account.email}`;
+    const { error } = await service.from("mail_notifications").insert({
+      user_id: userId,
+      account_id: account.id,
+      uid: latest.uid,
+      title,
+      body,
+    });
+    if (error) throw error;
+  }
 }
 
 export async function listMail(userId: string, accountId: string, folder = "INBOX", limit = 30) {

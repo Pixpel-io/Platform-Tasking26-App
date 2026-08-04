@@ -7,6 +7,21 @@ drop policy if exists "own channels update" on public.user_notification_channels
 drop policy if exists "own channels delete" on public.user_notification_channels;
 revoke insert, update, delete on public.user_notification_channels from authenticated;
 
+-- Webhook-originated connection changes should reach the settings UI without
+-- aggressive polling.
+alter table public.user_notification_channels replica identity full;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'user_notification_channels'
+  ) then
+    alter publication supabase_realtime add table public.user_notification_channels;
+  end if;
+end $$;
+
 alter table public.user_notification_channels
   add column if not exists delivery_window_started_at timestamptz,
   add column if not exists delivery_window_count integer not null default 0

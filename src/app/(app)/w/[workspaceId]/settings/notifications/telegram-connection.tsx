@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { getRealtimeClient } from "@/lib/supabase/client";
 import {
   disconnectTelegram,
   generateTelegramLinkCode,
@@ -25,10 +27,12 @@ export type TelegramConnection = {
 };
 
 export function TelegramConnectionCard({
+  userId,
   workspaceId,
   botUsername,
   connection: initialConnection,
 }: {
+  userId: string;
   workspaceId: string;
   botUsername: string;
   connection: TelegramConnection | null;
@@ -49,11 +53,60 @@ export function TelegramConnectionCard({
   const verified = Boolean(connection?.verified_at);
   const botMissing = !botUsername;
 
+  function applyStatus(next: Awaited<ReturnType<typeof getTelegramStatus>>) {
+    if (!next) {
+      setConnection(null);
+      return;
+    }
+    setConnection({
+      external_id: next.externalId,
+      link_code: next.linkCode,
+      link_code_expires_at: next.linkCodeExpiresAt,
+      verified_at: next.verifiedAt,
+      mentions_enabled: next.mentionsEnabled,
+      dms_enabled: next.dmsEnabled,
+      group_messages_enabled: next.groupMessagesEnabled,
+      task_events_enabled: next.taskEventsEnabled,
+      last_sent_at: next.lastSentAt,
+    });
+  }
+
   useEffect(() => {
     if (!copied) return;
     const t = setTimeout(() => setCopied(false), 1500);
     return () => clearTimeout(t);
   }, [copied]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let client: Awaited<ReturnType<typeof getRealtimeClient>> | null = null;
+    let channel: RealtimeChannel | null = null;
+
+    void getRealtimeClient().then((supabase) => {
+      if (cancelled) return;
+      client = supabase;
+      channel = supabase
+        .channel(`telegram-connection:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "user_notification_channels",
+            filter: `user_id=eq.${userId}`,
+          },
+          () => {
+            void getTelegramStatus().then(applyStatus).catch(() => undefined);
+          },
+        )
+        .subscribe();
+    });
+
+    return () => {
+      cancelled = true;
+      if (client && channel) void client.removeChannel(channel);
+    };
+  }, [userId]);
 
   // Auto-poll while a code is pending. The moment the bot receives /start
   // CODE (or a bare code), verified_at is set server-side and this loop
@@ -88,7 +141,7 @@ export function TelegramConnectionCard({
       }
     };
     void tick();
-    const id = setInterval(tick, 2000);
+    const id = setInterval(tick, 10000);
     return () => {
       cancelled = true;
       clearInterval(id);
