@@ -25,6 +25,9 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return body;
 }
 function Icon({ d, className = "h-4 w-4" }: { d: string; className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className}><path d={d} /></svg>; }
+// Slightly thinner + slightly larger by default. Reads as a Linear/Superhuman
+// glyph rather than a chunky Feather one when tucked into the compact rail.
+function RailIcon({ d, className = "h-5 w-5" }: { d: string; className?: string }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}><path d={d} /></svg>; }
 function initials(value: string) { return value.split(/\s|@/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "M"; }
 function emailAddress(value: string) { return value.match(/<([^<>]+@[^<>]+)>/)?.[1] ?? value.match(/[\w.!#$%&'*+/=?^`{|}~-]+@[\w.-]+/)?.[0] ?? ""; }
 function senderIconUrl(value: string) { const domain = emailAddress(value).split("@")[1]?.toLowerCase(); return domain ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128` : ""; }
@@ -252,38 +255,61 @@ export function MailClient() {
     </nav>
     {error && <div className="flex items-center gap-2 border-b border-danger/20 bg-danger/8 px-4 py-2.5 text-sm text-danger sm:px-6"><Icon d="M12 9v4M12 17h.01M10.3 3.7L2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.7a2 2 0 0 0-3.4 0z" />{error}</div>}
     {mailNotice && <div className="absolute right-4 top-39 z-40 flex w-[min(22rem,calc(100%-2rem))] items-start gap-3 rounded-2xl border border-primary/25 bg-surface/95 p-4 shadow-xl shadow-black/15 backdrop-blur-xl"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/12 text-primary"><Icon d="M4 6h16v12H4zM4 7l8 6 8-6" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-foreground">{mailNotice.title}</p><p className="mt-0.5 truncate text-xs text-muted">{mailNotice.body}</p></div><button aria-label="Dismiss mail notification" onClick={() => setMailNotice(null)} className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground"><Icon d="M18 6L6 18M6 6l12 12" /></button></div>}
-    <div className="grid min-h-0 flex-1 md:grid-cols-[64px_340px_minmax(0,1fr)] xl:grid-cols-[68px_390px_minmax(0,1fr)]">
-      <nav aria-label="Mailbox actions" className="relative hidden min-h-0 flex-col items-center gap-1 border-r border-border/60 bg-surface/60 py-4 backdrop-blur-xl md:flex">
-        {/* Compose: the primary action, distinct from the icon-only rail below. */}
+    <div className="grid min-h-0 flex-1 md:grid-cols-[68px_340px_minmax(0,1fr)] xl:grid-cols-[72px_390px_minmax(0,1fr)]">
+      <nav
+        aria-label="Mailbox actions"
+        className="relative hidden min-h-0 flex-col items-center gap-1.5 border-r border-border/50 bg-surface/40 py-5 backdrop-blur-xl md:flex"
+      >
+        {/* Compose - primary action, same 40x40 footprint as the rest so */}
+        {/* the rail reads as one grid, differentiated only by color.      */}
         <button
           type="button"
           onClick={() => setCompose(true)}
           aria-label="Compose"
           title="Compose"
-          className="group grid h-11 w-11 place-items-center rounded-xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/25 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/25"
+          className="group relative grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/25 ring-1 ring-inset ring-white/10 transition-all duration-200 hover:shadow-lg hover:shadow-primary/35 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/40"
         >
-          <Icon d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4z" className="h-4.5 w-4.5" />
+          {/* Refined pen: closer to Lucide/Feather stroke geometry.        */}
+          <RailIcon d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
         </button>
 
-        <div className="my-2 h-px w-8 bg-border/70" />
+        <span aria-hidden className="my-1 h-px w-6 bg-border/60" />
 
-        {/* Uniform 44x44 icon buttons - tooltips via title, no labels cluttering the rail. */}
-        <MailRailButton label="Notifications" active={account.notificationsEnabled} badge={unread} onClick={() => void toggleMailNotifications()}>
-          <Icon d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M14 21h-4" className="h-4.5 w-4.5" />
+        <MailRailButton
+          label="Notifications"
+          active={account.notificationsEnabled}
+          badge={unread}
+          onClick={() => void toggleMailNotifications()}
+        >
+          {/* Clean bell with clapper - Lucide-style rounded strokes. */}
+          <RailIcon d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0" />
         </MailRailButton>
+
         <MailRailButton label="Add inbox" onClick={() => setAdding(true)}>
-          <Icon d="M12 5v14M5 12h14" className="h-4.5 w-4.5" />
+          {/* Inbox tray + plus overlay so the action reads at a glance. */}
+          <RailIcon d="M22 13h-6l-2 3h-4l-2-3H2M5.45 6.11L2 13v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5l-3.45-6.89A2 2 0 0 0 16.76 5h-2.26M12 2v6m-3-3h6" />
         </MailRailButton>
-        <MailRailButton label="Refresh" disabled={loading} onClick={() => void loadMessages(account.id, true)}>
+
+        <MailRailButton
+          label="Refresh"
+          disabled={loading}
+          onClick={() => void loadMessages(account.id, true)}
+        >
           <span className={loading ? "animate-spin" : ""}>
-            <Icon d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" className="h-4.5 w-4.5" />
+            {/* Two-arc rotate - more balanced than the single-arc feather glyph. */}
+            <RailIcon d="M3 12a9 9 0 0 1 15.5-6.3L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.3L3 16M3 21v-5h5" />
           </span>
         </MailRailButton>
 
-        <div className="mt-auto flex flex-col items-center gap-1">
-          <div className="h-px w-8 bg-border/70" />
-          <MailRailButton label="Disconnect mailbox" danger onClick={() => setConfirmDisconnect(true)}>
-            <Icon d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" className="h-4.5 w-4.5" />
+        <div className="mt-auto flex flex-col items-center gap-1.5">
+          <span aria-hidden className="h-px w-6 bg-border/60" />
+          <MailRailButton
+            label="Disconnect mailbox"
+            danger
+            onClick={() => setConfirmDisconnect(true)}
+          >
+            {/* Log-out door + arrow. */}
+            <RailIcon d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
           </MailRailButton>
         </div>
       </nav>
@@ -319,13 +345,17 @@ function MailRailButton({
   disabled?: boolean;
   badge?: number;
 }) {
+  // Linear/Superhuman-ish rail button: uniform 40x40 tile, subtle hover fill,
+  // primary-tinted active state with a left rail bar for the currently-active
+  // action. Danger variant only shifts colors on hover so the rail doesn't
+  // flag "Disconnect" as an emergency by default.
   const base =
-    "group relative grid h-11 w-11 place-items-center rounded-xl transition-all duration-200 focus-visible:outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-45";
+    "group relative grid h-10 w-10 place-items-center rounded-xl transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-40";
   const variant = danger
-    ? "text-muted hover:bg-danger/10 hover:text-danger focus-visible:ring-danger/20"
+    ? "text-muted/80 hover:bg-danger/10 hover:text-danger focus-visible:ring-danger/30"
     : active
-      ? "bg-primary/12 text-primary shadow-inner focus-visible:ring-primary/25"
-      : "text-muted hover:bg-surface-2 hover:text-foreground focus-visible:ring-primary/20";
+      ? "bg-primary/12 text-primary ring-1 ring-inset ring-primary/15 focus-visible:ring-primary/40"
+      : "text-muted/85 hover:bg-surface-2/85 hover:text-foreground focus-visible:ring-primary/30";
   return (
     <button
       type="button"
@@ -335,17 +365,17 @@ function MailRailButton({
       title={label}
       className={`${base} ${variant}`}
     >
-      {children}
-      {badge > 0 && (
-        <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full border-2 border-surface bg-primary px-1 text-[9px] font-bold leading-none text-primary-foreground">
-          {badge > 99 ? "99+" : badge}
-        </span>
-      )}
       {active && (
         <span
-          aria-hidden="true"
-          className="absolute -left-0.5 h-5 w-0.5 rounded-r-full bg-primary"
+          aria-hidden
+          className="absolute left-0 top-1/2 -ml-3 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-primary"
         />
+      )}
+      {children}
+      {badge > 0 && (
+        <span className="pointer-events-none absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full border-[1.5px] border-surface bg-primary px-0.75 text-[9px] font-bold leading-none tracking-tight text-primary-foreground">
+          {badge > 99 ? "99+" : badge}
+        </span>
       )}
     </button>
   );
