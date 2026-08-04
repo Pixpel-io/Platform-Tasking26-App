@@ -115,6 +115,53 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_notification_channels: {
+        Row: {
+          id: string;
+          user_id: string;
+          kind: "telegram";
+          external_id: string | null;
+          link_code: string | null;
+          link_code_expires_at: string | null;
+          verified_at: string | null;
+          mentions_enabled: boolean;
+          dms_enabled: boolean;
+          group_messages_enabled: boolean;
+          task_events_enabled: boolean;
+          last_sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          kind: "telegram";
+          external_id?: string | null;
+          link_code?: string | null;
+          link_code_expires_at?: string | null;
+          verified_at?: string | null;
+          mentions_enabled?: boolean;
+          dms_enabled?: boolean;
+          group_messages_enabled?: boolean;
+          task_events_enabled?: boolean;
+          last_sent_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          external_id?: string | null;
+          link_code?: string | null;
+          link_code_expires_at?: string | null;
+          verified_at?: string | null;
+          mentions_enabled?: boolean;
+          dms_enabled?: boolean;
+          group_messages_enabled?: boolean;
+          task_events_enabled?: boolean;
+          last_sent_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

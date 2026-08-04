@@ -11,6 +11,7 @@ export function SettingsTabs({ base }: { base: string }) {
   const tabs = [
     { href: base, label: "General", exact: true },
     { href: `${base}/members`, label: "Members", exact: false },
+    { href: `${base}/notifications`, label: "Notifications", exact: false },
   ];
 
   return (
