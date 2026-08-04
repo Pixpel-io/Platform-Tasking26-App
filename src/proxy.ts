@@ -12,6 +12,6 @@ export const config = {
     // API handlers authenticate and rate-limit their own requests. Skipping
     // the proxy avoids a second Supabase getUser() network round-trip on every
     // mail action. Static install assets do not need session refresh either.
-    "/((?!api/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|apk|webmanifest)$).*)",
+    "/((?!api/|landing-page|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|apk|webmanifest)$).*)",
   ],
 };

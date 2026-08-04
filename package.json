@@ -19,6 +19,7 @@
     "imapflow": "^1.6.5",
     "jsqr": "^1.4.0",
     "mailparser": "^3.9.14",
+    "motion": "^12.43.0",
     "next": "16.3.0-preview.10",
     "nodemailer": "^9.0.3",
     "qrcode": "^1.5.4",
