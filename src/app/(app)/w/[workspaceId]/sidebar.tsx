@@ -110,16 +110,6 @@ export function Sidebar({
   useWorkspacesLive(userId);
   useChannelsLive(workspaceId);
 
-  // Prefetch every other workspace the user belongs to as soon as the shell
-  // mounts. Next caches the RSC payload, so clicking a workspace in the
-  // switcher navigates instantly instead of blocking on the first fetch -
-  // the reason we used to show a full-screen splash on switch.
-  useEffect(() => {
-    for (const w of workspaces) {
-      if (w.workspace_id === workspaceId) continue;
-      router.prefetch(`/w/${w.workspace_id}`);
-    }
-  }, [workspaces, workspaceId, router]);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
@@ -398,12 +388,12 @@ export function Sidebar({
         </div>
 
         {/* Groups */}
-        <div>
-          <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+        <div className="rounded-2xl border border-primary/15 bg-linear-to-b from-primary/7 via-primary/3 to-transparent p-1.5 shadow-sm shadow-primary/3">
+          <div className="flex items-center justify-between pb-1 pl-1 pr-1.5 pt-0.5">
             <button
               onClick={() => setGroupsCollapsed((v) => !v)}
               aria-expanded={!groupsCollapsed}
-              className="flex flex-1 items-center gap-1 rounded px-2 py-0.5 hover:text-foreground"
+              className="flex flex-1 items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:text-foreground"
             >
               <Icon
                 d="M9 18l6-6-6-6"
@@ -411,7 +401,8 @@ export function Sidebar({
                   groupsCollapsed ? "" : "rotate-90"
                 }`}
               />
-              <span>Groups</span>
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-primary/15 text-primary ring-1 ring-primary/10"><Icon d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m14 10v-2a4 4 0 0 0-3-3.87" className="h-3.5 w-3.5" /></span>
+              <span className="min-w-0"><span className="block text-xs font-bold uppercase tracking-[0.12em] text-foreground/90">Groups</span><span className="block text-[10px] font-medium normal-case tracking-normal text-muted/65">Team conversations</span></span>
             </button>
             <button
               onClick={() => setChannelDialogOpen(true)}
@@ -422,7 +413,7 @@ export function Sidebar({
             </button>
           </div>
           {!groupsCollapsed && (
-          <div className="space-y-0.5">
+           <div className="mt-1 space-y-0.5 px-0.5 pb-0.5">
             {channels.length === 0 && (
               <p className="px-3 py-1 text-xs text-muted/60">No groups yet</p>
             )}
@@ -434,7 +425,9 @@ export function Sidebar({
                 <Link
                   key={c.id}
                   href={href}
-                  prefetch={true}
+                  prefetch={false}
+                  onMouseEnter={() => router.prefetch(href)}
+                  onFocus={() => router.prefetch(href)}
                   className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
                       ? "bg-primary/10 font-medium text-primary"
@@ -463,12 +456,12 @@ export function Sidebar({
         </div>
 
         {/* Projects */}
-        <div>
-          <div className="flex items-center justify-between px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+        <div className="rounded-2xl border border-violet-400/15 bg-linear-to-b from-violet-500/7 via-violet-500/3 to-transparent p-1.5 shadow-sm shadow-violet-500/3">
+          <div className="flex items-center justify-between pb-1 pl-1 pr-1.5 pt-0.5">
             <button
               onClick={() => setProjectsCollapsed((v) => !v)}
               aria-expanded={!projectsCollapsed}
-              className="flex flex-1 cursor-pointer items-center gap-1 rounded px-2 py-0.5 hover:text-foreground"
+              className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:text-foreground"
             >
               <Icon
                 d="M9 18l6-6-6-6"
@@ -476,7 +469,8 @@ export function Sidebar({
                   projectsCollapsed ? "" : "rotate-90"
                 }`}
               />
-              <span>Task Boards</span>
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-violet-500/12 text-violet-400 ring-1 ring-violet-400/10"><Icon d="M4 5h16M4 12h10M4 19h16" className="h-3.5 w-3.5" /></span>
+              <span className="min-w-0"><span className="block text-xs font-bold uppercase tracking-[0.12em] text-foreground/90">Task Boards</span><span className="block text-[10px] font-medium normal-case tracking-normal text-muted/65">Projects and delivery</span></span>
             </button>
             <Link
               href={`${base}/projects`}
@@ -487,7 +481,7 @@ export function Sidebar({
             </Link>
           </div>
           {!projectsCollapsed && (
-          <div className="space-y-0.5">
+           <div className="mt-1 space-y-0.5 px-0.5 pb-0.5">
             {projects.length === 0 && (
               <p className="px-3 py-1 text-xs text-muted/60">No boards yet</p>
             )}
@@ -499,17 +493,19 @@ export function Sidebar({
                 <Link
                   key={p.id}
                   href={href}
-                  prefetch={true}
+                  prefetch={false}
+                  onMouseEnter={() => router.prefetch(href)}
+                  onFocus={() => router.prefetch(href)}
                   className={`relative flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm transition-all duration-150 ${
                     active
-                      ? "bg-primary/10 font-medium text-primary"
+                      ? "bg-violet-500/10 font-medium text-violet-400"
                       : unreadPr > 0
                         ? "font-semibold text-foreground hover:bg-surface-2"
                         : "text-muted hover:translate-x-0.5 hover:bg-surface-2 hover:text-foreground"
                   }`}
                 >
                   {active && (
-                    <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-primary" />
+                    <span className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-violet-400" />
                   )}
                   <Icon
                     d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
@@ -653,7 +649,9 @@ export function Sidebar({
                 <Link
                   key={member.id}
                   href={href}
-                  prefetch={true}
+                  prefetch={false}
+                  onMouseEnter={() => router.prefetch(href)}
+                  onFocus={() => router.prefetch(href)}
                   className={className}
                 >
                   {inner}

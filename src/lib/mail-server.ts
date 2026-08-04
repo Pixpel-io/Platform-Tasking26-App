@@ -225,7 +225,10 @@ export async function deleteMailAccount(userId: string, accountId: string) {
 
 export async function setMailNotifications(userId: string, accountId: string, enabled: boolean) {
   const { data, error } = await adminMailTable()
-    .update({ notifications_enabled: enabled })
+    .update({
+      notifications_enabled: enabled,
+      ...(enabled ? { last_notified_uid: null } : {}),
+    })
     .eq("user_id", userId)
     .eq("id", accountId)
     .select("id")
@@ -237,14 +240,14 @@ export async function setMailNotifications(userId: string, accountId: string, en
 export async function syncMailNotifications(userId: string) {
   const service = createServiceClient();
   const accounts = (await listMailAccounts(userId)).filter((item) => item.notifications_enabled);
-  for (const account of accounts) {
+  const results = await Promise.allSettled(accounts.map(async (account) => {
     const messages = await listMail(userId, account.id, "INBOX", 30);
     const newestUid = messages.reduce((max, item) => Math.max(max, item.uid), 0);
     if (!newestUid || account.last_notified_uid === null) {
       if (newestUid) await adminMailTable().update({ last_notified_uid: newestUid }).eq("id", account.id).is("last_notified_uid", null);
-      continue;
+      return;
     }
-    if (newestUid <= account.last_notified_uid) continue;
+    if (newestUid <= account.last_notified_uid) return;
 
     const fresh = messages.filter((item) => item.uid > account.last_notified_uid!);
     const { data: claimed } = await adminMailTable()
@@ -253,7 +256,7 @@ export async function syncMailNotifications(userId: string) {
       .eq("last_notified_uid", account.last_notified_uid)
       .select("id")
       .maybeSingle();
-    if (!claimed || fresh.length === 0) continue;
+    if (!claimed || fresh.length === 0) return;
 
     const latest = fresh[0];
     const sender = latest.from?.name || latest.from?.address || "New sender";
@@ -267,6 +270,9 @@ export async function syncMailNotifications(userId: string) {
       body,
     });
     if (error) throw error;
+  }));
+  if (accounts.length > 0 && results.every((result) => result.status === "rejected")) {
+    throw new Error("Could not check the connected mailboxes.");
   }
 }
 

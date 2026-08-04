@@ -28,14 +28,13 @@ create index if not exists mail_notifications_user_unread_idx
   on public.mail_notifications(user_id) where read_at is null;
 
 alter table public.mail_notifications enable row level security;
+revoke insert, update, delete on public.mail_notifications from anon, authenticated;
+grant select on public.mail_notifications to authenticated;
 drop policy if exists "own mail notifications read" on public.mail_notifications;
 create policy "own mail notifications read"
   on public.mail_notifications for select to authenticated
   using (user_id = auth.uid());
 drop policy if exists "own mail notifications update" on public.mail_notifications;
-create policy "own mail notifications update"
-  on public.mail_notifications for update to authenticated
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 do $$
 begin

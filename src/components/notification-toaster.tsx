@@ -174,22 +174,40 @@ export function NotificationToaster({
 
   useEffect(() => {
     let cancelled = false;
-    const sync = () => {
-      if (cancelled || document.hidden) return;
-      void fetch("/api/mail/notifications", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      }).catch(() => undefined);
+    const sync = async () => {
+      if (cancelled || document.hidden || !navigator.onLine) return;
+      const run = async () => {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 35000);
+        try {
+          await fetch("/api/mail/notifications", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: "{}",
+            signal: controller.signal,
+          });
+        } catch {
+          // Background sync retries on the next interval.
+        } finally {
+          window.clearTimeout(timeout);
+        }
+      };
+      if ("locks" in navigator) {
+        await navigator.locks.request("tasking-mail-sync", { ifAvailable: true }, async (lock) => {
+          if (lock) await run();
+        });
+      } else {
+        await run();
+      }
     };
-    const initial = window.setTimeout(sync, 3000);
-    const interval = window.setInterval(sync, 45000);
+    const initial = window.setTimeout(() => void sync(), 8000);
+    const interval = window.setInterval(() => void sync(), 60000);
     return () => {
       cancelled = true;
       window.clearTimeout(initial);
       window.clearInterval(interval);
     };
-  }, [workspaceId]);
+  }, []);
 
   if (toasts.length === 0) return null;
 

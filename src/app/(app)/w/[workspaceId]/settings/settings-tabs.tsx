@@ -11,11 +11,11 @@ export function SettingsTabs({ base }: { base: string }) {
   const tabs = [
     { href: base, label: "General", exact: true },
     { href: `${base}/members`, label: "Members", exact: false },
-    { href: `${base}/notifications`, label: "Notifications", exact: false },
+    { href: `${base}/notifications`, label: "Telegram alerts", exact: false },
   ];
 
   return (
-    <nav className="mb-6 flex gap-1 border-b border-border">
+    <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
       {tabs.map((t) => {
         const active = t.exact
           ? pathname === t.href
@@ -24,7 +24,7 @@ export function SettingsTabs({ base }: { base: string }) {
           <Link
             key={t.href}
             href={t.href}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               active
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted hover:border-border hover:text-foreground"

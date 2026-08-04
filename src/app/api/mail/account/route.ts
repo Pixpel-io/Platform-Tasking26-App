@@ -36,6 +36,8 @@ export async function PATCH(request: Request) {
   const user = await requestUser(request);
   if (!user) return errorResponse(new Error("Unauthorized"), 401);
   try {
+    const contentLength = Number(request.headers.get("content-length") || 0);
+    if (contentLength > 4096) throw new Error("Mail preference request is too large.");
     await enforceMailRateLimit(user.id, "account");
     const body = (await request.json()) as { accountId?: string; enabled?: boolean };
     if (!body.accountId?.trim() || typeof body.enabled !== "boolean") throw new Error("Invalid notification preference.");
