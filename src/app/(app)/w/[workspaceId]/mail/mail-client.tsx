@@ -232,7 +232,39 @@ export function MailClient() {
       <div className="flex min-w-0 items-center gap-3.5">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-primary via-primary to-primary/65 text-primary-foreground shadow-lg shadow-primary/20 ring-1 ring-white/10"><Icon d="M4 6h16v12H4zM4 7l8 6 8-6" className="h-5.5 w-5.5" /></span>
         <div className="min-w-0">
-          <div className="flex items-center gap-2.5"><h1 className="text-xl font-bold tracking-tight sm:text-2xl">Mail</h1>{unread > 0 && <span className="rounded-full border border-primary/15 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">{unread} unread</span>}</div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Mail</h1>
+            {unread > 0 && (
+              <span className="rounded-full border border-primary/15 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+                {unread} unread
+              </span>
+            )}
+            {/* Alerts toggle - the count above is the display, this pill
+                on the right is the actual opt-in for push/email alerts.  */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={account.notificationsEnabled}
+              onClick={() => void toggleMailNotifications()}
+              title={
+                account.notificationsEnabled
+                  ? "Alerts on - click to disable"
+                  : "Alerts off - click to enable"
+              }
+              className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition sm:inline-flex ${
+                account.notificationsEnabled
+                  ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-500 hover:border-emerald-400/40"
+                  : "border-border bg-surface-2/60 text-muted hover:border-border hover:text-foreground"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  account.notificationsEnabled ? "bg-emerald-500" : "bg-muted/70"
+                }`}
+              />
+              Alerts {account.notificationsEnabled ? "on" : "off"}
+            </button>
+          </div>
           <label className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-medium text-muted"><span className="hidden sm:inline">Inbox</span><span className="hidden sm:inline">·</span><select aria-label="Active mailbox" value={account.id} onChange={(event) => activate(event.target.value)} className="min-w-0 max-w-48 truncate bg-transparent font-medium text-muted outline-none transition hover:text-foreground sm:max-w-72">{accounts.map((item) => <option key={item.id} value={item.id}>{item.displayName ? `${item.displayName} - ` : ""}{item.email}</option>)}</select></label>
         </div>
       </div>
@@ -274,16 +306,6 @@ export function MailClient() {
         </button>
 
         <span aria-hidden className="my-1 h-px w-6 bg-border/60" />
-
-        <MailRailButton
-          label="Notifications"
-          active={account.notificationsEnabled}
-          badge={unread}
-          onClick={() => void toggleMailNotifications()}
-        >
-          {/* Clean bell with clapper - Lucide-style rounded strokes. */}
-          <RailIcon d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10 21a2 2 0 0 0 4 0" />
-        </MailRailButton>
 
         <MailRailButton label="Add inbox" onClick={() => setAdding(true)}>
           {/* Inbox tray + plus overlay so the action reads at a glance. */}
