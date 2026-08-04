@@ -176,89 +176,108 @@ export function TelegramConnectionCard({
       {!verified && (
         <div className="space-y-3">
           {code ? (
-            <div className="rounded-xl border border-border bg-surface-2 p-5">
-              <div className="grid gap-5 sm:grid-cols-[auto_1fr] sm:items-center">
-                {/* QR - phone camera se scan karo, Telegram khul jaayega */}
-                <div className="flex justify-center sm:block">
-                  <div className="rounded-xl bg-white p-3">
+            <div className="space-y-4 rounded-xl border border-border bg-surface-2 p-5">
+              {/* Big code display - front and centre so users see it without */}
+              {/* hunting through collapsibles. Copy button lives beside it.  */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                  Your link code
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 truncate rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 text-center font-mono text-lg font-bold tracking-widest text-foreground">
+                    {code}
+                  </code>
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(code);
+                      setCopied(true);
+                    }}
+                    className="rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/30 transition-colors hover:opacity-90"
+                  >
+                    {copied ? "Copied!" : "Copy code"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Two clear paths side by side - pick whichever you have handy */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* Path A: this device - one-click into desktop Telegram */}
+                <a
+                  href={
+                    botUsername
+                      ? `https://t.me/${botUsername}?start=${encodeURIComponent(code)}`
+                      : "#"
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-disabled={botMissing}
+                  className={`flex items-center gap-3 rounded-lg border border-border bg-background/50 p-3 transition-all hover:border-primary/30 hover:bg-primary/5 ${
+                    botMissing ? "pointer-events-none opacity-50" : ""
+                  }`}
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-linear-to-br from-sky-500 to-cyan-400 text-white shadow-md">
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                      <path d="M9.03 15.5 8.9 19.1c.44 0 .63-.2.86-.43l2.06-1.97 4.27 3.13c.78.43 1.34.2 1.55-.72l2.82-13.2h.01c.25-1.15-.42-1.6-1.18-1.31L2.9 10.05c-1.13.44-1.11 1.08-.19 1.36l4.28 1.34 9.94-6.26c.47-.31.9-.14.55.17z" />
+                    </svg>
+                  </span>
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="text-sm font-semibold text-foreground">
+                      Open Telegram here
+                    </p>
+                    <p className="text-xs text-muted">
+                      Desktop / web — one click, code auto-fills.
+                    </p>
+                  </div>
+                </a>
+
+                {/* Path B: on your phone - QR */}
+                <div className="flex items-center gap-3 rounded-lg border border-border bg-background/50 p-3">
+                  <div className="rounded-md bg-white p-1.5">
                     <QRCodeSVG
                       value={
                         botUsername
                           ? `https://t.me/${botUsername}?start=${encodeURIComponent(code)}`
                           : `tg://start?token=${encodeURIComponent(code)}`
                       }
-                      size={160}
+                      size={72}
                       level="M"
                       marginSize={0}
                     />
                   </div>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    Scan on your phone
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    Open your phone camera, point at the QR. Telegram opens
-                    with the code pre-filled - just tap <b>Start</b>.
-                  </p>
-                  <div className="mt-4 border-t border-border pt-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                      Or open here
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      Scan on phone
                     </p>
-                    <a
-                      href={
-                        botUsername
-                          ? `https://t.me/${botUsername}?start=${encodeURIComponent(code)}`
-                          : "#"
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-disabled={botMissing}
-                      className={`mt-2 inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/30 transition-colors hover:opacity-90 ${
-                        botMissing ? "pointer-events-none opacity-50" : ""
-                      }`}
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        className="h-4 w-4"
-                        fill="currentColor"
-                      >
-                        <path d="M9.03 15.5 8.9 19.1c.44 0 .63-.2.86-.43l2.06-1.97 4.27 3.13c.78.43 1.34.2 1.55-.72l2.82-13.2h.01c.25-1.15-.42-1.6-1.18-1.31L2.9 10.05c-1.13.44-1.11 1.08-.19 1.36l4.28 1.34 9.94-6.26c.47-.31.9-.14.55.17z" />
-                      </svg>
-                      Open in Telegram
-                    </a>
+                    <p className="text-xs text-muted">
+                      Point your phone camera at the QR.
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Fallback: manual code (collapsible so it doesn't dominate the card) */}
-              <details className="mt-4 rounded-lg border border-border bg-background/40 p-3 text-xs">
-                <summary className="cursor-pointer font-semibold text-muted">
-                  Trouble scanning? Copy the code manually
-                </summary>
-                <div className="mt-2 flex items-center gap-2">
-                  <code className="flex-1 truncate rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs tracking-wider">
-                    /start {code}
-                  </code>
-                  <button
-                    onClick={() => {
-                      void navigator.clipboard.writeText(`/start ${code}`);
-                      setCopied(true);
-                    }}
-                    className="rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-                  >
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                </div>
-              </details>
+              {/* Explicit "if all else fails" note - covers users who ended */}
+              {/* up in the bot chat without the code getting through.       */}
+              <div className="rounded-lg border border-border bg-background/40 p-3 text-xs text-muted">
+                <b className="text-foreground">Stuck?</b> Open{" "}
+                <a
+                  href={botUsername ? `https://t.me/${botUsername}` : "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-primary underline-offset-2 hover:underline"
+                >
+                  @{botUsername}
+                </a>{" "}
+                in Telegram and send the code above as a plain message. That
+                works too.
+              </div>
 
-              <div className="mt-4 flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/6 px-3 py-2 text-xs">
+              <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-primary/6 px-3 py-2 text-xs">
                 <span className="relative flex h-2 w-2 shrink-0">
                   <span className="absolute inset-0 animate-ping rounded-full bg-primary/60" />
                   <span className="relative h-2 w-2 rounded-full bg-primary" />
                 </span>
                 <span className="text-foreground">
-                  Waiting for you to tap Start in Telegram...
+                  Waiting for you to send the code in Telegram...
                 </span>
                 {expiresAt && (
                   <span className="ml-auto text-muted">
