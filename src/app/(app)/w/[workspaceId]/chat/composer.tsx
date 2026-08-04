@@ -122,6 +122,11 @@ export type ReplyTarget = {
   snippet: string;
 };
 
+export type EditTarget = {
+  id: string;
+  body: string;
+};
+
 export function Composer({
   workspaceId,
   channelId = null,
@@ -132,6 +137,9 @@ export function Composer({
   onTyping,
   replyTo = null,
   onCancelReply,
+  editTarget = null,
+  onSaveEdit,
+  onCancelEdit,
   placeholder = "Write a message…  (use @ to mention)",
 }: {
   // Null in the global /dm shell (no-workspace users): text-only composer,
@@ -152,6 +160,9 @@ export function Composer({
   // via the parent's onCancelReply.
   replyTo?: ReplyTarget | null;
   onCancelReply?: () => void;
+  editTarget?: EditTarget | null;
+  onSaveEdit?: (body: string) => void;
+  onCancelEdit?: () => void;
   placeholder?: string;
 }) {
   const draftTarget = { channelId, conversationId };
@@ -164,6 +175,34 @@ export function Composer({
   const taRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const preEditDraftRef = useRef("");
+  const editingIdRef = useRef<string | null>(null);
+
+  // Editing reuses the main composer. Preserve any unsent draft and restore it
+  // afterwards, so opening an edit never destroys new-message work.
+  useEffect(() => {
+    if (editTarget && editingIdRef.current !== editTarget.id) {
+      if (editingIdRef.current === null) preEditDraftRef.current = value;
+      editingIdRef.current = editTarget.id;
+      setValue(editTarget.body);
+      setMention(null);
+      requestAnimationFrame(() => {
+        taRef.current?.focus();
+        if (taRef.current) autoGrow(taRef.current);
+      });
+      return;
+    }
+    if (!editTarget && editingIdRef.current !== null) {
+      editingIdRef.current = null;
+      setValue(preEditDraftRef.current);
+      requestAnimationFrame(() => {
+        taRef.current?.focus();
+        if (taRef.current) autoGrow(taRef.current);
+      });
+    }
+    // Target identity drives this transition. The live draft must not rerun it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editTarget?.id]);
 
   // Members matching the active @token, capped so the list stays scannable.
   // Cleotilda (the AI assistant) is always offered alongside real members.
@@ -211,7 +250,9 @@ export function Composer({
     });
   }
 
-  const canSend = value.trim().length > 0 || selected.length > 0;
+  const canSend = editTarget
+    ? value.trim().length > 0 && value.trim() !== editTarget.body.trim()
+    : value.trim().length > 0 || selected.length > 0;
 
   // Hand the staged files straight to the pending store via onSend, then reset
   // the composer immediately. Upload progress lives in the store from here on
@@ -221,6 +262,10 @@ export function Composer({
   function submit() {
     if (!canSend) return;
     const body = value.trim();
+    if (editTarget) {
+      onSaveEdit?.(body);
+      return;
+    }
     onSend(body, selected);
     setValue("");
     setSelected([]);
@@ -255,6 +300,11 @@ export function Composer({
         setMention(null);
         return;
       }
+    }
+    if (e.key === "Escape" && editTarget) {
+      e.preventDefault();
+      onCancelEdit?.();
+      return;
     }
     // Escape (with no @mention popup and an empty draft) cancels an active
     // reply, matching Slack.
@@ -479,7 +529,19 @@ export function Composer({
           </button>
         </div>
       )}
-      {selected.length > 0 && (
+      {editTarget && (
+        <div className="mb-2 flex items-center gap-2 rounded-lg border border-primary/25 border-l-2 border-l-primary bg-primary/6 px-3 py-2 text-xs animate-fade-in">
+          <svg className="h-3.5 w-3.5 shrink-0 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4z" />
+          </svg>
+          <span className="min-w-0 flex-1 font-medium text-foreground">Editing message</span>
+          <span className="hidden text-muted sm:inline">Enter to save, Esc to cancel</span>
+          <button type="button" onClick={onCancelEdit} aria-label="Cancel editing" className="grid h-5 w-5 shrink-0 place-items-center rounded text-muted transition-colors hover:bg-danger/10 hover:text-danger">
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+      )}
+      {!editTarget && selected.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {selected.map((s) => {
             const kind = attachmentKind(s.file.type);
@@ -568,7 +630,7 @@ export function Composer({
             ref={taRef}
             value={value}
             rows={1}
-            placeholder={placeholder}
+            placeholder={editTarget ? "Edit your message..." : placeholder}
             // Chat is often Roman Urdu / mixed language: OS + browser
             // autocorrect and text-prediction mangle words on space, so those
             // stay off. Native spellcheck stays ON though - the browser draws
@@ -599,6 +661,7 @@ export function Composer({
             onBlur={() => setMention(null)}
             onKeyDown={handleKeyDown}
             onPaste={(e) => {
+              if (editTarget) return;
               // Screenshots (snipping tool etc.) arrive as clipboard files -
               // upload them like attachments instead of dropping them.
               const files = Array.from(e.clipboardData.items)
@@ -681,7 +744,7 @@ export function Composer({
           <FmtBtn label="Code" onClick={() => wrapSelection("`", "`")} d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
 
           <span className="ml-auto flex items-center gap-1">
-            {workspaceId && (
+            {workspaceId && !editTarget && (
             <VoiceRecorder
               onFinish={(file, durationMs) => {
                 setMicError(null);
@@ -690,7 +753,7 @@ export function Composer({
               onError={(message) => setMicError(message)}
             />
             )}
-            {workspaceId && (
+            {workspaceId && !editTarget && (
             <button
               onClick={() => fileRef.current?.click()}
               aria-label="Attach file"
@@ -754,7 +817,7 @@ export function Composer({
             <button
               onClick={submit}
               disabled={!canSend}
-              aria-label="Send"
+              aria-label={editTarget ? "Save changes" : "Send"}
               className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-linear-to-br from-primary to-primary/75 text-primary-foreground shadow-sm shadow-primary/30 transition-all duration-150 hover:-translate-y-px hover:shadow-md hover:shadow-primary/40 active:scale-95 disabled:translate-y-0 disabled:opacity-40 disabled:shadow-none"
             >
               <svg
@@ -766,7 +829,7 @@ export function Composer({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                {editTarget ? <path d="M20 6 9 17l-5-5" /> : <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />}
               </svg>
             </button>
           </span>
@@ -774,7 +837,7 @@ export function Composer({
       </div>
       <p className="mt-1.5 px-1 text-[11px] text-muted/70">
         <kbd className="rounded border border-border bg-surface-2 px-1 py-0.5 font-sans text-[10px] text-muted">Enter</kbd>{" "}
-        to send ·{" "}
+        {editTarget ? "to save" : "to send"} ·{" "}
         <kbd className="rounded border border-border bg-surface-2 px-1 py-0.5 font-sans text-[10px] text-muted">Shift+Enter</kbd>{" "}
         for a new line
       </p>

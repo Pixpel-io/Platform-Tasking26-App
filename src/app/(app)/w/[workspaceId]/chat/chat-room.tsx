@@ -13,6 +13,7 @@ import { CLEOTILDA_ID } from "@/lib/cleotilda-shared";
 import { useChannelReads } from "@/lib/use-channel-reads";
 import { useChatMessages } from "@/lib/use-chat-messages";
 import { useMessageAlerts } from "@/lib/use-message-alerts";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   deleteMessage,
   editMessage,
@@ -83,6 +84,10 @@ export function ChatRoom({
   const [, startTransition] = useTransition();
   // The message the composer is currently replying to (inline quoted reply).
   const [replyTo, setReplyTo] = useState<MessageWithRelations | null>(null);
+  const [editingMessage, setEditingMessage] =
+    useState<MessageWithRelations | null>(null);
+  const [deleteTarget, setDeleteTarget] =
+    useState<MessageWithRelations | null>(null);
   // The message being forwarded (opens the destination picker dialog).
   const [forwarding, setForwarding] = useState<MessageWithRelations | null>(
     null,
@@ -441,16 +446,11 @@ export function ChatRoom({
                   onForward={() => setForwarding(m)}
                   onJumpToMessage={scrollToMessage}
                   onReact={(emoji) => handleReact(m.id, emoji)}
-                  onEdit={(body) =>
-                    startTransition(() => {
-                      void editMessage(m.id, body);
-                    })
-                  }
-                  onDelete={() =>
-                    startTransition(() => {
-                      void deleteMessage(m.id);
-                    })
-                  }
+                  onEdit={() => {
+                    setReplyTo(null);
+                    setEditingMessage(m);
+                  }}
+                  onDelete={() => setDeleteTarget(m)}
                   onPin={() =>
                     startTransition(() => {
                       void togglePin(m.id, !m.pinned_at);
@@ -517,6 +517,20 @@ export function ChatRoom({
             : null
         }
         onCancelReply={() => setReplyTo(null)}
+        editTarget={
+          editingMessage
+            ? { id: editingMessage.id, body: editingMessage.body }
+            : null
+        }
+        onSaveEdit={(body) => {
+          if (!editingMessage) return;
+          const messageId = editingMessage.id;
+          setEditingMessage(null);
+          startTransition(() => {
+            void editMessage(messageId, body);
+          });
+        }}
+        onCancelEdit={() => setEditingMessage(null)}
       />
 
       {forwarding && (
@@ -524,6 +538,21 @@ export function ChatRoom({
           message={forwarding}
           workspaceId={target.workspaceId}
           onClose={() => setForwarding(null)}
+        />
+      )}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete this message?"
+          description="This message will be removed from the conversation for everyone. This action cannot be undone."
+          confirmLabel="Delete message"
+          onConfirm={() => {
+            const messageId = deleteTarget.id;
+            setDeleteTarget(null);
+            startTransition(() => {
+              void deleteMessage(messageId);
+            });
+          }}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>

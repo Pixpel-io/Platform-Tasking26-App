@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar } from "@/components/avatar";
 import { Button } from "@/components/ui";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   attachmentKind,
   measureDimensions,
@@ -720,9 +721,14 @@ function DetailsTab({
   const [description, setDescription] = useState(task.description ?? "");
   const [checklistItem, setChecklistItem] = useState<Record<string, string>>({});
   const [timeInput, setTimeInput] = useState("");
+  const [deleteChecklistTarget, setDeleteChecklistTarget] = useState<{
+    id: string;
+    content: string;
+  } | null>(null);
   const assigneeIds = new Set(task.task_assignees.map((a) => a.user_id));
 
   return (
+    <>
     <div className="flex-1 overflow-y-auto">
       <div className="space-y-6 p-5">
         {/* Meta grid: priority + due date */}
@@ -900,9 +906,8 @@ function DetailsTab({
                             {item.content}
                           </span>
                           <button
-                            onClick={() =>
-                              act(() => deleteChecklistItem(item.id))
-                            }
+                            onClick={() => setDeleteChecklistTarget({ id: item.id, content: item.content })}
+                            aria-label={`Delete ${item.content}`}
                             className="cursor-pointer text-xs text-muted hover:text-danger"
                           >
                             ✕
@@ -969,5 +974,19 @@ function DetailsTab({
         </div>
       </div>
     </div>
+    {deleteChecklistTarget && (
+      <ConfirmDialog
+        title="Delete checklist item?"
+        description={`“${deleteChecklistTarget.content}” will be permanently removed from this task.`}
+        confirmLabel="Delete item"
+        onConfirm={() => {
+          const id = deleteChecklistTarget.id;
+          setDeleteChecklistTarget(null);
+          act(() => deleteChecklistItem(id));
+        }}
+        onCancel={() => setDeleteChecklistTarget(null)}
+      />
+    )}
+    </>
   );
 }

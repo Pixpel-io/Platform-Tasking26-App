@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/supabase/types";
 import { Avatar } from "@/components/avatar";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useProfileCard } from "@/components/profile-card";
 import { getRealtimeClient } from "@/lib/supabase/client";
 import { addGroupMembers, removeGroupMember } from "../../chat-actions";
@@ -56,6 +57,7 @@ export function GroupMembers({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<Profile | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -146,6 +148,7 @@ export function GroupMembers({
         setError(res.error);
         return;
       }
+      setRemoveTarget(null);
       router.refresh();
     });
   }
@@ -247,7 +250,7 @@ export function GroupMembers({
                       {canRemove && (
                         <button
                           type="button"
-                          onClick={() => remove(m.id)}
+                          onClick={() => setRemoveTarget(m)}
                           disabled={pending}
                           aria-label={`Remove ${m.full_name ?? m.email}`}
                           title="Remove from group"
@@ -374,6 +377,16 @@ export function GroupMembers({
           </div>
         </div>,
         document.body,
+      )}
+      {removeTarget && (
+        <ConfirmDialog
+          title={`Remove ${removeTarget.full_name ?? removeTarget.email} from this group?`}
+          description="They will lose access to this group and its conversation. Their workspace membership will not be affected."
+          confirmLabel="Remove from group"
+          pending={pending && removingId === removeTarget.id}
+          onConfirm={() => remove(removeTarget.id)}
+          onCancel={() => setRemoveTarget(null)}
+        />
       )}
     </>
   );

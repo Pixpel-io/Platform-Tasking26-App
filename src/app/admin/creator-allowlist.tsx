@@ -2,6 +2,7 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { addWorkspaceCreator, removeWorkspaceCreator } from "./admin-actions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 type Creator = { id: string; email: string; created_at: string };
 
@@ -9,6 +10,7 @@ export function CreatorAllowlist({ creators }: { creators: Creator[] }) {
   const [state, formAction, pending] = useActionState(addWorkspaceCreator, undefined);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<Creator | null>(null);
   const [, startTransition] = useTransition();
 
   function remove(id: string) {
@@ -17,6 +19,7 @@ export function CreatorAllowlist({ creators }: { creators: Creator[] }) {
     startTransition(async () => {
       const res = await removeWorkspaceCreator(id);
       setRemovingId(null);
+      setRemoveTarget(null);
       if (res.error) setRemoveError(res.error);
     });
   }
@@ -64,7 +67,7 @@ export function CreatorAllowlist({ creators }: { creators: Creator[] }) {
                 added {new Date(c.created_at).toLocaleDateString()}
               </span>
               <button
-                onClick={() => remove(c.id)}
+                onClick={() => setRemoveTarget(c)}
                 disabled={removingId === c.id}
                 aria-label={`Remove ${c.email}`}
                 title="Remove"
@@ -77,6 +80,16 @@ export function CreatorAllowlist({ creators }: { creators: Creator[] }) {
             </li>
           ))}
         </ul>
+      )}
+      {removeTarget && (
+        <ConfirmDialog
+          title={`Remove ${removeTarget.email}?`}
+          description="This person will no longer be allowed to create new workspaces. Existing workspace access is unchanged."
+          confirmLabel="Remove access"
+          pending={removingId === removeTarget.id}
+          onConfirm={() => remove(removeTarget.id)}
+          onCancel={() => setRemoveTarget(null)}
+        />
       )}
     </div>
   );

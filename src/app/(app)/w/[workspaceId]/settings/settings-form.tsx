@@ -250,36 +250,22 @@ function DangerZone({
           <FormMessage type="error">{error}</FormMessage>
         </div>
       )}
-      {confirming ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-foreground">
-            Are you sure?
-          </span>
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={pending}
-            className="cursor-pointer rounded-lg bg-danger px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {pending ? "Deleting…" : "Yes, delete workspace"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirming(false)}
-            disabled={pending}
-            className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground"
-          >
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          className="mt-3 cursor-pointer rounded-lg border border-danger/40 px-3 py-1.5 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
-        >
-          Delete workspace
-        </button>
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="mt-3 cursor-pointer rounded-lg border border-danger/40 px-3 py-1.5 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+      >
+        Delete workspace
+      </button>
+      {confirming && (
+        <ConfirmDialog
+          title={`Delete ${name}?`}
+          description="This workspace, its groups, boards, messages, tasks, files, and member access will be removed for everyone. This action cannot be undone."
+          confirmLabel="Delete workspace"
+          pending={pending}
+          onConfirm={handleDelete}
+          onCancel={() => setConfirming(false)}
+        />
       )}
     </div>
   );

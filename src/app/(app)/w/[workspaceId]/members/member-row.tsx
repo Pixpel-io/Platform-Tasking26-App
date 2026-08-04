@@ -93,7 +93,9 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
       if (result?.error) {
         setError(result.error);
         setConfirming(false);
+        return;
       }
+      setConfirming(false);
     });
   }
 
@@ -149,26 +151,7 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
         </div>
       </button>
       <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
-        {confirming ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <span className="text-xs text-muted">Remove?</span>
-            <button
-              onClick={handleRemove}
-              disabled={pending}
-              className="cursor-pointer rounded-lg bg-danger px-2.5 py-1 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              {pending ? "Removing…" : "Yes, remove"}
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              disabled={pending}
-              className="cursor-pointer rounded-lg px-2 py-1 text-xs font-medium text-muted hover:text-foreground"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <>
+        <>
             {!isSelf && (
               <button
                 onClick={() =>
@@ -230,8 +213,7 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
                 {member.role}
               </span>
             )}
-          </>
-        )}
+        </>
       </div>
 
       {/* Dropdown is portalled to <body> so the settings card's
@@ -286,6 +268,16 @@ export function MemberRow({ member, isSelf, canManage, workspaceId }: Props) {
           pending={pending}
           onConfirm={applyRoleChange}
           onCancel={() => setPendingRoleChange(null)}
+        />
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={`Remove ${name} from this workspace?`}
+          description={`${name} will immediately lose access to this workspace, its groups, boards, messages, and files.`}
+          confirmLabel="Remove member"
+          pending={pending}
+          onConfirm={handleRemove}
+          onCancel={() => setConfirming(false)}
         />
       )}
     </li>

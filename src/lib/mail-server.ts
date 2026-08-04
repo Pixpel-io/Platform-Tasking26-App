@@ -279,8 +279,16 @@ export async function readMail(userId: string, accountId: string, uid: number, f
       uid,
       subject: parsed.subject || "(No subject)",
       from: parsed.from?.text ?? "",
-      to: parsed.to ? String(parsed.to) : "",
-      cc: parsed.cc ? String(parsed.cc) : "",
+      to: parsed.to
+        ? (Array.isArray(parsed.to) ? parsed.to : [parsed.to])
+            .map((address) => address.text)
+            .join(", ")
+        : "",
+      cc: parsed.cc
+        ? (Array.isArray(parsed.cc) ? parsed.cc : [parsed.cc])
+            .map((address) => address.text)
+            .join(", ")
+        : "",
       date: parsed.date?.toISOString() ?? "",
       text: parsed.text ?? "",
       html: typeof parsed.html === "string" ? parsed.html : null,

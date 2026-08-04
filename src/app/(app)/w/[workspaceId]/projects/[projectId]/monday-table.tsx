@@ -8,6 +8,7 @@ import type { BoardColumn, TaskWithRelations } from "@/lib/projects-shared";
 import { commentCount, PRIORITY_META } from "@/lib/projects-shared";
 import { useBoard } from "@/lib/use-board";
 import { Avatar } from "@/components/avatar";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   createColumn,
   createTask,
@@ -744,6 +745,7 @@ function TaskRow({
 }) {
   const [, startTransition] = useTransition();
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const done = task.completed_at != null;
   const assignees = task.task_assignees
@@ -778,6 +780,7 @@ function TaskRow({
   }
 
   return (
+    <>
     <div
       className={`group/row grid grid-cols-[minmax(200px,1fr)_130px_110px_110px_110px_120px] items-stretch border-b border-border/60 bg-surface text-sm transition-colors last:border-b-0 hover:bg-surface-2/30 max-lg:min-w-full max-lg:grid-cols-[minmax(140px,1fr)_100px_84px] ${
         deleting ? "pointer-events-none opacity-40" : ""
@@ -844,7 +847,7 @@ function TaskRow({
           </span>
         )}
         <button
-          onClick={removeTask}
+          onClick={() => setConfirmDelete(true)}
           disabled={deleting}
           aria-label={`Delete ${task.title}`}
           title="Delete task"
@@ -886,6 +889,20 @@ function TaskRow({
       {/* People cell */}
       <PeopleCell task={task} members={members} assignees={assignees} />
     </div>
+    {confirmDelete && (
+      <ConfirmDialog
+        title={`Delete “${task.title}”?`}
+        description="This task and its updates, checklist items, assignments, and attachments will be removed. This action cannot be undone."
+        confirmLabel="Delete task"
+        pending={deleting}
+        onConfirm={() => {
+          setConfirmDelete(false);
+          removeTask();
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
+    )}
+    </>
   );
 }
 

@@ -245,7 +245,7 @@ export function MessageItem({
   // Resolves any reactor's user_id to a display profile for the reaction popover.
   reactorById: Map<string, Reactor>;
   onReact: (emoji: string) => void;
-  onEdit: (body: string) => void;
+  onEdit: () => void;
   onDelete: () => void;
   onPin: () => void;
   onOpenThread?: () => void;
@@ -258,8 +258,6 @@ export function MessageItem({
   replyCount?: number;
 }) {
   const openProfile = useProfileCard();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(message.body);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFullPicker, setShowFullPicker] = useState(false);
   // Touch devices have no hover: a tap on the row's mobile "⋮" trigger pins
@@ -442,65 +440,23 @@ export function MessageItem({
           </button>
         )}
 
-        {editing ? (
-          <div className="mt-1">
-            <textarea
-              value={draft}
-              autoFocus
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  onEdit(draft);
-                  setEditing(false);
-                }
-                if (e.key === "Escape") {
-                  setDraft(message.body);
-                  setEditing(false);
-                }
-              }}
-              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-            <div className="mt-1 flex gap-2 text-xs text-muted">
-              <button
-                className="text-primary hover:underline"
-                onClick={() => {
-                  onEdit(draft);
-                  setEditing(false);
-                }}
-              >
-                Save
-              </button>
-              <button
-                onClick={() => {
-                  setDraft(message.body);
-                  setEditing(false);
-                }}
-                className="hover:underline"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div
-            data-message-body
-            className="max-w-[72ch] wrap-break-word rounded text-[15px] leading-relaxed text-foreground"
-          >
-            {/* Grouped rows have no name line, so the via-badge rides inline. */}
-            {grouped && isViaCleotilda(message.body) && (
-              <span className="mr-1.5 inline-block align-middle">
-                <ViaCleotilda />
-              </span>
-            )}
-            <Body text={stripViaCleotilda(message.body)} />
-            {message.edited_at && (
-              <span className="ml-1.5 align-baseline text-[10px] text-muted">
-                (edited)
-              </span>
-            )}
-          </div>
-        )}
+        <div
+          data-message-body
+          className="max-w-[72ch] wrap-break-word rounded text-[15px] leading-relaxed text-foreground"
+        >
+          {/* Grouped rows have no name line, so the via-badge rides inline. */}
+          {grouped && isViaCleotilda(message.body) && (
+            <span className="mr-1.5 inline-block align-middle">
+              <ViaCleotilda />
+            </span>
+          )}
+          <Body text={stripViaCleotilda(message.body)} />
+          {message.edited_at && (
+            <span className="ml-1.5 align-baseline text-[10px] text-muted">
+              (edited)
+            </span>
+          )}
+        </div>
 
         {message.message_attachments.length > 0 && (
           <div className="mt-2 flex flex-col gap-2">
@@ -571,7 +527,7 @@ export function MessageItem({
       {/* Mobile trigger: hover doesn't fire on touch, so a tap on this "⋮"
           button pins the action bar open below lg. Hidden on desktop where
           hover already surfaces the same bar. */}
-      {!isOptimistic && !editing && (
+      {!isOptimistic && (
         <button
           type="button"
           onClick={(e) => {
@@ -601,7 +557,7 @@ export function MessageItem({
 
       {/* Hover actions - desktop shows on group-hover, mobile shows when
           "⋮" is toggled or a picker is open. */}
-      {!isOptimistic && !editing && (
+      {!isOptimistic && (
         <div
           className={`absolute right-2 top-0 -translate-y-1/2 animate-scale-in items-center gap-0.5 rounded-lg border border-border bg-surface p-0.5 shadow-md group-hover:flex ${
             showEmoji || mobileActions ? "flex" : "hidden"
@@ -699,7 +655,7 @@ export function MessageItem({
             <>
               <ActionBtn
                 label="Edit"
-                onClick={() => setEditing(true)}
+                onClick={onEdit}
                 d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
               />
               <ActionBtn
