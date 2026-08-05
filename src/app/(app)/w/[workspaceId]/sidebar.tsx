@@ -250,10 +250,15 @@ export function Sidebar({
         </button>
 
         {switcherOpen && (
-          <div className="absolute left-3 right-3 z-20 mt-1 origin-top animate-scale-in overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-xl shadow-black/30">
-            <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
+          // Anchor to the bottom of the h-24 header container so the dropdown
+          // never overlaps the current-workspace button (which was clipping
+          // the first row of the list). Cap the height so many workspaces get
+          // an inner scroll rather than spilling past the viewport.
+          <div className="absolute left-3 right-3 top-full z-20 mt-1 flex max-h-[70vh] origin-top animate-scale-in flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-xl shadow-black/30">
+            <p className="shrink-0 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted/70">
               Workspaces
             </p>
+            <div className="min-h-0 flex-1 overflow-y-auto p-1.5 pt-0">
             {workspaces.map((w) => {
               const isCurrent = w.workspace_id === workspaceId;
               const color = w.workspaces?.color ?? "#4f46e5";
@@ -340,11 +345,13 @@ export function Sidebar({
                 </button>
               );
             })}
-            <div className="my-1 border-t border-border" />
+            </div>
+            {/* Footer is pinned outside the scroll area - "New workspace" is
+                always in view even when the list is long. */}
             <Link
               href="/onboarding"
               onClick={() => setSwitcherOpen(false)}
-              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+              className="flex shrink-0 items-center gap-2.5 border-t border-border p-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
             >
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-dashed border-primary/40 text-primary">
                 <Icon d="M12 5v14M5 12h14" className="h-4 w-4" />
