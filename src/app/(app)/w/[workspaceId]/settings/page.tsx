@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { SettingsForm } from "./settings-form";
 import { SettingsTabs } from "./settings-tabs";
 import { NotificationSoundPicker } from "./notification-sound-picker";
+import { CleotildaToggle } from "./cleotilda-toggle";
 
 export default async function SettingsPage({
   params,
@@ -76,7 +77,8 @@ export default async function SettingsPage({
       </div>
 
       {/* Personal preferences - every member sees these. */}
-      <div className="mt-6">
+      <div className="mt-6 space-y-4">
+        <CleotildaToggle />
         <NotificationSoundPicker />
       </div>
     </div>

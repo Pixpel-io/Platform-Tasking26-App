@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CleotildaEmailDraft } from "@/lib/cleotilda-shared";
+import { useCleotildaEnabled } from "@/lib/cleotilda-visibility";
 import { askCleotilda, sendCleotildaEmail } from "./cleotilda-actions";
 
 type PanelMessage = { role: "user" | "assistant"; content: string };
@@ -37,6 +38,9 @@ function CleotildaLogo({ size, className = "" }: { size: number; className?: str
 // on screen (position persists per browser); a short press opens the chatbot
 // panel, which anchors itself to whichever corner the button lives in.
 export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
+  // Users can hide the floating launcher from Settings > General. The hook
+  // reads localStorage and re-renders live when the toggle flips.
+  const enabled = useCleotildaEnabled();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<PanelMessage[]>([]);
@@ -233,6 +237,7 @@ export function CleotildaPanel({ workspaceId }: { workspaceId: string }) {
   }
 
   if (!pos) return null;
+  if (!enabled) return null;
 
   return (
     <>
