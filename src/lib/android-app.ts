@@ -16,7 +16,7 @@
 //   6. Bump ANDROID_APK_META.version + releasedAt + whatsNew, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.8/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.9/tasking-app.apk';
 
 // Displayed size + release info on the download page. Keep updated when a
 // new build lands so users see a fresh "Released N days ago" and a
@@ -29,15 +29,18 @@ export const ANDROID_APK_URL =
 //   whatsNew:   Short bullet-list of user-visible changes in THIS release.
 //               Rendered as a collapsible "What's new" panel on /download.
 export const ANDROID_APK_META = {
-  version: '1.0.8',
-  releasedAt: '2026-08-01T06:00:00Z',
+  version: '1.0.9',
+  releasedAt: '2026-08-05T09:45:00Z',
   size: '~117 MB',
   minAndroid: 'Android 6.0+',
   whatsNew: [
-    'Notifications screen refreshed — proper rounded filter pills (the previous vertically-stretched look is gone), solid accent fill on the active tab, and an accent stripe on every unread row for a WhatsApp-fast unread scan',
-    'Header now shows an "N unread of M" subline and a compact "Read all" pill with a check-check icon',
-    'Notification rows: bigger avatars, hairline dividers between items, right-aligned time on the context line, bold title on unread',
-    'Theme flips now reach every last chip — color-tone maps for notification icons, dashboard activity, task priority, projects, and calendar were resolving at import time and would keep the pre-flip palette; converted to render-time lookups so a dark/light toggle updates the whole tree consistently',
+    'Launcher icon badge on Android — the app icon now shows an unread count without opening the app',
+    'Push notification taps dismiss the matching in-app rows and any lingering system-tray copies, so reading a room actually clears it everywhere',
+    'Room-opening now guarantees the earliest unread message is loaded, even in long chats — no more scrolling up to find a mention',
+    'Persistent upload outbox is idempotent by client-side UUID — a mid-flight crash won\'t double-post the same message and its attachments',
+    'Board realtime coalesces bursty task updates into a single reload so scrolling stays smooth under heavy activity',
+    'New in-app feature guide surfaces contextually to explain what changed after major upgrades',
+    'Small polish across attachments, messages, notifications, workspaces, edit-profile, thread view, calendar, and moderation edge function',
   ],
 } as const;
 
