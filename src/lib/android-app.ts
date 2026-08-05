@@ -16,7 +16,7 @@
 //   6. Bump ANDROID_APK_META.version + releasedAt + whatsNew, commit, push.
 
 export const ANDROID_APK_URL =
-  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.9/tasking-app.apk';
+  'https://github.com/Pixpel-io/Platform-Tasking26-App/releases/download/mobile-v1.0.10/tasking-app.apk';
 
 // Displayed size + release info on the download page. Keep updated when a
 // new build lands so users see a fresh "Released N days ago" and a
@@ -29,18 +29,14 @@ export const ANDROID_APK_URL =
 //   whatsNew:   Short bullet-list of user-visible changes in THIS release.
 //               Rendered as a collapsible "What's new" panel on /download.
 export const ANDROID_APK_META = {
-  version: '1.0.9',
-  releasedAt: '2026-08-05T09:45:00Z',
+  version: '1.0.10',
+  releasedAt: '2026-08-05T11:00:00Z',
   size: '~117 MB',
   minAndroid: 'Android 6.0+',
   whatsNew: [
-    'Launcher icon badge on Android — the app icon now shows an unread count without opening the app',
-    'Push notification taps dismiss the matching in-app rows and any lingering system-tray copies, so reading a room actually clears it everywhere',
-    'Room-opening now guarantees the earliest unread message is loaded, even in long chats — no more scrolling up to find a mention',
-    'Persistent upload outbox is idempotent by client-side UUID — a mid-flight crash won\'t double-post the same message and its attachments',
-    'Board realtime coalesces bursty task updates into a single reload so scrolling stays smooth under heavy activity',
-    'New in-app feature guide surfaces contextually to explain what changed after major upgrades',
-    'Small polish across attachments, messages, notifications, workspaces, edit-profile, thread view, calendar, and moderation edge function',
+    'Home screen refinements — polish on layout, spacing, and animations across the greeting, presence dot, and DM/channel list rows',
+    'Android status bar now respects the app theme cleanly — solid brand-dark background with light content and no more translucent-overlay flicker on room transitions',
+    'Rolled up with all v1.0.9 improvements: launcher badge, push-tap dismissal, earliest-unread guarantee, idempotent upload outbox, coalesced board realtime, and the in-app feature guide',
   ],
 } as const;
 
