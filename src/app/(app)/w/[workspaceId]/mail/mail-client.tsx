@@ -42,6 +42,7 @@ export function MailClient() {
   const [selected, setSelected] = useState<MailDetail | null>(null);
   const [compose, setCompose] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [mailboxOpen, setMailboxOpen] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -265,7 +266,17 @@ export function MailClient() {
               Alerts {account.notificationsEnabled ? "on" : "off"}
             </button>
           </div>
-          <label className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-medium text-muted"><span className="hidden sm:inline">Inbox</span><span className="hidden sm:inline">·</span><select aria-label="Active mailbox" value={account.id} onChange={(event) => activate(event.target.value)} className="min-w-0 max-w-48 truncate bg-transparent font-medium text-muted outline-none transition hover:text-foreground sm:max-w-72">{accounts.map((item) => <option key={item.id} value={item.id}>{item.displayName ? `${item.displayName} - ` : ""}{item.email}</option>)}</select></label>
+          <MailboxSwitcher
+            accounts={accounts}
+            active={account}
+            open={mailboxOpen}
+            onOpenChange={setMailboxOpen}
+            onSelect={activate}
+            onAdd={() => {
+              setMailboxOpen(false);
+              setAdding(true);
+            }}
+          />
         </div>
       </div>
     </header>
@@ -348,6 +359,151 @@ export function MailClient() {
     {confirmDisconnect && <ConfirmDialog title={`Disconnect ${account.email}?`} description="Tasking will remove this mailbox connection and its encrypted credentials. Your email account and messages will not be deleted from your provider." confirmLabel="Disconnect mailbox" onConfirm={() => { setConfirmDisconnect(false); void disconnect(); }} onCancel={() => setConfirmDisconnect(false)} />}
     {adding && <div className="fixed inset-0 z-50 overflow-y-auto bg-background"><AccountSetup onCancel={() => setAdding(false)} onConnected={(value) => { setAccounts([value, ...accounts.filter((item) => item.id !== value.id)]); setAdding(false); activate(value.id); }} /></div>}
   </div>;
+}
+
+function MailboxSwitcher({
+  accounts,
+  active,
+  open,
+  onOpenChange,
+  onSelect,
+  onAdd,
+}: {
+  accounts: Account[];
+  active: Account;
+  open: boolean;
+  onOpenChange: (value: boolean) => void;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  // Click-outside + Escape to close - a native <select> did this for free.
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(event: MouseEvent) {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(event.target as Node)) onOpenChange(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onOpenChange(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onOpenChange]);
+
+  const activeLabel = active.displayName?.trim() || active.email;
+  const singleAccount = accounts.length <= 1;
+  const activeInitial = (activeLabel || "M").trim().charAt(0).toUpperCase();
+
+  return (
+    <div ref={rootRef} className="relative mt-0.5 min-w-0">
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="group flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-0.5 -mx-1.5 text-left text-xs font-medium text-muted transition-colors hover:bg-surface-2/60 hover:text-foreground"
+      >
+        <span className="hidden shrink-0 sm:inline">Inbox</span>
+        <span aria-hidden className="hidden shrink-0 text-muted/50 sm:inline">·</span>
+        <span className="grid h-4 w-4 shrink-0 place-items-center rounded-sm bg-primary/12 text-[9px] font-bold text-primary">
+          {activeInitial}
+        </span>
+        <span className="min-w-0 max-w-48 truncate font-medium text-foreground sm:max-w-72">
+          {activeLabel}
+        </span>
+        {!singleAccount && (
+          <span className="ml-0.5 rounded-full bg-surface-2 px-1.5 py-0 text-[9px] font-bold text-muted">
+            {accounts.length}
+          </span>
+        )}
+        <Icon
+          d="M6 9l6 6 6-6"
+          className={`h-3 w-3 shrink-0 text-muted/70 transition-transform duration-150 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute left-0 top-full z-30 mt-1.5 w-[min(20rem,calc(100vw-2rem))] origin-top animate-scale-in overflow-hidden rounded-xl border border-border bg-surface shadow-xl shadow-black/40"
+        >
+          <p className="px-3 pb-1 pt-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted/70">
+            Mailboxes
+          </p>
+          <div className="max-h-72 overflow-y-auto p-1.5 pt-0">
+            {accounts.map((item) => {
+              const isActive = item.id === active.id;
+              const label = item.displayName?.trim() || item.email;
+              const initial = label.charAt(0).toUpperCase();
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    if (!isActive) onSelect(item.id);
+                    onOpenChange(false);
+                  }}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
+                    isActive
+                      ? "bg-primary/10 ring-1 ring-inset ring-primary/20"
+                      : "hover:bg-surface-2"
+                  }`}
+                >
+                  <span
+                    className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-bold ${
+                      isActive
+                        ? "bg-linear-to-br from-primary to-primary/70 text-primary-foreground shadow-sm shadow-primary/25"
+                        : "bg-surface-2 text-muted"
+                    }`}
+                  >
+                    {initial}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-foreground">
+                      {label}
+                    </span>
+                    <span className="block truncate text-[11px] text-muted">
+                      {item.email}
+                    </span>
+                  </span>
+                  {isActive && (
+                    <svg
+                      className="h-4 w-4 shrink-0 text-primary"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={onAdd}
+            className="flex w-full items-center gap-2.5 border-t border-border/70 px-3 py-2.5 text-left text-sm font-medium text-primary transition-colors hover:bg-primary/8"
+          >
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-dashed border-primary/40">
+              <Icon d="M12 5v14M5 12h14" className="h-3.5 w-3.5" />
+            </span>
+            Add another mailbox
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MailRailButton({
