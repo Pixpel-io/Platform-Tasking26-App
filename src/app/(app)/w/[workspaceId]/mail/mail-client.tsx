@@ -229,7 +229,7 @@ export function MailClient() {
   if (!account) return <AccountSetup initialError={error} onConnected={(value) => { setAccounts([value]); setActiveId(value.id); window.localStorage.setItem("tasking-active-mail-account", value.id); void loadMessages(value.id); }} />;
 
   return <div className="relative flex h-full min-h-0 flex-col bg-background">
-    <header className="flex h-24 min-h-24 shrink-0 items-center border-b border-border/60 bg-surface/75 px-4 py-3 backdrop-blur-xl sm:px-5 md:px-7 lg:pr-32">
+    <header className="relative z-30 flex h-24 min-h-24 shrink-0 items-center border-b border-border/60 bg-surface/75 px-4 py-3 backdrop-blur-xl sm:px-5 md:px-7 lg:pr-32">
       <div className="flex min-w-0 items-center gap-3.5">
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-linear-to-br from-primary via-primary to-primary/65 text-primary-foreground shadow-lg shadow-primary/20 ring-1 ring-white/10"><Icon d="M4 6h16v12H4zM4 7l8 6 8-6" className="h-5.5 w-5.5" /></span>
         <div className="min-w-0">
