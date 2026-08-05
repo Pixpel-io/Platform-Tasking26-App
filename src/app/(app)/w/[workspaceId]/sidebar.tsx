@@ -18,6 +18,7 @@ import { useDmUnreads } from "@/lib/use-dm-unreads";
 import { useWorkspaceUnreads } from "@/lib/use-workspace-unreads";
 import { useChannelUnreads } from "@/lib/use-channel-unreads";
 import { useProjectUnreads } from "@/lib/use-project-unreads";
+import { useMailUnreads } from "@/lib/use-mail-unreads";
 import { useProjectsLive } from "@/lib/use-projects-live";
 import { useWorkspacesLive } from "@/lib/use-workspaces-live";
 import { useChannelsLive } from "@/lib/use-channels-live";
@@ -72,6 +73,7 @@ export function Sidebar({
   channelUnreads,
   workspaceUnreads,
   projectUnreads,
+  mailUnreads,
 }: {
   workspaceId: string;
   workspaces: MembershipWithWorkspace[];
@@ -86,6 +88,7 @@ export function Sidebar({
   channelUnreads: Record<string, number>;
   workspaceUnreads: Record<string, number>;
   projectUnreads: Record<string, number>;
+  mailUnreads: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -103,6 +106,7 @@ export function Sidebar({
     userId,
     projectUnreads,
   );
+  const mailUnreadCount = useMailUnreads(userId, mailUnreads);
   useGroupMembership(userId);
   useHiddenContacts(userId);
   useDmRoster(userId);
@@ -389,6 +393,14 @@ export function Sidebar({
                   className="h-4 w-4 shrink-0 transition-transform duration-150 group-hover/nav:scale-110"
                 />
                 <span className="flex-1">{item.label}</span>
+                {item.label === "Mail" && mailUnreadCount > 0 ? (
+                  <span
+                    aria-label={`${mailUnreadCount} unread emails`}
+                    className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold leading-none text-primary-foreground shadow-sm shadow-primary/30"
+                  >
+                    {mailUnreadCount > 99 ? "99+" : mailUnreadCount}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

@@ -264,17 +264,22 @@ export async function syncMailNotifications(userId: string) {
       .maybeSingle();
     if (!claimed || fresh.length === 0) return;
 
-    const latest = fresh[0];
-    const sender = latest.from?.name || latest.from?.address || "New sender";
-    const title = fresh.length === 1 ? `New email from ${sender}` : `${fresh.length} new emails`;
-    const body = fresh.length === 1 ? latest.subject : `New mail in ${account.email}`;
-    const { error } = await service.from("mail_notifications").insert({
-      user_id: userId,
-      account_id: account.id,
-      uid: latest.uid,
-      title,
-      body,
-    });
+    // Persist one row per unread email. A bundled row ("3 new emails") makes
+    // a numeric badge impossible to decrement correctly one message at a time.
+    const unreadFresh = fresh.filter((message) => message.unread);
+    if (unreadFresh.length === 0) return;
+    const { error } = await service.from("mail_notifications").insert(
+      unreadFresh.map((message) => {
+        const sender = message.from?.name || message.from?.address || "New sender";
+        return {
+          user_id: userId,
+          account_id: account.id,
+          uid: message.uid,
+          title: `New email from ${sender}`,
+          body: message.subject,
+        };
+      }),
+    );
     if (error) throw error;
   }));
   if (accounts.length > 0 && results.every((result) => result.status === "rejected")) {
@@ -356,6 +361,18 @@ export async function readMail(userId: string, accountId: string, uid: number, f
     if (!row || !row.source) throw new Error("Email not found.");
     await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
     const parsed = await simpleParser(row.source);
+    // Keep the database-backed navbar badge aligned with the authoritative
+    // IMAP read state. Service role is scoped by both owner and mailbox UID.
+    if (folder === "INBOX") {
+      const { error: readStateError } = await createServiceClient()
+        .from("mail_notifications")
+        .update({ read_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("account_id", accountId)
+        .eq("uid", uid)
+        .is("read_at", null);
+      if (readStateError) console.error("[mail] could not sync read state", readStateError.message);
+    }
     return {
       uid,
       subject: parsed.subject || "(No subject)",

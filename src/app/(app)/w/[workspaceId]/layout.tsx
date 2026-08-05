@@ -14,6 +14,7 @@ import {
   getUnreadCountsByProject,
   getUnreadCountsByWorkspace,
   getUnreadNotificationCount,
+  getUnreadMailCount,
 } from "@/lib/notifications";
 import { PresenceProvider } from "@/components/presence-provider";
 import { ProfileCardProvider } from "@/components/profile-card";
@@ -60,6 +61,7 @@ export default async function WorkspaceLayout({
     dmUnreads,
     channelUnreads,
     projectUnreads,
+    mailUnreads,
   ] = await Promise.all([
     getMyWorkspaces(),
     getProfile(),
@@ -73,6 +75,7 @@ export default async function WorkspaceLayout({
     getDmUnreadCounts(workspaceId),
     getChannelUnreadCounts(workspaceId),
     getUnreadCountsByProject(workspaceId),
+    getUnreadMailCount(),
   ]);
 
   const workspaceName =
@@ -127,6 +130,7 @@ export default async function WorkspaceLayout({
               channelUnreads={channelUnreads}
               workspaceUnreads={workspaceUnreads}
               projectUnreads={projectUnreads}
+              mailUnreads={mailUnreads}
             />
           }
         >

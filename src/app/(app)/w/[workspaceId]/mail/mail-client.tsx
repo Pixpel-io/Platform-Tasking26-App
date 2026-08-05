@@ -172,6 +172,7 @@ export function MailClient() {
     const request = api<{ message: MailDetail }>(`/api/mail/messages/${uid}?accountId=${encodeURIComponent(accountId)}`)
       .then(({ message }) => {
         detailCache.set(cacheKey, { message, at: Date.now() });
+        window.dispatchEvent(new Event("tasking:mail-read-state-changed"));
         return message;
       })
       .finally(() => detailRequests.delete(cacheKey));
