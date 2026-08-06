@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, requireUser } from "@/lib/auth";
 import {
@@ -45,7 +45,10 @@ export default async function ChannelPage({
     getChannelReads(channelId),
   ]);
 
-  if (!channel) notFound();
+  // Same guard as the DM route - a notification whose channel was
+  // deleted / no longer accessible sends the user back to their inbox
+  // instead of a hard 404.
+  if (!channel) redirect(`/w/${workspaceId}/notifications?gone=channel`);
 
   // Only the group creator or a workspace admin may add/remove members.
   const canManageMembers = isAdmin || channel.created_by === user.id;

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -145,8 +146,35 @@ export function NotificationsList({
     });
   }
 
+  // When a notification points at a DM / group that's since been deleted,
+  // the server-side page redirects here with ?gone=... instead of 404ing.
+  // Show a small banner so the user understands why they landed on the
+  // inbox instead of the message.
+  const searchParams = useSearchParams();
+  const gone = searchParams.get("gone");
+
   return (
     <>
+      {gone && (
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-400/25 bg-amber-500/10 p-3 text-sm text-amber-500">
+          <svg
+            viewBox="0 0 24 24"
+            className="mt-0.5 h-4 w-4 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 9v4M12 17h.01M10.3 3.7L2.5 17.2A2 2 0 0 0 4.2 20h15.6a2 2 0 0 0 1.7-2.8L13.7 3.7a2 2 0 0 0-3.4 0z" />
+          </svg>
+          <span className="text-foreground/90">
+            That{" "}
+            {gone === "channel" ? "group message" : "direct message"} is no
+            longer available - the message or conversation was deleted.
+          </span>
+        </div>
+      )}
       <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-foreground">

@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getProfile, requireUser } from "@/lib/auth";
 import {
   dmCounterpart,
@@ -24,7 +24,10 @@ export default async function DMPage({
     getLastReadAt({ conversationId }),
   ]);
 
-  if (!conversation) notFound();
+  // A notification could point at a DM whose only message was later deleted
+  // (or the conversation itself was cleaned up). Bounce back to the
+  // notifications inbox rather than crashing into a 404 page.
+  if (!conversation) redirect(`/w/${workspaceId}/notifications?gone=dm`);
 
   const other = dmCounterpart(conversation, user.id);
   const self = isSelfDm(conversation, user.id);

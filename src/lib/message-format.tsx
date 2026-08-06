@@ -155,6 +155,12 @@ const QUOTE_RE = /^\s*>\s?(.*)$/;
 function renderBlocks(text: string, key: string): ReactNode[] {
   const lines = text.split("\n");
   const out: ReactNode[] = [];
+  // Ordinal counter that survives paragraphs. A message that reads
+  // "1. one \n para \n 1. two \n para \n 1. three" gets rendered as
+  // 1 / 2 / 3 rather than three lists all restarting at 1 - the writer
+  // typed the same "1." because they were dictating headings, not
+  // resetting the count.
+  let orderedCounter = 1;
   let i = 0;
 
   while (i < lines.length) {
@@ -199,8 +205,14 @@ function renderBlocks(text: string, key: string): ReactNode[] {
         items.push(lines[i].match(ORDERED_RE)![1]);
         i++;
       }
+      const startAt = orderedCounter;
+      orderedCounter += items.length;
       out.push(
-        <ol key={`${key}-ol-${i}`} className="my-1 list-decimal pl-5">
+        <ol
+          key={`${key}-ol-${i}`}
+          start={startAt}
+          className="my-1 list-decimal pl-5"
+        >
           {items.map((it, j) => (
             <li key={j}>{renderInline(it, `${key}-ol-${i}-${j}`)}</li>
           ))}
