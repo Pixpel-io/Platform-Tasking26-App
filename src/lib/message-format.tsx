@@ -22,14 +22,20 @@ const LINK_TOKEN_RE = /(<[^>\s]+\|[^>]+>|https?:\/\/[^\s<]+)/;
 
 // Inline marks, tried in priority order. `code` does not recurse into its
 // inner text; the others do, so *_bold italic_* nests correctly.
+//
+// The lookarounds on bold / italic / strike require the marker to sit at a
+// word boundary - i.e. an alphanumeric character on one side kills the
+// match. Without this, identifiers like `S3_MAX_UPLOAD_MB` or `foo*bar*baz`
+// would get chunks italicised / bolded mid-word, which is what Slack, Discord
+// and every other mrkdwn parser explicitly avoid.
 const INLINE_MARKS: {
   name: "code" | "bold" | "italic" | "strike";
   re: RegExp;
 }[] = [
   { name: "code", re: /`([^`\n]+)`/ },
-  { name: "bold", re: /\*([^*\n]+)\*/ },
-  { name: "italic", re: /_([^_\n]+)_/ },
-  { name: "strike", re: /~([^~\n]+)~/ },
+  { name: "bold", re: /(?<![A-Za-z0-9])\*([^*\n]+?)\*(?![A-Za-z0-9])/ },
+  { name: "italic", re: /(?<![A-Za-z0-9_])_([^_\n]+?)_(?![A-Za-z0-9_])/ },
+  { name: "strike", re: /(?<![A-Za-z0-9])~([^~\n]+?)~(?![A-Za-z0-9])/ },
 ];
 
 function renderLinksAndMentions(text: string, key: string): ReactNode[] {
