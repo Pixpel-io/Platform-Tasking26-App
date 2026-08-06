@@ -23,7 +23,9 @@ import {
   addChecklist,
   addChecklistItem,
   addComment,
+  addTaskAttachments,
   deleteChecklistItem,
+  deleteTaskAttachment,
   logTime,
   setTaskCompleted,
   toggleAssignee,
@@ -180,6 +182,149 @@ export function TaskPanel({
 }
 
 type Tab = "updates" | "details";
+
+// Task-level attachments: files pinned to the task itself (not any specific
+// comment). Users can drop / pick files here and the section renders the
+// current set with a small trash button per row.
+function TaskAttachmentsSection({
+  task,
+  workspaceId,
+  meId,
+  act,
+}: {
+  task: TaskDetail;
+  workspaceId: string;
+  meId: string;
+  act: (fn: () => Promise<unknown>) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const attachments = task.task_attachments ?? [];
+
+  async function onFiles(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const files = Array.from(list);
+      const results = await Promise.all(
+        files.map(async (file) => {
+          const id = crypto.randomUUID();
+          const storagePath = await uploadOne(
+            workspaceId,
+            meId,
+            file,
+            id,
+            () => {},
+          );
+          if (!storagePath) return null;
+          return {
+            storagePath,
+            fileName: file.name,
+            mimeType: file.type || null,
+            sizeBytes: file.size || null,
+          };
+        }),
+      );
+      const uploaded = results.filter(
+        (row): row is NonNullable<typeof row> => row !== null,
+      );
+      if (uploaded.length === 0) {
+        setError("Upload failed. Try again.");
+        return;
+      }
+      act(() => addTaskAttachments(task.id, uploaded));
+      if (uploaded.length < files.length) {
+        setError(
+          `${files.length - uploaded.length} of ${files.length} files failed to upload.`,
+        );
+      }
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+          Attachments
+        </p>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="cursor-pointer text-xs text-primary hover:underline disabled:cursor-wait disabled:opacity-50"
+        >
+          {uploading ? "Uploading…" : "+ Add file"}
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(event) => void onFiles(event.target.files)}
+        />
+      </div>
+      {error && (
+        <p className="mb-2 text-xs text-danger">{error}</p>
+      )}
+      {attachments.length === 0 ? (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-surface/40 px-3 py-4 text-xs text-muted transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground disabled:cursor-wait disabled:opacity-50"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
+          Drop images, videos, or files here — or click to browse
+        </button>
+      ) : (
+        <div className="space-y-2">
+          {attachments.map((attachment) => (
+            <div key={attachment.id} className="group relative">
+              <AttachmentView
+                attachment={{
+                  ...attachment,
+                  thumb_path: null,
+                  kind: attachment.mime_type?.startsWith("image/")
+                    ? "image"
+                    : attachment.mime_type?.startsWith("video/")
+                      ? "video"
+                      : attachment.mime_type?.startsWith("audio/")
+                        ? "voice"
+                        : "file",
+                  width: null,
+                  height: null,
+                  duration_ms: null,
+                }}
+              />
+              {attachment.uploaded_by === meId && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    act(() => deleteTaskAttachment(attachment.id))
+                  }
+                  aria-label="Remove attachment"
+                  title="Remove attachment"
+                  className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full border border-border bg-surface text-muted opacity-0 shadow-sm transition-opacity hover:bg-danger/10 hover:text-danger group-hover:opacity-100 focus-visible:opacity-100"
+                >
+                  <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TaskBody({
   task,
@@ -355,7 +500,7 @@ function TaskBody({
           act={act}
         />
       ) : (
-        <DetailsTab task={task} members={members} act={act} />
+        <DetailsTab task={task} members={members} workspaceId={workspaceId} meId={meId} act={act} />
       )}
     </>
   );
@@ -712,10 +857,14 @@ function formatWhen(iso: string): string {
 function DetailsTab({
   task,
   members,
+  workspaceId,
+  meId,
   act,
 }: {
   task: TaskDetail;
   members: Profile[];
+  workspaceId: string;
+  meId: string;
   act: (fn: () => Promise<unknown>) => void;
 }) {
   const [description, setDescription] = useState(task.description ?? "");
@@ -822,34 +971,13 @@ function DetailsTab({
           />
         </div>
 
-        {task.task_attachments?.length > 0 && (
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-              Attachments
-            </p>
-            <div className="space-y-2">
-              {task.task_attachments.map((attachment) => (
-                <AttachmentView
-                  key={attachment.id}
-                  attachment={{
-                    ...attachment,
-                    thumb_path: null,
-                    kind: attachment.mime_type?.startsWith("image/")
-                      ? "image"
-                      : attachment.mime_type?.startsWith("video/")
-                        ? "video"
-                        : attachment.mime_type?.startsWith("audio/")
-                          ? "voice"
-                          : "file",
-                    width: null,
-                    height: null,
-                    duration_ms: null,
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        <TaskAttachmentsSection
+          task={task}
+          workspaceId={workspaceId}
+          meId={meId}
+          act={act}
+        />
+
 
         {/* Checklists */}
         <div>

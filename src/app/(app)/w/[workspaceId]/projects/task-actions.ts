@@ -284,6 +284,71 @@ export async function toggleTaskLabel(
   return {};
 }
 
+// -- Task-level attachments --------------------------------------------------
+// Same shape as PendingCommentAttachment minus the video/image-specific extras
+// task_attachments doesn't persist (thumb, dimensions, duration, kind).
+export type PendingTaskAttachment = {
+  storagePath: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+};
+
+// Attach one or more already-uploaded files to a task's own attachment set
+// (distinct from task_comment_attachments, which live under a comment).
+export async function addTaskAttachments(
+  taskId: string,
+  attachments: PendingTaskAttachment[],
+): Promise<Result> {
+  const user = await requireUser();
+  if (!attachments.length) return {};
+  const supabase = await createClient();
+  const { data: taskRow } = await supabase
+    .from("tasks")
+    .select("projects(workspace_id)")
+    .eq("id", taskId)
+    .single();
+  const workspaceId = (taskRow as { projects: { workspace_id: string } | null } | null)
+    ?.projects?.workspace_id;
+  if (
+    !workspaceId ||
+    attachments.some(
+      (attachment) =>
+        isS3Path(attachment.storagePath) &&
+        (!OWNED_S3_PATH_RE.test(attachment.storagePath) ||
+          !attachment.storagePath.startsWith(
+            `${S3_PATH_PREFIX}uploads/${workspaceId}/${user.id}/`,
+          )),
+    )
+  ) {
+    return { error: "One or more attachments are not owned by this workspace." };
+  }
+  const { error } = await supabase.from("task_attachments").insert(
+    attachments.map((a) => ({
+      task_id: taskId,
+      storage_path: a.storagePath,
+      file_name: a.fileName,
+      mime_type: a.mimeType,
+      size_bytes: a.sizeBytes,
+      uploaded_by: user.id,
+    })),
+  );
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function deleteTaskAttachment(attachmentId: string): Promise<Result> {
+  await requireUser();
+  const supabase = await createClient();
+  // RLS: uploader OR project/workspace admin can delete.
+  const { error } = await supabase
+    .from("task_attachments")
+    .delete()
+    .eq("id", attachmentId);
+  if (error) return { error: error.message };
+  return {};
+}
+
 // -- Comments ----------------------------------------------------------------
 
 export async function addComment(
